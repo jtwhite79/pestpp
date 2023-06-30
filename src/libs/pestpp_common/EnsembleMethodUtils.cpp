@@ -4431,9 +4431,9 @@ void ParChangeSummarizer::write_to_csv(string& filename)
 	f << "group,mean_change,std_change,num_at_near_lbound,percent_at_near_lbound,num_at_near_ubound,percent_at_near_ubound,initial_cv,current_cv" << endl;
 	for (auto grp_name : base_pe_ptr->get_pest_scenario_ptr()->get_ctl_ordered_par_group_names())
 	{
-		f << pest_utils::lower_cp(grp_name) << "," << mean_change[grp_name]*100.0 << "," << std_change[grp_name]*100.0 << ",";
-		f << num_at_lbound[grp_name] << "," << percent_at_lbound[grp_name];
-        f << num_at_ubound[grp_name] << "," << percent_at_ubound[grp_name];
+		f << pest_utils::lower_cp(grp_name) << "," << mean_change[grp_name]*100.0 << "," << std_change[grp_name]*100.0;
+		f << "," << num_at_lbound[grp_name] << "," << percent_at_lbound[grp_name];
+        f << "," << num_at_ubound[grp_name] << "," << percent_at_ubound[grp_name];
 		f <<","<< init_cv[grp_name] << "," << curr_cv[grp_name] <<  endl;
 	}
 	f.close();
