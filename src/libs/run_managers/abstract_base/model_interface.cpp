@@ -1557,7 +1557,10 @@ pair<string, double> InstructionFile::execute_fixed(const string& token, string&
 	}
 	if ((info.first != "DUM") && (idx != temp.size()))
 	{
-		throw_ins_error("error converting '" + temp + "' to double on output line '" + last_out_line + "' for fixed instruciton: '" + token + "', left-over chars: '" + temp.substr(idx, temp.size()) + "'", ins_line_num, out_line_num);
+        string leftover = temp.substr(idx, temp.size());
+        pest_utils::strip_ip(leftover);
+        if (leftover.size() > 0)
+		    throw_ins_error("error converting '" + temp + "' to double on output line '" + last_out_line + "' for fixed instruciton: '" + token + "', left-over chars: '" + leftover + "'", ins_line_num, out_line_num);
 	}
 	int pos = line.find(temp);
 	if (pos == string::npos)
