@@ -4119,6 +4119,12 @@ EnsembleMethod::EnsembleMethod(Pest& _pest_scenario, FileManager& _file_manager,
 	rand_gen = std::mt19937(pest_scenario.get_pestpp_options().get_random_seed());
 
 	subset_rand_gen = std::mt19937(pest_scenario.get_pestpp_options().get_random_seed());
+    std::uniform_int_distribution<int> uni(0, 100);
+    for (int i=0;i<100;i++)
+    {
+        cout << uni(subset_rand_gen) << endl;
+    }
+    exit(0);
 	pe.set_pest_scenario(&pest_scenario);
 	oe.set_pest_scenario_ptr(&pest_scenario);
 	pe.set_rand_gen(&rand_gen);
