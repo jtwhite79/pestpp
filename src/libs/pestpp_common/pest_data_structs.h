@@ -556,6 +556,8 @@ public:
     vector<string> get_ies_aal_indicator_pars() const {return ies_aal_indicator_pars;}
     void set_ies_run_realname(string name) {ies_run_realname = name;}
     string get_ies_run_realname() const {return ies_run_realname;}
+    void set_ies_save_run_catalogue(bool _flag) {ies_save_run_catalogue = _flag;}
+    bool get_ies_save_run_catalogue() const {return ies_save_run_catalogue;}
 
     string get_gsa_method() const { return gsa_method; }
 	void set_gsa_method(string _m) { gsa_method = _m; }
@@ -843,7 +845,7 @@ private:
     bool ies_updatebyreals;
     vector<string> ies_aal_indicator_pars;
     string ies_run_realname;
-
+    bool ies_save_run_catalogue;
 
 
 	// Data Assimilation parameters

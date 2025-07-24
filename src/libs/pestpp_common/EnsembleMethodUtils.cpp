@@ -5843,6 +5843,7 @@ void EnsembleMethod::initialize(int cycle, bool run, bool use_existing)
         save_real_par_rei(pest_scenario, pe, oe, output_file_writer, file_manager, -1, BASE_REAL_NAME, cycle, base_weights);
 
 
+
     }
 
 
@@ -5932,6 +5933,26 @@ void EnsembleMethod::initialize(int cycle, bool run, bool use_existing)
     if (act_obs_names.size() > 0) {
         message(1, "current lambda:", last_best_lam);
     }
+    save_catalogue = pest_scenario.get_pestpp_options().get_ies_save_run_catalogue();
+    if (save_catalogue)
+    {
+        vector<string> names = pe.get_var_names();
+        ofstream& f1 = file_manager.open_ofile_ext("par.cata.bin");
+        pest_utils::prep_save_dense_binary(f1,names);
+
+        names = oe.get_var_names();
+        ofstream& f2 = file_manager.open_ofile_ext("obs.cata.bin");
+        pest_utils::prep_save_dense_binary(f2,names);
+
+        names = pe.get_real_names();
+        Eigen::MatrixXd temp = *pe.get_eigen_ptr();
+        pest_utils::save_dense_binary(f1,names,temp);
+
+        names = oe.get_real_names();
+        temp = *oe.get_eigen_ptr();
+        pest_utils::save_dense_binary(f2,names,temp);
+    }
+
     message(0, "initialization complete");
 }
 

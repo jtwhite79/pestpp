@@ -336,7 +336,6 @@ protected:
 	mutex next_lock;
 
 
-
 };
 
 class LocalAnalysisUpgradeThread: public UpgradeThread
@@ -448,6 +447,7 @@ protected:
     bool reinflate_to_minphi_real;
     ObservationInfo org_obs_info;
     string dense_file_ext = ".bin";
+    bool save_catalogue;
 
 
 	bool solve_glm(int cycle = NetPackage::NULL_DA_CYCLE);

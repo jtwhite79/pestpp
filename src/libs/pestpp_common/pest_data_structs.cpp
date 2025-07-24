@@ -1226,10 +1226,13 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
     {
         ies_run_realname = value;
         return true;
-
     }
 
-
+    else if (key == "IES_SAVE_RUN_CATALOGUE")
+    {
+        ies_save_run_catalogue = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
 
     return false;
 }
@@ -1896,6 +1899,7 @@ void PestppOptions::summary(ostream& os) const
         os << v << ",";
     os << endl;
     os << "ies_run_realname: " << ies_run_realname;
+    os << "ies_save_run_catalogue: " << ies_save_run_catalogue;
 
     os << endl << "pestpp-sen options: " << endl;
 	os << "gsa_method: " << gsa_method << endl;
@@ -2085,6 +2089,7 @@ void PestppOptions::set_defaults()
     set_ies_updatebyreals(false);
     set_save_dense(false);
     set_ies_aal_indicator_pars(vector<string>());
+    set_ies_save_run_catalogue(true);
 
 	// DA parameters
 	//set_da_use_ies(false);
