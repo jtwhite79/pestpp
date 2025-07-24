@@ -32,7 +32,6 @@
 using namespace std;
 using namespace pest_utils;
 
-
 int main(int argc, char* argv[])
 {
 #ifndef _DEBUG
@@ -54,7 +53,6 @@ int main(int argc, char* argv[])
             cerr << "'pest.stp' found, please remove this file " << endl;
             return 1;
         }
-
 
         FileManager file_manager;
         string pathname = ".";

@@ -1501,7 +1501,7 @@ void save_binary_extfmt(const string &filename, const vector<string> &row_names,
 	jout.close();
 }
 
-void save_dense_binary(ofstream& out,const string& row_name,Eigen::VectorXd& data)
+void save_dense_binary(ofstream& out,const string& row_name,const Eigen::VectorXd& data)
 {
     if (!out.good())
     {
@@ -1528,7 +1528,7 @@ void save_dense_binary(ofstream& out,const string& row_name,Eigen::VectorXd& dat
 }
 
 
-void save_dense_binary(ofstream& out,const vector<string>& row_names,Eigen::MatrixXd& data)
+void save_dense_binary(ofstream& out,const vector<string>& row_names,const Eigen::MatrixXd& data)
 {
     if (!out.good())
     {

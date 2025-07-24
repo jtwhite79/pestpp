@@ -978,7 +978,7 @@ void Ensemble::to_csv_by_reals(ofstream &csv, bool write_header)
 
 }
 
-const vector<string> Ensemble::get_real_names(vector<int> &indices)
+const vector<string>& Ensemble::get_real_names(vector<int> &indices)
 {
 	//returns a subset of real_names by int index
 	vector<string> names;

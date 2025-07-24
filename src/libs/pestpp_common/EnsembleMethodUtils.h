@@ -501,5 +501,7 @@ protected:
 
     void reset_par_ensemble_to_prior_mean(double reinflate_factor);
 
+    void save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemble& _oe, vector<int> subset_idxs=vector<int>());
+
 };
 #endif

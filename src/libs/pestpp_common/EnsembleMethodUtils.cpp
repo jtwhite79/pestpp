@@ -4425,7 +4425,8 @@ bool EnsembleMethod::should_terminate(int current_n_iter_mean)
 }
 
 
-vector<ObservationEnsemble> EnsembleMethod::run_lambda_ensembles(vector<ParameterEnsemble>& pe_lams, vector<double>& lam_vals, 
+vector<ObservationEnsemble> EnsembleMethod::
+run_lambda_ensembles(vector<ParameterEnsemble>& pe_lams, vector<double>& lam_vals,
 	vector<double>& scale_vals, int cycle, vector<int>& pe_subset_idxs, vector<int>& oe_subset_idxs)
 {
 	ofstream& frec = file_manager.rec_ofstream();
@@ -4544,8 +4545,7 @@ vector<ObservationEnsemble> EnsembleMethod::run_lambda_ensembles(vector<Paramete
 				failed_real_indices.push_back(real_run_ids.size() - 1);
 			}
 		}
-				
-			
+
 
 		if (failed_real_indices.size() > 0)
 		{
@@ -4582,6 +4582,7 @@ vector<ObservationEnsemble> EnsembleMethod::run_lambda_ensembles(vector<Paramete
 		}
 		obs_lams.push_back(_oe);
 	}
+
 	return obs_lams;
 }
 
@@ -5937,20 +5938,14 @@ void EnsembleMethod::initialize(int cycle, bool run, bool use_existing)
     if (save_catalogue)
     {
         vector<string> names = pe.get_var_names();
-        ofstream& f1 = file_manager.open_ofile_ext("par.cata.bin");
+        ofstream& f1 = file_manager.open_ofile_ext("par.cat.bin");
         pest_utils::prep_save_dense_binary(f1,names);
 
         names = oe.get_var_names();
-        ofstream& f2 = file_manager.open_ofile_ext("obs.cata.bin");
+        ofstream& f2 = file_manager.open_ofile_ext("obs.cat.bin");
         pest_utils::prep_save_dense_binary(f2,names);
 
-        names = pe.get_real_names();
-        Eigen::MatrixXd temp = *pe.get_eigen_ptr();
-        pest_utils::save_dense_binary(f1,names,temp);
-
-        names = oe.get_real_names();
-        temp = *oe.get_eigen_ptr();
-        pest_utils::save_dense_binary(f2,names,temp);
+        save_to_catalogue(pe,oe);
     }
 
     message(0, "initialization complete");
@@ -7186,6 +7181,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 	else
  		oe_lams = run_lambda_ensembles(pe_lams, lam_vals, scale_vals, cycle, subset_idxs,subset_idxs);
 
+
 	message(0, "evaluating upgrade ensembles");
 	message(1, "last mean: ", last_best_mean);
 	message(1, "last stdev: ", last_best_std);
@@ -7240,6 +7236,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 			frec << "lambda, scale value " << lam_vals[i] << ',' << scale_vals[i] << " obs ensemble saved to " << ss.str() << endl;
 
 		}
+        save_to_catalogue(pe_lams[i],oe_lams[i],subset_idxs);
         drop_bad_reals(pe_lams[i], oe_lams[i], subset_idxs);
 		if (oe_lams[i].shape().first == 0)
 		{
@@ -7470,6 +7467,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 		//append the remaining obs en
 		oe_lam_best.append_other_rows(remaining_oe_lam);
 		assert(pe_lams[best_idx].shape().first == oe_lam_best.shape().first);
+        save_to_catalogue(remaining_pe_lam,remaining_oe_lam);
         drop_bad_reals(pe_lams[best_idx], oe_lam_best);
 		if (oe_lam_best.shape().first == 0)
 		{
@@ -7605,6 +7603,39 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 	return true;
 }
 
+void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemble& _oe, vector<int> subset_idxs)
+{
+    if (!save_catalogue){
+        return;
+    }
+    if (subset_idxs.size() > 0)
+    {
+        vector<string> rnames,all_rnames;
+        all_rnames = _pe.get_real_names();
+        for (auto idx :subset_idxs)
+        {
+            rnames.push_back(all_rnames[idx]);
+        }
+        Eigen::MatrixXd t = _pe.get_eigen(rnames,vector<string>());
+        pest_utils::save_dense_binary(file_manager.get_ofstream("par.cat.bin"),rnames,t);
+        rnames.clear();
+        all_rnames = _oe.get_real_names();
+        for (auto& idx : subset_idxs)
+        {
+            rnames.push_back(all_rnames[idx]);
+        }
+        t = _oe.get_eigen(rnames,vector<string>());
+        pest_utils::save_dense_binary(file_manager.get_ofstream("obs.cat.bin"),rnames,t);
+    }
+    else
+    {
+        pest_utils::save_dense_binary(file_manager.get_ofstream("par.cat.bin"),_pe.get_real_names(),_pe.get_eigen_const_ref());
+        pest_utils::save_dense_binary(file_manager.get_ofstream("obs.cat.bin"),_oe.get_real_names(),_oe.get_eigen_const_ref());
+    }
+
+}
+
+
 void EnsembleMethod::reset_par_ensemble_to_prior_mean(double reinflate_factor){
 
     string min_phi_name = "";
@@ -7672,7 +7703,9 @@ void EnsembleMethod::reset_par_ensemble_to_prior_mean(double reinflate_factor){
         pest_scenario.get_observation_info_ptr()->get_observation_rec_ptr_4_mod(oname)->weight = org_obs_info.get_weight(oname);
     }
     run_ensemble_util(performance_log,frec,new_pe,oe,run_mgr_ptr,false,temp,NetPackage::NULL_DA_CYCLE, ss.str());
+
     pe = new_pe;
+    save_to_catalogue(pe,oe);
     new_pe = ParameterEnsemble();
     report_and_save(NetPackage::NULL_DA_CYCLE);
     ph.update(oe,pe,weights);

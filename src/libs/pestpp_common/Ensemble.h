@@ -35,10 +35,10 @@ public:
 	pair<int, int> shape() { return pair<int, int>(reals.rows(), reals.cols()); }
 	void throw_ensemble_error(string message);
 	void throw_ensemble_error(string message,vector<string> vec);
-	const vector<string> get_var_names() const { return var_names; }
-	const vector<string> get_real_names() const { return real_names; }
+	const vector<string>& get_var_names() const { return var_names; }
+	const vector<string>& get_real_names() const { return real_names; }
 
-	const vector<string> get_real_names(vector<int> &indices);
+	const vector<string>& get_real_names(vector<int> &indices);
 
 	void extend_cols(Eigen::MatrixXd &_reals, const vector<string> &_var_names);
 	void add_2_cols_ip(Ensemble &other);
@@ -60,9 +60,10 @@ public:
 	Eigen::VectorXd get_var_vector(const string& var_name);
 	void update_real_ip(const string &rname, Eigen::VectorXd &real);
 	Eigen::MatrixXd get_eigen(vector<string> row_names, vector<string> col_names, bool update_vmap=true);
-	const Eigen::MatrixXd get_eigen() const { return reals; }
+	Eigen::MatrixXd get_eigen() const { return reals; }
 	const Eigen::MatrixXd* get_eigen_ptr() const { return &reals; }
 	Eigen::MatrixXd* get_eigen_ptr_4_mod() { return &reals; }
+    const Eigen::MatrixXd& get_eigen_const_ref() const {return reals;}
     map<string,double> get_real_map(string real_name,bool forgive=false);
 
 	void set_eigen(Eigen::MatrixXd _reals);
