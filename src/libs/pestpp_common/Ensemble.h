@@ -38,7 +38,7 @@ public:
 	const vector<string>& get_var_names() const { return var_names; }
 	const vector<string>& get_real_names() const { return real_names; }
 
-	const vector<string>& get_real_names(vector<int> &indices);
+	vector<string> get_real_names(vector<int> &indices);
 
 	void extend_cols(Eigen::MatrixXd &_reals, const vector<string> &_var_names);
 	void add_2_cols_ip(Ensemble &other);
