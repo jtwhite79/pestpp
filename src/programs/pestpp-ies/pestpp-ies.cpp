@@ -34,6 +34,8 @@ using namespace pest_utils;
 
 int main(int argc, char* argv[])
 {
+
+#define _DEBUG
 #ifndef _DEBUG
 	try {
 #endif

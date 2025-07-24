@@ -7610,9 +7610,27 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
     }
     if (subset_idxs.size() > 0)
     {
+        vector<int> use_subset_idxs;
+        if (_oe.shape().first < subset_idxs.size())
+        {
+            set<string> ssub_names;
+            for (auto real_name: _oe.get_real_names())
+                ssub_names.emplace(real_name);
+            vector<string> oreal_names = _oe.get_real_names();
+            vector<string> preal_names = _pe.get_real_names();
+
+            for (auto idx: subset_idxs)
+                if (ssub_names.find(oreal_names[idx]) != ssub_names.end())
+                    use_subset_idxs.push_back(idx);
+
+        }
+        else
+        {
+            use_subset_idxs = subset_idxs;
+        }
         vector<string> rnames,all_rnames;
         all_rnames = _pe.get_real_names();
-        for (auto idx :subset_idxs)
+        for (auto idx :use_subset_idxs)
         {
             rnames.push_back(all_rnames[idx]);
         }
@@ -7620,7 +7638,7 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
         pest_utils::save_dense_binary(file_manager.get_ofstream("par.cat.bin"),rnames,t);
         rnames.clear();
         all_rnames = _oe.get_real_names();
-        for (auto& idx : subset_idxs)
+        for (auto& idx : use_subset_idxs)
         {
             rnames.push_back(all_rnames[idx]);
         }
