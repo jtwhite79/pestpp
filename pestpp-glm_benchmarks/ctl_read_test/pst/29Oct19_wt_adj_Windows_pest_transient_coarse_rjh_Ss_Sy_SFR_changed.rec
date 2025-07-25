@@ -1,0 +1,144 @@
+             pestpp-ies.exe - a GLM iterative Ensemble Smoother
+for PEST(++) datasets 
+
+                 by the PEST++ developement team
+
+
+
+
+
+version: 4.2.16
+binary compiled on Oct 31 2019 at 18:13:27
+
+using control file: ".\29Oct19_wt_adj_Windows_pest_transient_coarse_rjh_Ss_Sy_SFR_changed.pst"
+in directory: "C:\Dev\pestpp\pestpp-glm_benchmarks\ctl_read_test\pst"
+
+Note: 3 unused lines in pest control file:
+  -->  line number 6: '2.000000E+01  -3.000000E+00   3.000000E-01   1.000000E-02        -7       999          lamforgive        noderforgive' 
+  -->  line number 10: '0         0         0         0             jcosave          verboserec          jcosaveitn          reisaveitn          parsaveitn        noparsaverun' 
+  -->  line number 12: '1' 
+Model command line(s):- 
+    forward_run_rjh.bat
+
+Model interface files:-
+    template files:
+      meras_transient.upw.tpl
+      hk0.dat_zn.tpl
+      vka0.dat_zn.tpl
+      hk1.dat_zn.tpl
+      vka1.dat_zn.tpl
+      hk2.dat_zn.tpl
+      vka2.dat_zn.tpl
+      hk3.dat_zn.tpl
+      vka3.dat_zn.tpl
+      hk4.dat_zn.tpl
+      vka4.dat_zn.tpl
+      hk5.dat_zn.tpl
+      vka5.dat_zn.tpl
+      hk6.dat_zn.tpl
+      vka6.dat_zn.tpl
+      hk7.dat_zn.tpl
+      vka7.dat_zn.tpl
+      hk8.dat_zn.tpl
+      vka8.dat_zn.tpl
+      hk9.dat_zn.tpl
+      vka9.dat_zn.tpl
+      hk10.dat_zn.tpl
+      vka10.dat_zn.tpl
+      hk11.dat_zn.tpl
+      vka11.dat_zn.tpl
+      hk12.dat_zn.tpl
+      vka12.dat_zn.tpl
+      rech0.dat_cn.tpl
+      rech1.dat_cn.tpl
+      rech2.dat_cn.tpl
+      rech3.dat_cn.tpl
+      rech4.dat_cn.tpl
+      rech5.dat_cn.tpl
+      rech6.dat_cn.tpl
+      rech7.dat_cn.tpl
+      rech8.dat_cn.tpl
+      rech9.dat_cn.tpl
+      rech10.dat_cn.tpl
+      rech11.dat_cn.tpl
+      rech12.dat_cn.tpl
+      rech13.dat_cn.tpl
+      rech14.dat_cn.tpl
+      temporal_list_pars.dat.tpl
+      hk1pp.dat.tpl
+      hk7pp.dat.tpl
+      MERAS_NWT_SFR_par2par.tpl
+      vka1pp.dat.tpl
+      vka7pp.dat.tpl
+      hfb6.mlt.tpl
+    model input files:
+      meras_transient_rjh.upw
+      arr_mlt\hk0.dat_zn
+      arr_mlt\vka0.dat_zn
+      arr_mlt\hk1.dat_zn
+      arr_mlt\vka1.dat_zn
+      arr_mlt\hk2.dat_zn
+      arr_mlt\vka2.dat_zn
+      arr_mlt\hk3.dat_zn
+      arr_mlt\vka3.dat_zn
+      arr_mlt\hk4.dat_zn
+      arr_mlt\vka4.dat_zn
+      arr_mlt\hk5.dat_zn
+      arr_mlt\vka5.dat_zn
+      arr_mlt\hk6.dat_zn
+      arr_mlt\vka6.dat_zn
+      arr_mlt\hk7.dat_zn
+      arr_mlt\vka7.dat_zn
+      arr_mlt\hk8.dat_zn
+      arr_mlt\vka8.dat_zn
+      arr_mlt\hk9.dat_zn
+      arr_mlt\vka9.dat_zn
+      arr_mlt\hk10.dat_zn
+      arr_mlt\vka10.dat_zn
+      arr_mlt\hk11.dat_zn
+      arr_mlt\vka11.dat_zn
+      arr_mlt\hk12.dat_zn
+      arr_mlt\vka12.dat_zn
+      arr_mlt\rech0.dat_cn
+      arr_mlt\rech1.dat_cn
+      arr_mlt\rech2.dat_cn
+      arr_mlt\rech3.dat_cn
+      arr_mlt\rech4.dat_cn
+      arr_mlt\rech5.dat_cn
+      arr_mlt\rech6.dat_cn
+      arr_mlt\rech7.dat_cn
+      arr_mlt\rech8.dat_cn
+      arr_mlt\rech9.dat_cn
+      arr_mlt\rech10.dat_cn
+      arr_mlt\rech11.dat_cn
+      arr_mlt\rech12.dat_cn
+      arr_mlt\rech13.dat_cn
+      arr_mlt\rech14.dat_cn
+      temporal_list_pars.dat
+      hk1pp.dat
+      hk7pp.dat
+      MERAS_NWT_SFR_par2par.dat
+      vka1pp.dat
+      vka7pp.dat
+      hfb6.mlt
+
+    instruction files:
+      fluxes_diffs_transient.smp.ins
+      fluxes_transient.smp.ins
+      heads_trans.smp.ins
+      head_diffs_trans.smp.ins
+      MF_list_file.ins
+      sustained_Q.ins
+      head_MAE.ins
+      flux_MAE.ins
+    model output files:
+      fluxes_diffs_transient.smp
+      fluxes_transient.smp
+      heads_trans.smp
+      head_diffs_trans.smp
+      meras_transient.list
+      meras_transient-Sep2019-3-spin-calib.sus
+      HEAD_CALIB_meras_transient-Sep2019-3-spin-calib-STAT.out
+      FLUX_CALIB-meras_transient-Sep2019-3-spin-calib-STAT.out
+
+

@@ -1,0 +1,1 @@
+iteration,model_runs_completed,total_phi,measurement_phi,regularization_phi,flux_cha,fluxdiff_cha,fluxdiff_far,fluxdiffnear,flux_far,flux_near,headdiff_cha,headdiff_far,headdiff_hyd,headdiffnear,heads_cha,heads_far,heads_hyd,heads_near,stats,sustained_q,head_mae,hdif_mae,flux_mae

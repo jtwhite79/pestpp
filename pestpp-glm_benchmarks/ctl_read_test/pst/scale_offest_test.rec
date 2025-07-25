@@ -1,0 +1,585 @@
+             pestpp-glm 4.2.16
+
+    by The PEST++ Development Team
+
+
+
+version: 4.2.16
+binary compiled on Nov  1 2019 at 11:30:44
+
+using control file: "scale_offest_test.pst"
+
+in directory: "C:\Dev\pestpp\pestpp-glm_benchmarks\ctl_read_test\pst"
+
+Note: 6 unused lines in pest control file:
+  -->  line number 6: '20.000       -3.0000      0.3  0.03  10     999  lamforgive' 
+  -->  line number 10: '1  1  1  1 nojcosaveitn reisaveitn' 
+  -->  line number 12: '1' 
+  -->  line number 16: 'beopest_svd_rjh3.pst' 
+  -->  line number 17: 'beopest_svd_rjh3.jco' 
+  -->  line number 18: '1    2    0    1    0' 
+noptmax = 0, resetting max_run_fail = 1
+parameter warning: PAR2 'factor' parchglim not compatible with bounds that cross zero
+
+
+binary compiled on Nov  1 2019 at 11:30:12
+
+
+pestmode:- 
+   estimation
+
+Case dimensions:- 
+    Number of parameters = 4
+    Number of adjustable parameters = 4
+    Number of observations = 374
+    Number of prior estimates = 0
+
+PEST Control Information
+    relparmax = 0.1
+    facparmax = 10
+    facorig = 0.001
+    phiredswh = 0.1
+    noptmax = 0
+    phiredstp = 0.005
+    nphistp = 4
+    nphinored = 4
+    relparstp = 0.005
+    nrelpar = 4
+
+
+    PEST++ OPTIONS: 
+
+...general options (used in multiple tools): 
+svd_pack: redsvd
+lambda_scale_fac: 0.75,1,1.1,
+max_run_fail: 1
+yamr_poll_interval: 1
+parameter_covariance: 
+observation_covariance: 
+hotstart_resfile: 
+overdue_resched_fac: 100overdue_giveup_minutes: 1e+30
+condor_submit_file: 
+tie_by_group: 0
+par_sigma_range: 4
+enforce_tied_bounds: 0
+debug_parse_only: 0
+
+...pestpp-glm specific options:
+max_n_super: 1000000
+super_eigthresh: 1e-06
+n_iter_base: 1000000
+n_iter_super: 0
+super_relparmax: 0.1
+max_super_frz_iter: 5
+max_reg_iter: 20
+lambdas: 0.1,1,10,100,1000,
+iteration_summary: 1
+der_forgive: 1
+uncertainty: 1
+forecasts: 
+base_jacobian: 
+glm_num_reals: 0
+jac_scale: 1
+de_f: 0.8
+de_cr: 0.9
+de_pop_size: 40
+de_max_gen: 100
+de_dither_f: 1
+
+...pestpp-swp options:
+sweep_parameter_csv_file: 
+sweep_output_csv_file: sweep_out.csv
+sweep_chunk: 500
+sweep_forgive: 0
+sweep_base_run: 0
+
+...pestpp-opt options:
+opt_objective_function: 
+opt_coin_log: 1
+opt_skip_final: 0
+opt_std_weights0
+opt_decision_variable_groups: 
+opt_external_variable_groups: 
+opt_constraint_groups: 
+opt_risk: 0.5
+opt_iter_derinc_fac: 1
+opt_direction: 1
+opt_iter_tol: 0.001
+opt_recalc_fosm_every: 1
+opt_include_bnd_pi: 1
+
+...pestpp-ies options:
+ies_parameter_ensemble: 
+ies_observation_ensemble: 
+ies_restart_parameter_ensemble: 
+ies_restart_observation_ensemble: 
+ies_use_approximate_solution: 1
+ies_lambda_mults: 0.1,1,10,
+ies_initial_lambda: -999
+ies_use_approx: 1
+ies_subset_size: 4
+ies_reg_factor: 0
+ies_verbose_level: 0
+ies_use_prior_scaling: 0
+ies_num_reals: 50
+ies_bad_phi: 1e+300
+ies_bad_phi_sigma: 1e+300
+ies_include_base: 1
+ies_use_empirical_prior: 0
+ies_group_draws: 1
+ies_enforce_bounds: 1
+ies_save_binary: 0
+ies_localizer: 
+ies_accept_phi_fac: 1.05
+ies_lambda_inc_fac: 10
+ies_lambda_dec_fac: 0.75
+ies_save_lambda_ensembles: 0
+ies_weights_ensemble: 
+ies_subset_how: RANDOM
+ies_localize_how: PARAMETERS
+ies_num_threads: -1
+ies_debug_fail_subset: 0
+ies_debug_fail_remainder: 0
+ies_debug_bad_phi: 0
+ies_debug_upgrade_only: 0
+ies_debug_high_subset_phi: 0
+ies_debug_high_upgrade_phi: 0
+ies_csv_by_reals: 1
+ies_autoadaloc: 0
+ies_autoadaloc_sigma_dist: 1
+ies_enforce_chglim: 0
+ies_center_on: 
+
+pestpp-sen options: 
+gsa_method: MORRIS
+gsa_morris_pooled_obs: 0
+gsa_morris_obs_sen: 1
+gsa_morris_p: 4
+gsa_morris_r: 4
+gsa_morris_delta: 0.6666
+gsa_sobol_samples: 4
+gsa_sobol_par_dist: norm
+Model command line(s):- 
+    svdabatch.bat
+
+Model interface files:-
+    template files:
+      parcalc.tpl
+    model input files:
+      parcalc.in
+
+    instruction files:
+      conc1.ins
+    model output files:
+      comp2exp.OUT
+
+
+Parameter group information
+NAME            INCREMENT TYPE     DERIVATIVE INCREMENT    INCREMENT LOWER BOUND  FORCE CENTRAL     INCREMENT MULTIPLIER
+pargp                 ABSOLUTE                    0.015                        0         SWITCH                        2
+
+
+
+Parameter information
+NAME           TRANSFORMATION        CHANGE LIMIT  INITIAL VALUE    LOWER BOUND    UPPER BOUND          GROUP          SCALE         OFFSET  DERIVATIVE COMMAND
+par1           log                     FACTOR             10              1           1000          pargp             -1              0                   1
+par2           none                    FACTOR              1            -10             10          pargp              2             10                   1
+par3           log                     FACTOR             11           10.5           11.5          pargp              2            -10                   1
+par4           log                     FACTOR             11           10.5           11.5          pargp            100              0                   1
+
+
+
+Observation information
+NAME                                    VALUE               GROUP              WEIGHT
+c1                                          0          water_conc                  80
+c2                                      0.001          water_conc                  80
+c3                                      0.001          water_conc                  80
+c4                                      0.001          water_conc                  80
+c5                                      0.001          water_conc                  80
+c6                                      0.001          water_conc                  80
+c7                                      0.001          water_conc                  80
+c8                                      0.001          water_conc                  80
+c9                                      0.002          water_conc                  80
+c10                                     0.003          water_conc                  40
+c11                                     0.002          water_conc                  80
+c12                                     0.003          water_conc                  80
+c13                                     0.003          water_conc                  80
+c14                                     0.002          water_conc                  80
+c15                                         0          water_conc                  80
+c16                                     0.001          water_conc                  80
+c17                                     0.001          water_conc                  80
+c18                                     0.001          water_conc                  80
+c19                                         0          water_conc                  80
+c20                                         0          water_conc                  80
+c21                                         0          water_conc                  80
+c22                                         0          water_conc                  80
+c23                                         0          water_conc                  80
+c24                                         0          water_conc                  80
+c25                                         0          water_conc                  80
+c26                                         0          water_conc                  80
+c27                                         0          water_conc                  80
+c28                                         0          water_conc                  80
+c29                                    0.0005          water_conc                  80
+c30                                    0.0009          water_conc                 260
+c31                                    0.0008          water_conc                 260
+c32                                    0.0053          water_conc                  80
+c33                                    0.0013          water_conc                  80
+c34                                    0.0026          water_conc                  80
+c35                                     0.004          water_conc                  80
+c36                                       -99          water_conc                   0
+c37                                    0.0014          water_conc                  80
+c38                                       -99          water_conc                   0
+c39                                       -99          water_conc                   0
+c40                                         0          water_conc                  80
+c41                                    0.0005          water_conc                  80
+c42                                    0.0005          water_conc                  80
+c43                                    0.0003          water_conc                  80
+c44                                    0.0006          water_conc                  80
+c45                                    0.0006          water_conc                  80
+c46                                         0          water_conc                  80
+c47                                    0.0009          water_conc                  80
+c48                                    0.0005          water_conc                  80
+c49                                    0.0006          water_conc                  80
+c50                                       -99          water_conc                   0
+c51                                    0.0007          water_conc                  80
+c52                                    0.0005          water_conc                  80
+c53                                         0          water_conc                  80
+c54                                    0.0004          water_conc                  80
+c55                                    0.0006          water_conc                  80
+c56                                    0.0006          water_conc                  80
+c57                                       -99          water_conc                   0
+c58                                       -99          water_conc                   0
+c59                                    0.0003          water_conc                  80
+c60                                         0          water_conc                  80
+c61                                    0.0004          water_conc                  80
+c62                                         0          water_conc                  80
+c63                                    0.0007          water_conc                  80
+c64                                    0.0009          water_conc                  80
+c65                                    0.0006          water_conc                  80
+c66                                    0.0005          water_conc                  80
+c67                                    0.0006          water_conc                  80
+c68                                    0.0018          water_conc                  80
+c69                                     0.001          water_conc                  80
+c70                                    0.0012          water_conc                  80
+c71                                         0          water_conc                  80
+c72                                    0.0009          water_conc                  80
+c73                                    0.0005          water_conc                  80
+c74                                       -99          water_conc                   0
+c75                                    0.0005          water_conc                  80
+c76                                    0.0013          water_conc                  80
+c77                                    0.0005          water_conc                  80
+c78                                    0.0006          water_conc                  80
+c79                                    0.0005          water_conc                  80
+c80                                    0.0007          water_conc                  80
+c81                                    0.0006          water_conc                  80
+c82                                    0.0004          water_conc                  80
+c83                                    0.0004          water_conc                  80
+c84                                    0.0004          water_conc                  80
+c85                                         0          water_conc                  80
+c86                                       -99          water_conc                   0
+c87                                    0.0004          water_conc                  80
+c88                                    0.0003          water_conc                  80
+c89                                         0          water_conc                  80
+c90                                         0          water_conc                  80
+c91                                         0          water_conc                  80
+c92                                    0.0003          water_conc                  80
+c93                                    0.0003          water_conc                  80
+c94                                    0.0003          water_conc                  80
+c95                                    0.0006          water_conc                  80
+c96                                    0.0006          water_conc                  80
+c97                                    0.0003          water_conc                  80
+c98                                    0.0004          water_conc                  80
+c99                                    0.0006          water_conc                  80
+c100                                   0.0011          water_conc                  80
+c101                                        0          water_conc                  80
+c102                                      -99          water_conc                   0
+c103                                        0          water_conc                  80
+t1                                          0           tile_flow                 0.8
+t2                                      0.039           tile_flow                 0.8
+t3                                       0.03           tile_flow                 0.8
+t4                                      0.013           tile_flow                 0.8
+t5                                      0.063           tile_flow                 0.8
+t6                                      0.096           tile_flow                 0.8
+t7                                      0.031           tile_flow                 0.8
+t8                                      0.014           tile_flow                 0.8
+t9                                      0.033           tile_flow                 0.8
+t10                                     0.226           tile_flow                 0.8
+t11                                     0.424           tile_flow                 0.8
+t12                                      0.06           tile_flow                 0.8
+t13                                      0.01           tile_flow                 0.8
+t14                                     0.069           tile_flow                 0.8
+t15                                     0.256           tile_flow                 0.8
+t16                                     0.094           tile_flow                 0.8
+t17                                     0.029           tile_flow                 0.8
+t18                                     0.009           tile_flow                 0.8
+t19                                     0.011           tile_flow                 0.8
+t20                                     0.038           tile_flow                 0.8
+t21                                     0.033           tile_flow                 0.8
+t22                                      0.02           tile_flow                 0.8
+t23                                     0.016           tile_flow                 0.8
+t24                                     0.006           tile_flow                 0.8
+t25                                     0.004           tile_flow                 0.8
+t26                                     0.001           tile_flow                 0.8
+t27                                         0           tile_flow                 0.8
+t28                                         0           tile_flow                 0.8
+t29                                     0.009           tile_flow                 0.8
+t30                                     0.246           tile_flow                 0.8
+t31                                     0.236           tile_flow                 0.8
+t32                                     0.218           tile_flow                 0.8
+t33                                     0.194           tile_flow                 0.8
+t34                                     0.164           tile_flow                 0.8
+t35                                     0.247           tile_flow                 0.8
+t36                                      0.09           tile_flow                 0.8
+t37                                     0.029           tile_flow                 0.8
+t38                                     0.003           tile_flow                 0.8
+t39                                     0.016           tile_flow                 0.8
+t40                                     0.128           tile_flow                 0.8
+t41                                       0.1           tile_flow                 0.8
+t42                                     0.063           tile_flow                 0.8
+t43                                     0.043           tile_flow                 0.8
+t44                                     0.047           tile_flow                 0.8
+t45                                     0.031           tile_flow                 0.8
+t46                                     0.017           tile_flow                 0.8
+t47                                      0.02           tile_flow                 0.8
+t48                                     0.021           tile_flow                 0.8
+t49                                     0.004           tile_flow                 0.8
+t50                                         0           tile_flow                 0.8
+t51                                     0.051           tile_flow                 0.8
+t52                                     0.041           tile_flow                 0.8
+t53                                     0.049           tile_flow                 0.8
+t54                                     0.037           tile_flow                 0.8
+t55                                     0.046           tile_flow                 0.8
+t56                                     0.006           tile_flow                 0.8
+t57                                         0           tile_flow                 0.8
+t58                                     0.035           tile_flow                 0.8
+t59                                     0.352           tile_flow                 0.8
+t60                                     0.224           tile_flow                 0.8
+t61                                     0.104           tile_flow                 0.8
+t62                                     0.059           tile_flow                 0.8
+t63                                     0.077           tile_flow                 0.8
+t64                                     0.339           tile_flow                 0.8
+t65                                     0.177           tile_flow                 0.8
+t66                                      0.23           tile_flow                 0.8
+t67                                     0.191           tile_flow                 0.8
+t68                                     0.261           tile_flow                 0.8
+t69                                     0.627           tile_flow                 0.8
+t70                                     0.737           tile_flow                 0.8
+t71                                     0.246           tile_flow                 0.8
+t72                                     0.082           tile_flow                 0.8
+t73                                     0.009           tile_flow                 0.8
+t74                                         0           tile_flow                 0.8
+t75                                     0.002           tile_flow                 0.8
+t76                                     0.003           tile_flow                 0.8
+t77                                     0.023           tile_flow                 0.8
+t78                                     0.227           tile_flow                 0.8
+t79                                      0.18           tile_flow                 0.8
+t80                                     0.046           tile_flow                 0.8
+t81                                     0.087           tile_flow                 0.8
+t82                                     0.216           tile_flow                 0.8
+t83                                     0.101           tile_flow                 0.8
+t84                                     0.009           tile_flow                 0.8
+t85                                     0.014           tile_flow                 0.8
+t86                                     0.006           tile_flow                 0.8
+t87                                     0.061           tile_flow                 0.8
+t88                                     0.108           tile_flow                 0.8
+t89                                     0.029           tile_flow                 0.8
+t90                                     0.017           tile_flow                 0.8
+t91                                     0.044           tile_flow                 0.8
+t92                                     0.133           tile_flow                 0.8
+t93                                      0.09           tile_flow                 0.8
+t94                                     0.039           tile_flow                 0.8
+t95                                     0.414           tile_flow                 0.8
+t96                                      0.33           tile_flow                 0.8
+t97                                     0.157           tile_flow                 0.8
+t98                                     0.025           tile_flow                 0.8
+t99                                     0.003           tile_flow                 0.8
+t100                                    0.001           tile_flow                 0.8
+t101                                        0           tile_flow                 0.8
+t102                                        0           tile_flow                 0.8
+t103                                    0.011           tile_flow                 0.8
+sc1                                     1.568           soil_conc                   1
+sc2                                     0.179           soil_conc                   1
+sc3                                     0.189           soil_conc                   1
+sc4                                     0.025           soil_conc                   1
+sc5                                     0.007           soil_conc                   1
+sc6                                         0           soil_conc                   1
+sc7                                     0.012           soil_conc                   1
+sc8                                     0.009           soil_conc                   1
+sc9                                         0           soil_conc                   1
+sc12                                        0           soil_conc                   1
+sc13                                     0.14           soil_conc                   1
+sc14                                    0.021           soil_conc                   1
+sc15                                    0.022           soil_conc                   1
+sc16                                     0.03           soil_conc                   1
+sc17                                        0           soil_conc                   1
+sc18                                        0           soil_conc                   1
+sc19                                        0           soil_conc                   1
+sc20                                        0           soil_conc                   1
+sc23                                     0.39           soil_conc                   1
+sc24                                    0.139           soil_conc                   1
+sc25                                     0.08           soil_conc                   1
+sc26                                    0.028           soil_conc                   1
+sc27                                    0.011           soil_conc                   1
+sc28                                    0.003           soil_conc                   1
+sc29                                    0.001           soil_conc                   1
+sc30                                    0.001           soil_conc                   1
+sc31                                    0.001           soil_conc                   1
+sc34                                     0.18           soil_conc                   1
+sc35                                    0.061           soil_conc                   1
+sc36                                    0.046           soil_conc                   1
+sc37                                    0.011           soil_conc                   1
+sc38                                    0.012           soil_conc                   1
+sc39                                        0           soil_conc                   1
+sc42                                    0.098           soil_conc                   1
+sc43                                    0.079           soil_conc                   1
+sc44                                    0.044           soil_conc                   1
+sc45                                    0.024           soil_conc                   1
+sc46                                    0.008           soil_conc                   1
+sc47                                        0           soil_conc                   1
+sc50                                    0.056           soil_conc                   1
+sc51                                    0.075           soil_conc                   1
+sc52                                    0.037           soil_conc                   1
+sc53                                    0.008           soil_conc                   1
+sc54                                        0           soil_conc                   1
+sc55                                        0           soil_conc                   1
+sc56                                        0           soil_conc                   1
+sc59                                    0.976           soil_conc                   1
+sc60                                    0.056           soil_conc                   1
+sc61                                    0.013           soil_conc                   1
+sc62                                    0.008           soil_conc                   1
+sc63                                        0           soil_conc                   1
+sc64                                        0           soil_conc                   1
+sc65                                        0           soil_conc                   1
+sc68                                    0.121           soil_conc                   1
+sc69                                    0.052           soil_conc                   1
+sc70                                     0.02           soil_conc                   1
+sc71                                    0.006           soil_conc                   1
+sc72                                        0           soil_conc                   1
+sc73                                        0           soil_conc                   1
+sc74                                        0           soil_conc                   1
+sc77                                    0.104           soil_conc                   1
+sc78                                    0.056           soil_conc                   1
+sc79                                    0.013           soil_conc                   1
+sc80                                        0           soil_conc                   1
+sc81                                        0           soil_conc                   1
+sc82                                        0           soil_conc                   1
+sc83                                        0           soil_conc                   1
+sc86                                    0.156           soil_conc                   1
+sc87                                    0.115           soil_conc                   1
+sc88                                    0.078           soil_conc                   1
+sc89                                    0.062           soil_conc                   1
+sc90                                    0.014           soil_conc                   1
+sc91                                        0           soil_conc                   1
+sc92                                        0           soil_conc                   1
+sc95                                    0.427           soil_conc                   1
+sc96                                    0.062           soil_conc                   1
+sc97                                     0.03           soil_conc                   1
+sc100                                    0.19           soil_conc                   1
+sc101                                    0.04           soil_conc                   1
+sc102                                   0.013           soil_conc                   1
+sc103                                       0           soil_conc                   1
+sc104                                    0.01           soil_conc                   1
+sc105                                       0           soil_conc                   1
+sc106                                       0           soil_conc                   1
+sc109                                   0.108           soil_conc                   1
+sc110                                   0.071           soil_conc                   1
+sc111                                       0           soil_conc                   1
+sc112                                       0           soil_conc                   1
+sc113                                       0           soil_conc                   1
+sc114                                       0           soil_conc                   1
+sc115                                       0           soil_conc                   1
+sc118                                   0.056           soil_conc                   1
+sc119                                   0.032           soil_conc                   1
+sc120                                   0.019           soil_conc                   1
+sc121                                       0           soil_conc                   1
+sc122                                       0           soil_conc                   1
+sc123                                       0           soil_conc                   1
+sc124                                       0           soil_conc                   1
+sc127                                     -99           soil_conc                   0
+sc128                                     -99           soil_conc                   0
+sc129                                     -99           soil_conc                   0
+sc130                                     -99           soil_conc                   0
+sc131                                     -99           soil_conc                   0
+sc132                                     -99           soil_conc                   0
+sc133                                     -99           soil_conc                   0
+sc136                                   0.048           soil_conc                   1
+sc139                                   0.192           soil_conc                   1
+sc140                                   0.039           soil_conc                   1
+sc141                                   0.019           soil_conc                   1
+sc142                                     -99           soil_conc                   0
+sc143                                     -99           soil_conc                   0
+sc144                                     -99           soil_conc                   0
+sc147                                   0.143           soil_conc                   1
+sc148                                   0.052           soil_conc                   1
+sc149                                   0.021           soil_conc                   1
+sc150                                     -99           soil_conc                   0
+sc151                                     -99           soil_conc                   0
+sc152                                     -99           soil_conc                   0
+sc155                                   0.058           soil_conc                   1
+sc156                                   0.037           soil_conc                   1
+sc157                                   0.021           soil_conc                   1
+sc158                                     -99           soil_conc                   0
+sc159                                     -99           soil_conc                   0
+sc160                                     -99           soil_conc                   0
+sc163                                     -99           soil_conc                   0
+sc164                                     -99           soil_conc                   0
+sc165                                     -99           soil_conc                   0
+sc166                                     -99           soil_conc                   0
+sc167                                     -99           soil_conc                   0
+sc168                                     -99           soil_conc                   0
+sc171                                   0.168           soil_conc                   1
+sc172                                   0.022           soil_conc                   1
+sc173                                   0.006           soil_conc                   1
+sc176                                   0.157           soil_conc                   1
+sc177                                    0.05           soil_conc                   1
+sc178                                   0.013           soil_conc                   1
+sc179                                   0.005           soil_conc                   1
+sc180                                     -99           soil_conc                   0
+sc181                                     -99           soil_conc                   0
+sc184                                   0.056           soil_conc                   1
+sc185                                   0.042           soil_conc                   1
+sc186                                   0.021           soil_conc                   1
+sc187                                     -99           soil_conc                   0
+sc188                                     -99           soil_conc                   0
+sc189                                     -99           soil_conc                   0
+spc1                                   3.0036           prof_conc                 0.5
+spc2                                  0.35519           prof_conc                 0.5
+spc3                                  1.00768           prof_conc                 0.5
+spc4                                  0.47208           prof_conc                 0.5
+spc5                                  0.39629           prof_conc                 0.5
+spc6                                  0.26394           prof_conc                 0.5
+spc7                                  1.53415           prof_conc                 0.5
+spc8                                  0.29464           prof_conc                 0.5
+spc9                                  0.25163           prof_conc                 0.5
+spc10                                 0.68413           prof_conc                 0.5
+spc11                                 0.75435           prof_conc                 0.5
+spc12                                 0.37668           prof_conc                 0.5
+spc13                                 0.25955           prof_conc                 0.5
+spc14                                 0.15629           prof_conc                 0.5
+spc15                                       0           prof_conc                 0.5
+spc16                                  0.1044           prof_conc                 0.5
+spc17                                 0.36364           prof_conc                 0.5
+spc18                                 0.31446           prof_conc                 0.5
+spc19                                 0.16946           prof_conc                 0.5
+spc20                                       0           prof_conc                 0.5
+spc21                                 0.28456           prof_conc                 0.5
+spc22                                 0.34288           prof_conc                 0.5
+spc23                                 0.17381           prof_conc                 0.5
+
+
+
+Prior information
+
+   no prior information provided
+
+
+
+PEST SVD Information
+    maxsing = 25
+    eigthresh = 5e-07
+
+
+PEST++ arguments:
+
+
+

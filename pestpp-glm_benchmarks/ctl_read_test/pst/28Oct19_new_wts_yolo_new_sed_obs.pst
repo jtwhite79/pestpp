@@ -1,0 +1,1527 @@
+pcf
+* control data
+restart  estimation
+208   1160    8     0     110
+1    7    single    point    1    0    0
+20    -3.0    0.30    0.03    -7  0 lamforgive derforgive win_mrun_hours=1.0 run_slow_fac=2.5 run_abandon_fac=4.0
+2.0 2.0   0.001
+0.1   
+15   .005  4   4  .005   4
+ 1    1    1  JCOSAVEITN REISAVEITN PARSAVEITN RRFSAVE
+* singular value decomposition
+1
+207  5.0E-7
+0
+* parameter groups
+particle     relative    0.01     0.000      switch      2.000      parabolic
+hydrodynam   relative    0.01     0.000      switch      2.000      parabolic
+bed_seds     relative    0.01     0.000      switch      2.000      parabolic
+geochem	     relative    0.01     0.000      switch      2.000      parabolic
+methint	     relative    0.01     0.000      switch      2.000      parabolic
+vs_flow      relative    0.001    0.000      switch      2.000      parabolic
+macrophyte   relative    0.01     0.000      switch      2.000      parabolic
+sediment     relative    0.01     0.000      switch      2.000      parabolic
+* parameter data
+m_vsettle0      log        factor     1.0000000E+00            0.2               2         particle       1  0  1            
+m_vsettle1      log        factor     1.8000000E+00           0.36             7.2         particle       1  0  1    		
+m_vsettle2      log        factor     1.0000000E+00            0.2               3         particle       1  0  1    		
+m_vsettle3      log        factor     3.0000000E+00            0.6              15         particle       1  0  1    		
+m_vresusp0_1    log        factor     1.0000000E+00            0.3               3         particle       1  0  1    		
+m_vresusp0_2    log        factor     1.0000000E-02          0.003             0.5         particle       1  0  1    		
+m_vresusp1_1    log        factor     1.0000000E+00            0.3               3         particle       1  0  1    		
+m_vresusp1_2    log        factor     1.0000000E-02          0.003             0.5         particle       1  0  1    		
+m_vresusp2_1    log        factor     1.0000000E+00            0.3               3         hydrodynam     1  0  1    		
+m_vresusp2_2    log        factor     1.0000000E-02          0.003             0.5         hydrodynam     1  0  1    		
+m_vresusp3_1    log        factor     1.4000000E+01            4.2              42         hydrodynam     1  0  1    		
+m_vresusp3_2    log        factor     1.5000000E+01            4.5              45         hydrodynam     1  0  1    		
+m_vresusp3_3    log        factor     1.4000000E-01          0.042               7         hydrodynam     1  0  1    		
+m_vresusp3_4    log        factor     1.3000000E+01            3.9              39         hydrodynam     1  0  1    		
+m_inflowss1     log        factor     1.0000000E+00           0.98            1.02         hydrodynam     1  0  1    		
+m_inflowss4     log        factor     1.0000000E+00           0.98            1.02         hydrodynam     1  0  1    		
+m_inflowss7     log        factor     1.0000000E+00           0.98            1.02         hydrodynam     1  0  1    		
+m_inflowss9     log        factor     1.0000000E+00           0.98            1.02         hydrodynam     1  0  1    		
+m_inflss11      log        factor     1.0000000E+00           0.98            1.02         hydrodynam     1  0  1    		
+m_inflowss15    log        factor     1.0000000E+00           0.98            1.02         hydrodynam     1  0  1    		
+m_inflowss43    log        factor     1.0000000E+00           0.98            1.02         hydrodynam     1  0  1    		
+m_inflowss45    log        factor     1.0000000E+00           0.98            1.02         hydrodynam     1  0  1    		
+s_porosity1     log        factor     8.9400000E-01         0.7599         0.92976         bed_seds       1  0  1    		
+s_porosity2     log        factor     8.9400000E-01         0.7599         0.92976         bed_seds       1  0  1    		
+m_mfrac0fal1    log        factor     3.5000000E-02         0.0175            0.07         geochem        1  0  1    		
+m_mfrac0fal2    log        factor     3.5000000E-02         0.0175            0.07         geochem        1  0  1    		
+m_mfrac1fal1    log        factor     3.5000000E-02         0.0175            0.07         geochem        1  0  1    		
+m_mfrac1fal2    log        factor     3.5000000E-02         0.0175            0.07         geochem        1  0  1    		
+m_mfrac2fal1    log        factor     8.1100000E-01         0.4055           1.622         geochem        1  0  1    		
+m_mfrac2fal2    log        factor     8.1100000E-01         0.4055           1.622         geochem        1  0  1    		
+m_mfrac3fal1    log        factor     1.1900000E-01         0.0595           0.238         geochem        1  0  1    		
+m_mfrac3fal2    log        factor     1.1900000E-01         0.0595           0.238         geochem        1  0  1    		
+m_mfrac0mix1    log        factor     3.0000000E-02          0.015            0.06         geochem        1  0  1    		
+m_mfrac0mix2    log        factor     3.0000000E-02          0.015            0.06         geochem        1  0  1    		
+m_mfrac1mix1    log        factor     3.0000000E-02          0.015            0.06         geochem        1  0  1    		
+m_mfrac1mix2    log        factor     3.0000000E-02          0.015            0.06         geochem        1  0  1    		
+m_mfrac2mix1    log        factor     7.2400000E-01          0.362           1.448         geochem        1  0  1    		
+m_mfrac2mix2    log        factor     7.2400000E-01          0.362           1.448         geochem        1  0  1    		
+m_mfrac3mix1    log        factor     2.1600000E-01          0.108           0.432         geochem        1  0  1    		
+m_mfrac3mix2    log        factor     2.1600000E-01          0.108           0.432         geochem        1  0  1    		
+m_mfrac0pas1    log        factor     5.5000000E-02         0.0275            0.11         geochem        1  0  1    		
+m_mfrac0pas2    log        factor     5.5000000E-02         0.0275            0.11         geochem        1  0  1    		
+m_mfrac1pas1    log        factor     2.5000000E-01          0.125             0.5         geochem        1  0  1    		
+m_mfrac1pas2    log        factor     2.5000000E-01          0.125             0.5         geochem        1  0  1    		
+m_mfrac2pas1    log        factor     3.7000000E-01          0.185            0.74         geochem        1  0  1    		
+m_mfrac2pas2    log        factor     3.7000000E-01          0.185            0.74         geochem        1  0  1    		
+m_mfrac3pas1    log        factor     3.2500000E-01         0.1625            0.65         geochem        1  0  1    		
+m_mfrac3pas2    log        factor     3.2500000E-01         0.1625            0.65         geochem        1  0  1    		
+m_mfrac0tid1    log        factor     5.0000000E-02          0.025             0.1         geochem        1  0  1    		
+m_mfrac0tid2    log        factor     5.0000000E-02          0.025             0.1         geochem        1  0  1    		
+m_mfrac1tid1    log        factor     5.0000000E-02          0.025             0.1         geochem        1  0  1    		
+m_mfrac1tid2    log        factor     5.0000000E-02          0.025             0.1         geochem        1  0  1    		
+m_mfrac2tid1    log        factor     7.3700000E-01         0.3685           1.474         geochem        1  0  1    		
+m_mfrac2tid2    log        factor     7.3700000E-01         0.3685           1.474         geochem        1  0  1    		
+m_mfrac3tid1    log        factor     1.6300000E-01         0.0815           0.326         geochem        1  0  1    		
+m_mfrac3tid2    log        factor     1.6300000E-01         0.0815           0.326         geochem        1  0  1    		
+m_mfrac0wat1    log        factor     4.0000000E-02           0.02            0.08         geochem        1  0  1    		
+m_mfrac0wat2    log        factor     4.0000000E-02           0.02            0.08         geochem        1  0  1    		
+m_mfrac1wat1    log        factor     4.0000000E-02           0.02            0.08         geochem        1  0  1    		
+m_mfrac1wat2    log        factor     4.0000000E-02           0.02            0.08         geochem        1  0  1    		
+m_mfrac2wat1    log        factor     7.5100000E-01         0.3755           1.502         geochem        1  0  1    		
+m_mfrac2wat2    log        factor     7.5100000E-01         0.3755           1.502         geochem        1  0  1    		
+m_mfrac3wat1    log        factor     1.6900000E-01         0.0845           0.338         geochem        1  0  1    		
+m_mfrac3wat2    log        factor     1.6900000E-01         0.0845           0.338         geochem        1  0  1    		
+m_mfrac0wet1    log        factor     7.0000000E-02          0.035            0.14         geochem        1  0  1    		
+m_mfrac0wet2    log        factor     7.0000000E-02          0.035            0.14         geochem        1  0  1    		
+m_mfrac1wet1    log        factor     7.0000000E-02          0.035            0.14         geochem        1  0  1    		
+m_mfrac1wet2    log        factor     7.0000000E-02          0.035            0.14         geochem        1  0  1    		
+m_mfrac2wet1    log        factor     7.0400000E-01          0.352           1.408         geochem        1  0  1    		
+m_mfrac2wet2    log        factor     7.0400000E-01          0.352           1.408         geochem        1  0  1    		
+m_mfrac3wet1    log        factor     1.5600000E-01          0.078           0.312         geochem        1  0  1    		
+m_mfrac3wet2    log        factor     1.5600000E-01          0.078           0.312         geochem        1  0  1    		
+m_mfrac0whr1    log        factor     4.0000000E-02           0.02            0.08         geochem        1  0  1    		
+m_mfrac0whr2    log        factor     4.0000000E-02           0.02            0.08         geochem        1  0  1    		
+m_mfrac1whr1    log        factor     2.5000000E-01          0.125             0.5         geochem        1  0  1    		
+m_mfrac1whr2    log        factor     2.5000000E-01          0.125             0.5         geochem        1  0  1    		
+m_mfrac2whr1    log        factor     6.1300000E-01         0.3065           1.226         geochem        1  0  1    		
+m_mfrac2whr2    log        factor     6.1300000E-01         0.3065           1.226         geochem        1  0  1    		
+m_mfrac3whr1    log        factor     9.7000000E-02         0.0485           0.194         geochem        1  0  1    		
+m_mfrac3whr2    log        factor     9.7000000E-02         0.0485           0.194         geochem        1  0  1    		
+m_mfrac0wir1    log        factor     4.0000000E-02           0.02            0.08         geochem        1  0  1    		
+m_mfrac0wir2    log        factor     4.0000000E-02           0.02            0.08         geochem        1  0  1    		
+m_mfrac1wir1    log        factor     2.5000000E-01          0.125             0.5         geochem        1  0  1    		
+m_mfrac1wir2    log        factor     2.5000000E-01          0.125             0.5         geochem        1  0  1    		
+m_mfrac2wir1    log        factor     6.6600000E-01          0.333           1.332         geochem        1  0  1    		
+m_mfrac2wir2    log        factor     6.6600000E-01          0.333           1.332         geochem        1  0  1    		
+m_mfrac3wir1    log        factor     4.4000000E-02          0.022           0.088         geochem        1  0  1    		
+m_mfrac3wir2    log        factor     4.4000000E-02          0.022           0.088         geochem        1  0  1    		
+s_dens0         log        factor     1.5000000E+00            1.2             1.8         bed_seds       1  0  1    		
+s_dens1         log        factor     1.5000000E+00            1.2            1.65         bed_seds       1  0  1    		
+s_dens2         log        factor     2.2000000E+00           1.76            2.64         bed_seds       1  0  1    		
+s_dens3         log        factor     2.6000000E+00           2.08            2.86         bed_seds       1  0  1    		
+vs_flow         log        factor     1.0000000E+00           0.99            1.01         vs_flow        1  0  1    		
+m_precip        log        factor     1.0000000E+00           0.75             1.5         hydrodynam     1  0  1    		
+m_mehg1         log        factor     1.000000e+000           0.80             1.2         geochem        1  0  1    		
+m_mehg4         log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_mehg7         log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_mehg9         log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_mehg11        log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_mehg15        log        factor     1.0000000E+00            0.3             1.5         geochem        1  0  1    		
+m_mehg43        log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_mehg45        log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiif1        log        factor     1.0000000E+00           0.80             1.2         geochem        1  0  1    		
+m_hgiip1        log        factor     1.0000000E+00           0.80             1.2         geochem        1  0  1    		
+m_hgiif4        log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiip4        log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiif7        log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiip7        log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiif9        log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiip9        log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiif11       log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiip11       log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiif15       log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiip15       log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiif43       log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiip43       log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiif45       log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_hgiip45       log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+l_diffsedwat    log        factor     2.0000000E-03        0.00002            0.01         particle       1  0  1    		
+s_temp          log        factor     1.0000000E+00            0.9             1.1         geochem        1  0  1    		
+m_v_rgm         log        factor     8.6400000E+02            432            1728         geochem        1  0  1    		
+m_p_ke_uva_1    log        factor     6.0000000E-01            0.3             1.2         geochem        1  0  1    		
+m_p_ke_uvb_1    log        factor     1.3600000E+00           0.68            2.72         geochem        1  0  1    		
+m_p_ke_par_1    log        factor     1.8400000E-01          0.092           0.368         geochem        1  0  1    		
+photodeg_uva    log        factor     2.7330000E-04        8.2E-05        0.001367         geochem        1  0  1      		
+photodeg_uvb    log        factor     2.5000000E-03        0.00075          0.0125         geochem        1  0  1    		
+photodeg_pa     log        factor     1.1400000E-05       3.42E-06        0.000057         geochem        1  0  1      		
+photored_uv3    log        factor     2.0000000E+07        2000000           2E+08         geochem        1  0  1      		
+m_hgiiprecip    log        factor     1.0000000E+00            0.5               2         geochem        1  0  1    		
+m_mehgprecip    log        factor     1.0000000E+00            0.3               3         geochem        1  0  1    		
+m_q10meth       log        factor     2.2700000E+00         1.7025           3.405         geochem        1  0  1    		
+m_q10demeth     log        factor     1.0000000E+00           0.75             1.5         geochem        1  0  1    		
+l_methylsed1    log        factor     1.2000000E-02       1.00E-10            0.12         geochem        1  0  1    		
+l_demethlow     log        factor     1.7000000E-02         0.0034            0.85         geochem        1  0  1    		
+l_demethhi      log        factor     4.0000000E-02          0.008               2         geochem        1  0  1    		
+l_methint       fixed      factor     0.0000000E+00              0        1.00E-09         methint        1  0  1    		
+l_uso4l1        log        factor     1.6700000E+00          0.334            8.35         geochem        1  0  1    		
+l_kso4l1        log        factor     4.8100000E+00          0.962           24.05         geochem        1  0  1    		
+m_docwat        log        factor     4.0000000E-01            0.2               1         geochem        1  0  1    		
+m_docsed1       log        factor     1.5000000E+00           0.75             4.5         geochem        1  0  1    		
+s_ph_phwat      log        factor     1.0000000E+00           0.85            1.15         geochem        1  0  1    		
+s_ph_phsed1     log        factor     1.0000000E+00           0.85            1.15         geochem        1  0  1    		
+m_so4sed1       log        factor     4.0000000E+00              2               8         geochem        1  0  1    		
+molxoh_0_wat    log        factor     1.0470000E-08       5.24E-09        2.09E-08         geochem        1  0  1      		
+molxoh_1_wat    log        factor     1.0470000E-08       5.24E-09        2.09E-08         geochem        1  0  1      		
+molxoh_0sed1    log        factor     1.0470000E-08       5.24E-09        2.09E-08         geochem        1  0  1      		
+molxoh_0sed2    log        factor     1.0470000E-08       5.24E-09        2.09E-08         geochem        1  0  1      		
+molxoh_1sed1    log        factor     1.0470000E-08       5.24E-09        2.09E-08         geochem        1  0  1      		
+molxoh_1sed2    log        factor     1.0470000E-08       5.24E-09        2.09E-08         geochem        1  0  1      		
+molxoh_2_wat    log        factor     5.2400000E-09       2.62E-09        1.05E-08         geochem        1  0  1      		
+molxoh_2sed1    log        factor     5.2400000E-09       2.62E-09        1.05E-08         geochem        1  0  1      		
+molxoh_2sed2    log        factor     5.2400000E-09       2.62E-09        1.05E-08         geochem        1  0  1      		
+molxoh_3_wat    log        factor     1.0470000E-09       5.24E-10        2.09E-09         geochem        1  0  1      		
+molxoh_3sed1    log        factor     1.0470000E-09       5.24E-10        2.09E-09         geochem        1  0  1      		
+molxoh_3sed2    log        factor     1.0470000E-09       5.24E-10        2.09E-09         geochem        1  0  1      		
+s_xohgwat       log        factor     1.8000000E+01           16.2            19.8         geochem        1  0  1    		
+s_xohgsed1      log        factor     1.8000000E+01           16.2            19.8         geochem        1  0  1    		
+s_xohgsed2      log        factor     1.8000000E+01           16.2            19.8         geochem        1  0  1    		
+s_xomehgwat     log        factor     3.9000000E+00           3.51            4.29         geochem        1  0  1    		
+s_xomehgsed1    log        factor     2.6000000E+00           2.34            2.86         geochem        1  0  1    		
+s_xomehgsed2    log        factor     2.6000000E+00           2.34            2.86         geochem        1  0  1    		
+SpasturAreaf    log        factor     9.5000000E-01            0.5               1         macrophyte     1  0  1    		
+SpasturAtten    log        factor     5.0000000E-01           0.25               1         macrophyte     1  0  1    		
+SpasturBiom     log        factor     1.0000000E+00            0.5             1.5         macrophyte     1  0  1    		
+SpasturLAI      log        factor     1.0000000E+00            0.5               2         macrophyte     1  0  1    		
+Spasturtrans    log        factor     1.0000000E+00            0.5               2         macrophyte     1  0  1    		
+Mpasturrootr    log        factor     1.0000000E-01       1.00E-10             0.8         macrophyte     1  0  1    		
+Spastursedf     log        factor     9.5000000E-01          0.475            0.95         macrophyte     1  0  1    		
+SwhiteRAreaf    log        factor     9.5000000E-01            0.5               1         macrophyte     1  0  1    		
+SwhiteRAtten    log        factor     5.0000000E-01           0.25               1         macrophyte     1  0  1    		
+SwhiteRBiom     log        factor     1.0000000E+00            0.5             1.5         macrophyte     1  0  1    		
+SwhiteRLAI      log        factor     1.0000000E+00            0.5               2         macrophyte     1  0  1    		
+SwhiteRtrans    log        factor     1.0000000E+00            0.5               2         macrophyte     1  0  1    		
+MwhiteRrootr    log        factor     1.0000000E-01       1.00E-10             0.8         macrophyte     1  0  1    		
+SwhiteRsedfr    log        factor     9.5000000E-01          0.475            0.95         macrophyte     1  0  1    		
+SwildrAreaf     log        factor     9.5000000E-01            0.5               1         macrophyte     1  0  1    		
+SwildRAtten     log        factor     5.0000000E-01           0.25               1         macrophyte     1  0  1    		
+SwildRBiom      log        factor     1.0000000E+00            0.5             1.5         macrophyte     1  0  1    		
+SwildRLAI       log        factor     1.0000000E+00            0.5               2         macrophyte     1  0  1    		
+SwildRtrans     log        factor     1.0000000E+00            0.5               2         macrophyte     1  0  1    		
+MwildRrootr     log        factor     1.0000000E-01       1.00E-10             0.8         macrophyte     1  0  1    		
+SwildRsedfr     log        factor     9.5000000E-01          0.475            0.95         macrophyte     1  0  1    		
+SwetlndAreaf    log        factor     9.5000000E-01            0.5               1         macrophyte     1  0  1    		
+SwetlndAtten    log        factor     5.0000000E-01           0.25               1         macrophyte     1  0  1    		
+SwetlndBiom     log        factor     1.0000000E+00            0.5             1.5         macrophyte     1  0  1    		
+SwetlndLAI      log        factor     1.0000000E+00            0.5               2         macrophyte     1  0  1    		
+Swetlndtrans    log        factor     1.0000000E+00            0.5               2         macrophyte     1  0  1    		
+Mwetlndrootr    log        factor     1.0000000E-01       1.00E-10             0.8         macrophyte     1  0  1    		
+Swetlndsedfr    log        factor     9.5000000E-01          0.475            0.95         macrophyte     1  0  1    		
+Mdecomporg      log        factor     2.4000000E-04       0.000072          0.0006         sediment       1  0  1      		
+Mdecompveg      log        factor     2.0000000E-02          0.006            0.05         sediment       1  0  1    		
+Spastr29Erod    log        factor     1.1671480E+07        5835740        17507220         sediment       1  0  1      		
+Spastr30Erod    log        factor     1.2214030E+07        6107015        18321045         sediment       1  0  1      		
+Spastr34Erod    log        factor     1.7375670E+07        8687835        26063505         sediment       1  0  1      		
+Spastr39Erod    log        factor     9.4385230E+06        4719262        14157785         sediment       1  0  1      		
+Spastr41Erod    log        factor     1.8856450E+07        9428225        28284675         sediment       1  0  1      		
+SwhitR14Erod    log        factor     5.9592770E+06        2979639         8938916         sediment       1  0  1      		
+SwhitR18Erod    log        factor     1.4698070E+07        7349035        22047105         sediment       1  0  1      		
+SwhitR23Erod    log        factor     7.2369360E+06        3618468        10855404         sediment       1  0  1      		
+SwhitR32Erod    log        factor     4.9635810E+06        2481791         7445372         sediment       1  0  1      		
+SwildR19Erod    log        factor     7.7330480E+06        3866524        11599572         sediment       1  0  1      		
+SwildR24Erod    log        factor     1.7456480E+06         872824         3491296         sediment       1  0  1    		
+Swetld20Erod    log        factor     6.3798990E+06        3189950         9569849         sediment       1  0  1      		
+Swetld25Erod    log        factor     6.3216010E+06        3160801         9482402         sediment       1  0  1      		
+Swetld26Erod    log        factor     7.7172550E+06        3858628        11575883         sediment       1  0  1      		
+Swetld28Erod    log        factor     1.2682970E+07        6341485        19024455         sediment       1  0  1      		
+Swetld31Erod    log        factor     1.8282050E+07        9141025        27423075         sediment       1  0  1      		
+Swetld33Erod    log        factor     5.6408520E+06        2820426         8461278         sediment       1  0  1      		
+* observation groups
+HgIIWatF23
+HgIIWatF23D
+HgIIWatF25
+HgIIWatF25D
+HgIIWatF43
+HgIIWatF43D
+HgIIWatU10
+HgIIWatU10D
+HgIIWatU11
+HgIIWatU15
+HgIIWatU23
+HgIIWatU23D
+HgIIWatU25
+HgIIWatU25D
+HgIIWatU26
+HgIIWatU26D
+HgIIWatU35
+HgIIWatU35D
+HgIIWatU36D
+HgIIWatU38
+HgIIWatU38D
+HgIIWatU42
+HgIIWatU42D
+HgIIWatU43
+HgIIWatU43D
+HgIIWatU5
+HgIIWatU5D
+HgIIWatU7
+HgIIWatU7D
+HgIIWatU8
+HgIIWatU8D
+MeHgWatF23
+MeHgWatF23D
+MeHgWatF25
+MeHgWatF25D
+MeHgWatF43
+MeHgWatF43D
+MeHgWatU10
+MeHgWatU10D
+MeHgWatU11
+MeHgWatU15
+MeHgWatU23
+MeHgWatU23D
+MeHgWatU25
+MeHgWatU25D
+MeHgWatU26
+MeHgWatU26D
+MeHgWatU28
+MeHgWatU28D
+MeHgWatU35
+MeHgWatU35D
+MeHgWatU36
+MeHgWatU36D
+MeHgWatU42
+MeHgWatU42D
+MeHgWatU43
+MeHgWatU43D
+MeHgWatU7
+MeHgWatU7D
+MeHgWatU8
+MeHgWatU8D
+TSS1
+TSS10
+TSS10D
+TSS11
+TSS11D
+TSS12
+TSS12D
+TSS15
+TSS23
+TSS23D
+TSS25
+TSS25D
+TSS26
+TSS34D
+TSS35
+TSS35D
+TSS36D
+TSS42
+TSS42D
+TSS43
+TSS43D
+TSS45
+TSS5
+TSS7
+TSS7D
+TSS8
+TSS8D
+TSS9
+mehgsed13							       
+mehgsed25							       
+mehgsed35
+mehgsed43
+an_tot_mehgu
+an_tot_mehgf
+an_tot_hgiiu
+an_tot_hgiif
+an_tot_tss
+an_avg_mehgu
+an_avg_mehgf
+an_avg_hgiiu
+an_avg_hgiif
+an_avg_tss
+fremont_load
+mehgsedful12
+mehgsedful13
+mehgsedful25
+mehgsedful35
+mehgsedful43
+mehgsed10y25
+* observation data
+unfilmehg_avg_load              177000000       8E-08        fremont_load
+mehgsed_full_C12                     0.24           1        mehgsedful12
+mehgsed_full_C13                      1.2           1        mehgsedful13
+mehgsed_full_C25                     1.13           1        mehgsedful25
+mehgsed_full_C35                      1.1           1        mehgsedful35
+mehgsed_full_C43                     1.19           1        mehgsedful43
+mehgsed_10yr_C25                     0.96           1        mehgsed10y25
+hgiiwatf23_1666                  4.928571           0        hgiiwatf23
+hgiiwatf23_2960                    5.6625           0        hgiiwatf23
+hgiiwatf23_3217                      1.65     0.11111        hgiiwatf23
+hgiiwatf23_5394                      8.35           0        hgiiwatf23
+hgiiwatf23_8084                       7.7           0        hgiiwatf23
+hgiiwatf23_8759                  4.466667           0        hgiiwatf23
+hgiiwatf23_9682                      2.05     0.11111        hgiiwatf23
+hgiiwatf23_9807                       6.4           0        hgiiwatf23
+hgiiwatf23_9887                    4.0625           0        hgiiwatf23
+hgiiwatf23d_1497                     2.86           0        hgiiwatf23d
+hgiiwatf23d_1656                      6.1           0        hgiiwatf23d
+hgiiwatf23d_2239                     16.9           0        hgiiwatf23d
+hgiiwatf23d_2872                 3.416667           0        hgiiwatf23d
+hgiiwatf23d_3160                 2.266667           0        hgiiwatf23d
+hgiiwatf23d_3872                     3.58           0        hgiiwatf23d
+hgiiwatf23d_5033                     23.5           0        hgiiwatf23d
+hgiiwatf23d_6330                    13.42           0        hgiiwatf23d
+hgiiwatf23d_8161                    13.65           0        hgiiwatf23d
+hgiiwatf23d_8364                     12.9           0        hgiiwatf23d
+hgiiwatf23d_8417                     5.34           0        hgiiwatf23d
+hgiiwatf23d_9555                      5.9           0        hgiiwatf23d
+hgiiwatf25_1023                       1.9        0.25        hgiiwatf25
+hgiiwatf25_1448                      1.65        0.25        hgiiwatf25
+hgiiwatf25_1457                      3.64        0.25        hgiiwatf25
+hgiiwatf25_6911                       1.4        0.25        hgiiwatf25
+hgiiwatf25d_4624                      0.8           0        hgiiwatf25d
+hgiiwatf25d_4647                      1.1           0        hgiiwatf25d
+hgiiwatf25d_5703                      0.6           0        hgiiwatf25d
+hgiiwatf25d_5947                      0.6           0        hgiiwatf25d
+hgiiwatf25d_9104                     0.75           0        hgiiwatf25d
+hgiiwatf43_2114                       1.2           0        hgiiwatf43
+hgiiwatf43_2646                       1.8           0        hgiiwatf43
+hgiiwatf43_3071                       1.2           0        hgiiwatf43
+hgiiwatf43_3507                       3.2           0        hgiiwatf43
+hgiiwatf43_5572                       3.3           0        hgiiwatf43
+hgiiwatf43_7108                       1.8           0        hgiiwatf43
+hgiiwatf43_7399                       1.2           0        hgiiwatf43
+hgiiwatf43_7441                       0.9           0        hgiiwatf43
+hgiiwatf43_7582                       1.3           0        hgiiwatf43
+hgiiwatf43_8948                       4.7           0        hgiiwatf43
+hgiiwatf43d_2117                      0.6           0        hgiiwatf43d
+hgiiwatf43d_2143                      0.9           0        hgiiwatf43d
+hgiiwatf43d_2715                      1.1           0        hgiiwatf43d
+hgiiwatf43d_3615                      0.9           0        hgiiwatf43d
+hgiiwatf43d_8726                      1.3           0        hgiiwatf43d
+hgiiwatu10_1625                      15.3     0.16667        hgiiwatu10
+hgiiwatu10_3870                      11.1     0.16667        hgiiwatu10
+hgiiwatu10_6101                       8.6     0.16667        hgiiwatu10
+hgiiwatu10_6867                      13.3     0.16667        hgiiwatu10
+hgiiwatu10_7058                      10.6     0.16667        hgiiwatu10
+hgiiwatu10_7923                      11.6     0.16667        hgiiwatu10
+hgiiwatu10d_4931                     16.7           0        hgiiwatu10d
+hgiiwatu11_1134                       7.6           0        hgiiwatu11
+hgiiwatu11_7508                      11.1           0        hgiiwatu11
+hgiiwatu11_9264                      19.6           0        hgiiwatu11
+hgiiwatu15_6383                      83.7         0.1        hgiiwatu15
+hgiiwatu23_1379                        30     0.05263        hgiiwatu23
+hgiiwatu23_1948                  27.23889           0        hgiiwatu23
+hgiiwatu23_2062                      20.5     0.05263        hgiiwatu23
+hgiiwatu23_2844                  10.34444           0        hgiiwatu23
+hgiiwatu23_3115                        14           0        hgiiwatu23
+hgiiwatu23_3547                      17.9     0.05263        hgiiwatu23
+hgiiwatu23_3806                      39.2     0.05263        hgiiwatu23
+hgiiwatu23_4441                      34.3           0        hgiiwatu23
+hgiiwatu23_5001                  32.68889           0        hgiiwatu23
+hgiiwatu23_5366                      31.2     0.05263        hgiiwatu23
+hgiiwatu23_5404                      47.3     0.05263        hgiiwatu23
+hgiiwatu23_6969                  30.58333           0        hgiiwatu23
+hgiiwatu23_7254                      18.2     0.05263        hgiiwatu23
+hgiiwatu23_7311                      35.9           0        hgiiwatu23
+hgiiwatu23_7511                      22.4     0.05263        hgiiwatu23
+hgiiwatu23_8921                      31.2     0.05263        hgiiwatu23
+hgiiwatu23_9592                     223.7     0.05263        hgiiwatu23
+hgiiwatu23_9711                      20.9     0.05263        hgiiwatu23
+hgiiwatu23_9964                      15.7     0.05263        hgiiwatu23
+hgiiwatu23d_1100                 14.36667           0        hgiiwatu23d
+hgiiwatu23d_1907                 41.31667           0        hgiiwatu23d
+hgiiwatu23d_3629                    57.95           0        hgiiwatu23d
+hgiiwatu23d_4186                   25.625           0        hgiiwatu23d
+hgiiwatu23d_5759                     75.9           0        hgiiwatu23d
+hgiiwatu23d_6026                    21.45           0        hgiiwatu23d
+hgiiwatu23d_6492                    31.85           0        hgiiwatu23d
+hgiiwatu23d_6821                   37.475           0        hgiiwatu23d
+hgiiwatu23d_7245                 9.483333           0        hgiiwatu23d
+hgiiwatu23d_7346                 6.833333           0        hgiiwatu23d
+hgiiwatu23d_8079                   16.225           0        hgiiwatu23d
+hgiiwatu23d_8219                     19.4           0        hgiiwatu23d
+hgiiwatu25_1529                      13.4         0.2        hgiiwatu25
+hgiiwatu25_2110                     14.75         0.2        hgiiwatu25
+hgiiwatu25_2315                     5.125         0.2        hgiiwatu25
+hgiiwatu25_2913                      10.8         0.2        hgiiwatu25
+hgiiwatu25_4254                       4.9         0.2        hgiiwatu25
+hgiiwatu25d_3261                     10.7           0        hgiiwatu25d
+hgiiwatu25d_4836                      6.3           0        hgiiwatu25d
+hgiiwatu25d_7595                      5.8           0        hgiiwatu25d
+hgiiwatu25d_8006                     12.7           0        hgiiwatu25d
+hgiiwatu25d_8184                      9.7           0        hgiiwatu25d
+hgiiwatu26_5231                        12         0.2        hgiiwatu26
+hgiiwatu26_5933                        30         0.2        hgiiwatu26
+hgiiwatu26_6200                         8         0.2        hgiiwatu26
+hgiiwatu26_7649                        11         0.2        hgiiwatu26
+hgiiwatu26_8609                        10         0.2        hgiiwatu26
+hgiiwatu26d_2003                       22           0        hgiiwatu26d
+hgiiwatu26d_2491                       14           0        hgiiwatu26d
+hgiiwatu26d_3020                       43           0        hgiiwatu26d
+hgiiwatu26d_5037                       18           0        hgiiwatu26d
+hgiiwatu26d_9149                        8           0        hgiiwatu26d
+hgiiwatu35_8632                      12.3           0        hgiiwatu35
+hgiiwatu35d_7547                        8           0        hgiiwatu35d
+hgiiwatu36d_9197                     15.5           0        hgiiwatu36d
+hgiiwatu38_1878                         5     0.14286        hgiiwatu38
+hgiiwatu38_4465                         6     0.14286        hgiiwatu38
+hgiiwatu38_5084                         6     0.14286        hgiiwatu38
+hgiiwatu38_7313                         6     0.14286        hgiiwatu38
+hgiiwatu38_8758                         7     0.14286        hgiiwatu38
+hgiiwatu38_9769                         4     0.14286        hgiiwatu38
+hgiiwatu38_9869                        10     0.14286        hgiiwatu38
+hgiiwatu38d_1252                       10           0        hgiiwatu38d
+hgiiwatu38d_1264                       12           0        hgiiwatu38d
+hgiiwatu38d_2196                       15           0        hgiiwatu38d
+hgiiwatu38d_2729                       11           0        hgiiwatu38d
+hgiiwatu38d_3565                       12           0        hgiiwatu38d
+hgiiwatu42_1390                        19     0.26316        hgiiwatu42
+hgiiwatu42_1468                       9.8     0.26316        hgiiwatu42
+hgiiwatu42_1859                      33.2     0.26316        hgiiwatu42
+hgiiwatu42_3142                      14.4     0.26316        hgiiwatu42
+hgiiwatu42_3277                      10.8     0.26316        hgiiwatu42
+hgiiwatu42_3707                         8     0.26316        hgiiwatu42
+hgiiwatu42_4752                        27     0.26316        hgiiwatu42
+hgiiwatu42_5674                      11.3     0.26316        hgiiwatu42
+hgiiwatu42_6473                         9     0.26316        hgiiwatu42
+hgiiwatu42_6592                      15.5     0.26316        hgiiwatu42
+hgiiwatu42_6613                         9     0.26316        hgiiwatu42
+hgiiwatu42_7374                        13     0.26316        hgiiwatu42
+hgiiwatu42_7716                       6.1     0.26316        hgiiwatu42
+hgiiwatu42_8002                       6.7     0.26316        hgiiwatu42
+hgiiwatu42_8259                      12.1     0.26316        hgiiwatu42
+hgiiwatu42_8594                      25.5     0.26316        hgiiwatu42
+hgiiwatu42_8814                      12.2     0.26316        hgiiwatu42
+hgiiwatu42_9301                      10.2     0.26316        hgiiwatu42
+hgiiwatu42_9872                        14     0.26316        hgiiwatu42
+hgiiwatu42d_1699                     20.1           0        hgiiwatu42d
+hgiiwatu42d_2397                       19           0        hgiiwatu42d
+hgiiwatu42d_2988                       25           0        hgiiwatu42d
+hgiiwatu42d_7914                       16           0        hgiiwatu42d
+hgiiwatu42d_9499                       15           0        hgiiwatu42d
+hgiiwatu43_1234                      24.3           0        hgiiwatu43
+hgiiwatu43_1305                      10.7           0        hgiiwatu43
+hgiiwatu43_1397                      10.7           0        hgiiwatu43
+hgiiwatu43_1413                      38.6           0        hgiiwatu43
+hgiiwatu43_1570                      14.7           0        hgiiwatu43
+hgiiwatu43_2070                      15.2           0        hgiiwatu43
+hgiiwatu43_2538                      10.5           0        hgiiwatu43
+hgiiwatu43_2688                      10.9           0        hgiiwatu43
+hgiiwatu43_2766                       9.1           0        hgiiwatu43
+hgiiwatu43_2767                      12.7           0        hgiiwatu43
+hgiiwatu43_3253                      16.9           0        hgiiwatu43
+hgiiwatu43_3425                      10.6           0        hgiiwatu43
+hgiiwatu43_3500                      10.4           0        hgiiwatu43
+hgiiwatu43_4521                      45.2           0        hgiiwatu43
+hgiiwatu43_4571                      11.7           0        hgiiwatu43
+hgiiwatu43_5099                        21           0        hgiiwatu43
+hgiiwatu43_5151                      44.8           0        hgiiwatu43
+hgiiwatu43_5447                        16           0        hgiiwatu43
+hgiiwatu43_5471                      13.5           0        hgiiwatu43
+hgiiwatu43_5616                      39.2           0        hgiiwatu43
+hgiiwatu43_5993                      21.4           0        hgiiwatu43
+hgiiwatu43_6041                      14.6           0        hgiiwatu43
+hgiiwatu43_6080                      12.8           0        hgiiwatu43
+hgiiwatu43_6261                        14           0        hgiiwatu43
+hgiiwatu43_6397                      18.6           0        hgiiwatu43
+hgiiwatu43_6411                        33           0        hgiiwatu43
+hgiiwatu43_7443                      14.3           0        hgiiwatu43
+hgiiwatu43_7871                      26.8           0        hgiiwatu43
+hgiiwatu43_8188                        10           0        hgiiwatu43
+hgiiwatu43_8434                      36.8           0        hgiiwatu43
+hgiiwatu43_8742                      21.4           0        hgiiwatu43
+hgiiwatu43d_1082                     15.4           0        hgiiwatu43d
+hgiiwatu43d_1964                     17.1           0        hgiiwatu43d
+hgiiwatu43d_2610                     47.3           0        hgiiwatu43d
+hgiiwatu43d_3315                     25.9           0        hgiiwatu43d
+hgiiwatu43d_3441                     37.7           0        hgiiwatu43d
+hgiiwatu43d_4511                     31.8           0        hgiiwatu43d
+hgiiwatu43d_4812                     16.9           0        hgiiwatu43d
+hgiiwatu43d_5012                     20.9           0        hgiiwatu43d
+hgiiwatu43d_5171                     35.5           0        hgiiwatu43d
+hgiiwatu43d_6146                      6.3           0        hgiiwatu43d
+hgiiwatu43d_6288                     28.1           0        hgiiwatu43d
+hgiiwatu43d_6359                     14.8           0        hgiiwatu43d
+hgiiwatu43d_6722                     18.3           0        hgiiwatu43d
+hgiiwatu43d_6756                     23.9           0        hgiiwatu43d
+hgiiwatu43d_7104                     11.5           0        hgiiwatu43d
+hgiiwatu43d_7941                       18           0        hgiiwatu43d
+hgiiwatu43d_8131                     18.4           0        hgiiwatu43d
+hgiiwatu43d_9870                     32.9           0        hgiiwatu43d
+hgiiwatu5_1337                          8     0.14286        hgiiwatu5
+hgiiwatu5_3407                          7     0.14286        hgiiwatu5
+hgiiwatu5_4497                          8     0.14286        hgiiwatu5
+hgiiwatu5_5950                          5     0.14286        hgiiwatu5
+hgiiwatu5_8575                         12     0.14286        hgiiwatu5
+hgiiwatu5_9231                       33.5     0.14286        hgiiwatu5
+hgiiwatu5_9482                        9.5     0.14286        hgiiwatu5
+hgiiwatu5d_1535                        11           0        hgiiwatu5d
+hgiiwatu5d_1882                       6.5           0        hgiiwatu5d
+hgiiwatu5d_3074                       8.5           0        hgiiwatu5d
+hgiiwatu5d_5899                         9           0        hgiiwatu5d
+hgiiwatu5d_9418                        14           0        hgiiwatu5d
+hgiiwatu7_4984                         11     0.14286        hgiiwatu7
+hgiiwatu7_5405                          7     0.14286        hgiiwatu7
+hgiiwatu7_6952                          3     0.14286        hgiiwatu7
+hgiiwatu7_7713                          9     0.14286        hgiiwatu7
+hgiiwatu7_8108                          8     0.14286        hgiiwatu7
+hgiiwatu7_8810                         15     0.14286        hgiiwatu7
+hgiiwatu7_9047                          4     0.14286        hgiiwatu7
+hgiiwatu7d_1746                        18           0        hgiiwatu7d
+hgiiwatu7d_2509                        10           0        hgiiwatu7d
+hgiiwatu7d_3026                        12           0        hgiiwatu7d
+hgiiwatu7d_5872                        11           0        hgiiwatu7d
+hgiiwatu7d_6901                        16           0        hgiiwatu7d
+hgiiwatu8_1483                          8     0.14286        hgiiwatu8
+hgiiwatu8_2589                         12     0.14286        hgiiwatu8
+hgiiwatu8_3957                          8     0.14286        hgiiwatu8
+hgiiwatu8_4104                         19     0.14286        hgiiwatu8
+hgiiwatu8_5412                         41     0.14286        hgiiwatu8
+hgiiwatu8_6217                         12     0.14286        hgiiwatu8
+hgiiwatu8_6362                         10     0.14286        hgiiwatu8
+hgiiwatu8d_3371                         9           0        hgiiwatu8d
+hgiiwatu8d_3927                         8           0        hgiiwatu8d
+hgiiwatu8d_4030                        10           0        hgiiwatu8d
+hgiiwatu8d_4666                        17           0        hgiiwatu8d
+hgiiwatu8d_7601                        10           0        hgiiwatu8d
+mehgwatf23_3529                  0.451111           0        mehgwatf23
+mehgwatf23_6201                      0.11           0        mehgwatf23
+mehgwatf23_7152                      0.17           5        mehgwatf23
+mehgwatf23_8740                     1.365           0        mehgwatf23
+mehgwatf23_8766                     0.565           0        mehgwatf23
+mehgwatf23_8927                     6.425           0        mehgwatf23
+mehgwatf23_8965                  1.802778           0        mehgwatf23
+mehgwatf23_9580                  2.088889           0        mehgwatf23
+mehgwatf23d_1887                    0.735           0        mehgwatf23d
+mehgwatf23d_1987                     0.18           0        mehgwatf23d
+mehgwatf23d_2277                   0.2325           0        mehgwatf23d
+mehgwatf23d_2398                     0.38           0        mehgwatf23d
+mehgwatf23d_3711                     0.63           0        mehgwatf23d
+mehgwatf23d_4999                 0.325833           0        mehgwatf23d
+mehgwatf23d_5752                    0.185           0        mehgwatf23d
+mehgwatf23d_6178                 0.403333           0        mehgwatf23d
+mehgwatf23d_6325                     0.92           0        mehgwatf23d
+mehgwatf23d_6892                     0.28           0        mehgwatf23d
+mehgwatf23d_7784                 0.916667           0        mehgwatf23d
+mehgwatf23d_8394                 1.401667           0        mehgwatf23d
+mehgwatf25_3735                  0.403333          10        mehgwatf25
+mehgwatf25_5470                  0.186667          10        mehgwatf25
+mehgwatf25_6185                     0.325          10        mehgwatf25
+mehgwatf25_6466                     1.185          10        mehgwatf25
+mehgwatf25d_2479                     0.05           0        mehgwatf25d
+mehgwatf25d_3885                      0.2           0        mehgwatf25d
+mehgwatf25d_4283                     0.12           0        mehgwatf25d
+mehgwatf25d_6532                     0.13           0        mehgwatf25d
+mehgwatf25d_8345                    0.155           0        mehgwatf25d
+mehgwatf43_1508                      0.22           0        mehgwatf43
+mehgwatf43_1916                      0.31           0        mehgwatf43
+mehgwatf43_3480                       0.1           0        mehgwatf43
+mehgwatf43_3792                      0.08           0        mehgwatf43
+mehgwatf43_3915                       0.1           0        mehgwatf43
+mehgwatf43_3984                      0.08           0        mehgwatf43
+mehgwatf43_4044                      0.11           0        mehgwatf43
+mehgwatf43_4101                      0.13           0        mehgwatf43
+mehgwatf43_5838                       0.1           0        mehgwatf43
+mehgwatf43_6099                      0.12           0        mehgwatf43
+mehgwatf43_6218                      0.15           0        mehgwatf43
+mehgwatf43_6356                      0.16           0        mehgwatf43
+mehgwatf43_7048                      0.07           0        mehgwatf43
+mehgwatf43_8384                      0.12           0        mehgwatf43
+mehgwatf43_8782                       0.1           0        mehgwatf43
+mehgwatf43_9773                      0.31           0        mehgwatf43
+mehgwatf43_9967                      0.31           0        mehgwatf43
+mehgwatf43d_1290                     0.04           0        mehgwatf43d
+mehgwatf43d_1929                     0.03           0        mehgwatf43d
+mehgwatf43d_2050                     0.05           0        mehgwatf43d
+mehgwatf43d_2998                     0.05           0        mehgwatf43d
+mehgwatf43d_4430                     0.11           0        mehgwatf43d
+mehgwatf43d_5880                     0.03           0        mehgwatf43d
+mehgwatf43d_6392                     0.04           0        mehgwatf43d
+mehgwatf43d_8353                     0.07           0        mehgwatf43d
+mehgwatf43d_8573                     0.05           0        mehgwatf43d
+mehgwatf43d_9012                      0.1           0        mehgwatf43d
+mehgwatf43d_9951                     0.06           0        mehgwatf43d
+mehgwatu10_10000                     0.41     2.22222        mehgwatu10
+mehgwatu10_2100                  0.479113     2.22222        mehgwatu10
+mehgwatu10_3038                  0.269545     2.22222        mehgwatu10
+mehgwatu10_3485                     0.161     2.22222        mehgwatu10
+mehgwatu10_4286                     0.365     2.22222        mehgwatu10
+mehgwatu10_5083                  0.130804     2.22222        mehgwatu10
+mehgwatu10_5281                  0.757317     2.22222        mehgwatu10
+mehgwatu10_5422                    0.2945     2.22222        mehgwatu10
+mehgwatu10_5499                     0.299     2.22222        mehgwatu10
+mehgwatu10_5608                    0.3195     2.22222        mehgwatu10
+mehgwatu10_5960                     0.203     2.22222        mehgwatu10
+mehgwatu10_6371                  0.162491     2.22222        mehgwatu10
+mehgwatu10_7428                  0.808827     2.22222        mehgwatu10
+mehgwatu10_8234                  0.359386     2.22222        mehgwatu10
+mehgwatu10_8433                  1.193779     2.22222        mehgwatu10
+mehgwatu10_8455                     0.372     2.22222        mehgwatu10
+mehgwatu10_9275                    0.4295     2.22222        mehgwatu10
+mehgwatu10_9423                  0.453632     2.22222        mehgwatu10
+mehgwatu10d_1829                    0.138           0        mehgwatu10d
+mehgwatu10d_3804                    0.126           0        mehgwatu10d
+mehgwatu10d_3856                  0.47197           0        mehgwatu10d
+mehgwatu10d_3965                     0.18           0        mehgwatu10d
+mehgwatu11_1861                     0.454           0        mehgwatu11
+mehgwatu11_2673                   0.37748           0        mehgwatu11
+mehgwatu11_2870                   0.57808           0        mehgwatu11
+mehgwatu11_4055                     0.668           0        mehgwatu11
+mehgwatu11_4596                     0.866           0        mehgwatu11
+mehgwatu11_6597                     0.372           0        mehgwatu11
+mehgwatu11_7061                     0.378           0        mehgwatu11
+mehgwatu11_7186                     0.393           0        mehgwatu11
+mehgwatu11_7231                     0.441           0        mehgwatu11
+mehgwatu11_7620                     0.534           0        mehgwatu11
+mehgwatu15_4360                      0.17           1        mehgwatu15
+mehgwatu23_1065                  1.251111           0        mehgwatu23
+mehgwatu23_1544                      9.03           0        mehgwatu23
+mehgwatu23_2586                     1.385           0        mehgwatu23
+mehgwatu23_2972                    1.7762           0        mehgwatu23
+mehgwatu23_3157                     3.842           0        mehgwatu23
+mehgwatu23_3550                  2.318889           0        mehgwatu23
+mehgwatu23_3654                     0.477           2        mehgwatu23
+mehgwatu23_4428                  2.520667           0        mehgwatu23
+mehgwatu23_4446                  1.879333           0        mehgwatu23
+mehgwatu23_4697                     1.949           0        mehgwatu23
+mehgwatu23_5301                     0.197           2        mehgwatu23
+mehgwatu23_6734                      3.35           0        mehgwatu23
+mehgwatu23_6746                     3.719           0        mehgwatu23
+mehgwatu23_7278                  2.304778           0        mehgwatu23
+mehgwatu23_7393                     0.352           0        mehgwatu23
+mehgwatu23_7568                  3.517917           0        mehgwatu23
+mehgwatu23_9433                     3.775           0        mehgwatu23
+mehgwatu23_9485                       4.7           0        mehgwatu23
+mehgwatu23_9635                      2.21           0        mehgwatu23
+mehgwatu23_9707                     1.762           0        mehgwatu23
+mehgwatu23d_1034                     0.93           0        mehgwatu23d
+mehgwatu23d_1315                    24.55           0        mehgwatu23d
+mehgwatu23d_1420                     8.34           0        mehgwatu23d
+mehgwatu23d_1572                     2.18           0        mehgwatu23d
+mehgwatu23d_1591                   1.4895           0        mehgwatu23d
+mehgwatu23d_3841                    2.498           0        mehgwatu23d
+mehgwatu23d_3952                     1.33           0        mehgwatu23d
+mehgwatu23d_4713                 3.060667           0        mehgwatu23d
+mehgwatu23d_5077                    0.761           0        mehgwatu23d
+mehgwatu23d_5247                 1.833333           0        mehgwatu23d
+mehgwatu23d_6036                     7.27           0        mehgwatu23d
+mehgwatu23d_6065                    1.735           0        mehgwatu23d
+mehgwatu23d_6070                 1.650167           0        mehgwatu23d
+mehgwatu23d_6115                   1.0095           0        mehgwatu23d
+mehgwatu23d_6150                    1.004           0        mehgwatu23d
+mehgwatu23d_6354                    5.515           0        mehgwatu23d
+mehgwatu23d_6519                     24.9           0        mehgwatu23d
+mehgwatu23d_6838                 2.433972           0        mehgwatu23d
+mehgwatu23d_7094                  1.62675           0        mehgwatu23d
+mehgwatu23d_7134                     3.69           0        mehgwatu23d
+mehgwatu23d_7596                 1.307333           0        mehgwatu23d
+mehgwatu23d_8098                     11.6           0        mehgwatu23d
+mehgwatu23d_8294                    2.205           0        mehgwatu23d
+mehgwatu23d_8659                     13.1           0        mehgwatu23d
+mehgwatu23d_9101                 1.265417           0        mehgwatu23d
+mehgwatu23d_9184                    1.075           0        mehgwatu23d
+mehgwatu23d_9602                 1.487389           0        mehgwatu23d
+mehgwatu23d_9802                    2.589           0        mehgwatu23d
+mehgwatu23d_9877                    1.441           0        mehgwatu23d
+mehgwatu25_1222                      6.14           0        mehgwatu25
+mehgwatu25_1764                      2.08           0        mehgwatu25
+mehgwatu25_1800                     1.113     0.41667        mehgwatu25
+mehgwatu25_1818                     4.431     0.41667        mehgwatu25
+mehgwatu25_1863                    1.9175     0.41667        mehgwatu25
+mehgwatu25_2650                    1.3825           0        mehgwatu25
+mehgwatu25_2810                      1.99     0.41667        mehgwatu25
+mehgwatu25_2922                     2.645           0        mehgwatu25
+mehgwatu25_3431                      2.04     0.41667        mehgwatu25
+mehgwatu25_3462                  0.793333     0.41667        mehgwatu25
+mehgwatu25_3488                  2.696667     0.41667        mehgwatu25
+mehgwatu25_4272                   0.59575     0.41667        mehgwatu25
+mehgwatu25_4326                      2.38     0.41667        mehgwatu25
+mehgwatu25_4520                    2.0175     0.41667        mehgwatu25
+mehgwatu25_5021                    2.8675     0.41667        mehgwatu25
+mehgwatu25_5680                  2.598833     0.41667        mehgwatu25
+mehgwatu25_6299                   3.27875     0.41667        mehgwatu25
+mehgwatu25_7067                      2.22     0.41667        mehgwatu25
+mehgwatu25_7125                   3.81375           0        mehgwatu25
+mehgwatu25_7760                  0.796667     0.41667        mehgwatu25
+mehgwatu25_7814                      1.14           0        mehgwatu25
+mehgwatu25_8112                    5.3575     0.41667        mehgwatu25
+mehgwatu25_8583                     1.095     0.41667        mehgwatu25
+mehgwatu25_9429                      0.73     0.41667        mehgwatu25
+mehgwatu25d_1259                    0.857           0        mehgwatu25d
+mehgwatu25d_1846                    0.329           0        mehgwatu25d
+mehgwatu25d_1864                    0.434           0        mehgwatu25d
+mehgwatu25d_2632                   0.5695           0        mehgwatu25d
+mehgwatu25d_4106                    0.471           0        mehgwatu25d
+mehgwatu25d_5022                    0.402           0        mehgwatu25d
+mehgwatu25d_5599                    0.393           0        mehgwatu25d
+mehgwatu25d_6139                    0.328           0        mehgwatu25d
+mehgwatu25d_8139                    0.494           0        mehgwatu25d
+mehgwatu26_1091                    0.6845     0.43478        mehgwatu26
+mehgwatu26_1343                      0.47     0.43478        mehgwatu26
+mehgwatu26_1949                    1.2125     0.43478        mehgwatu26
+mehgwatu26_2325                     0.276           0        mehgwatu26
+mehgwatu26_2349                  0.211333     0.43478        mehgwatu26
+mehgwatu26_2376                  0.896667     0.43478        mehgwatu26
+mehgwatu26_2830                  0.093667           0        mehgwatu26
+mehgwatu26_3815                     0.449     0.43478        mehgwatu26
+mehgwatu26_4303                    0.5805     0.43478        mehgwatu26
+mehgwatu26_5000                     0.584           0        mehgwatu26
+mehgwatu26_5346                  0.221667     0.43478        mehgwatu26
+mehgwatu26_5725                     0.133           0        mehgwatu26
+mehgwatu26_6742                  0.071333     0.43478        mehgwatu26
+mehgwatu26_6789                      1.98     0.43478        mehgwatu26
+mehgwatu26_6882                  0.105333     0.43478        mehgwatu26
+mehgwatu26_7103                      1.04     0.43478        mehgwatu26
+mehgwatu26_7139                   0.71425     0.43478        mehgwatu26
+mehgwatu26_7525                     0.184           0        mehgwatu26
+mehgwatu26_8191                    0.7186     0.43478        mehgwatu26
+mehgwatu26_8541                     0.099           0        mehgwatu26
+mehgwatu26_8704                     0.177     0.43478        mehgwatu26
+mehgwatu26_9476                  0.462333     0.43478        mehgwatu26
+mehgwatu26_9995                   1.05975     0.43478        mehgwatu26
+mehgwatu26d_5230                     0.23           0        mehgwatu26d
+mehgwatu26d_6378                  0.43975           0        mehgwatu26d
+mehgwatu26d_7635                 0.076667           0        mehgwatu26d
+mehgwatu26d_7701                  0.30125           0        mehgwatu26d
+mehgwatu26d_8882                 0.135667           0        mehgwatu26d
+mehgwatu26d_9281                 0.584333           0        mehgwatu26d
+mehgwatu28_1373                   0.12325           0        mehgwatu28
+mehgwatu28_1865                  2.115667         0.5        mehgwatu28
+mehgwatu28_2227                     6.155         0.5        mehgwatu28
+mehgwatu28_2487                     0.522         0.5        mehgwatu28
+mehgwatu28_4005                   0.18375         0.5        mehgwatu28
+mehgwatu28_4665                  1.040833         0.5        mehgwatu28
+mehgwatu28_4760                  3.263333         0.5        mehgwatu28
+mehgwatu28_4924                  1.093667         0.5        mehgwatu28
+mehgwatu28_5740                  0.329833         0.5        mehgwatu28
+mehgwatu28_5927                    0.6005         0.5        mehgwatu28
+mehgwatu28_6253                      13.7         0.5        mehgwatu28
+mehgwatu28_7141                    1.0875         0.5        mehgwatu28
+mehgwatu28_7211                     0.677         0.5        mehgwatu28
+mehgwatu28_7538                  1.403667           0        mehgwatu28
+mehgwatu28_7710                    0.1055         0.5        mehgwatu28
+mehgwatu28_7756                  1.623833           0        mehgwatu28
+mehgwatu28_7912                  0.286667         0.5        mehgwatu28
+mehgwatu28_8611                  3.975333         0.5        mehgwatu28
+mehgwatu28_9150                  1.156333         0.5        mehgwatu28
+mehgwatu28_9706                    0.4605         0.5        mehgwatu28
+mehgwatu28d_3751                     0.06           0        mehgwatu28d
+mehgwatu28d_5686                    0.112           0        mehgwatu28d
+mehgwatu28d_6111                   0.5655           0        mehgwatu28d
+mehgwatu28d_7792                 0.930333           0        mehgwatu28d
+mehgwatu28d_8616                  0.45975           0        mehgwatu28d
+mehgwatu35_1060                     0.266           0        mehgwatu35
+mehgwatu35_1116                     0.152           0        mehgwatu35
+mehgwatu35_1328                  0.102479           0        mehgwatu35
+mehgwatu35_2204                    0.1955           0        mehgwatu35
+mehgwatu35_4578                  0.153767           0        mehgwatu35
+mehgwatu35_5242                  0.274275           0        mehgwatu35
+mehgwatu35_6132                   0.33761           0        mehgwatu35
+mehgwatu35_6567                  0.203476           0        mehgwatu35
+mehgwatu35_6940                  0.155189           0        mehgwatu35
+mehgwatu35_7364                    0.1235           0        mehgwatu35
+mehgwatu35_7537                  0.043242           0        mehgwatu35
+mehgwatu35_7722                    0.2285           0        mehgwatu35
+mehgwatu35_7725                    0.1745           0        mehgwatu35
+mehgwatu35_8379                  0.064767           0        mehgwatu35
+mehgwatu35d_4801                 0.085293           0        mehgwatu35d
+mehgwatu35d_5141                 0.066464           0        mehgwatu35d
+mehgwatu35d_6442                 0.070155           0        mehgwatu35d
+mehgwatu36_1020                  0.253457           0        mehgwatu36
+mehgwatu36_1386                     0.356           0        mehgwatu36
+mehgwatu36_2623                  0.088495           0        mehgwatu36
+mehgwatu36_3410                  0.141589           0        mehgwatu36
+mehgwatu36_3648                   0.12362           0        mehgwatu36
+mehgwatu36_4608                  0.391347           0        mehgwatu36
+mehgwatu36_5710                  0.275785           0        mehgwatu36
+mehgwatu36_7069                  0.456488           0        mehgwatu36
+mehgwatu36_7672                    0.5645           0        mehgwatu36
+mehgwatu36_7707                  0.907427           0        mehgwatu36
+mehgwatu36_8744                    0.3775           0        mehgwatu36
+mehgwatu36_9595                    0.3455           0        mehgwatu36
+mehgwatu36_9923                     0.394           0        mehgwatu36
+mehgwatu36d_2408                 0.141172           0        mehgwatu36d
+mehgwatu36d_7809                 0.154171           0        mehgwatu36d
+mehgwatu36d_8911                    0.134           0        mehgwatu36d
+mehgwatu42_1127                      0.24      2.1875        mehgwatu42
+mehgwatu42_1576                     0.166      2.1875        mehgwatu42
+mehgwatu42_1597                     0.129      2.1875        mehgwatu42
+mehgwatu42_1682                       0.1      2.1875        mehgwatu42
+mehgwatu42_1696                     0.195      2.1875        mehgwatu42
+mehgwatu42_2109                  0.536067      2.1875        mehgwatu42
+mehgwatu42_2340                   1.53459      2.1875        mehgwatu42
+mehgwatu42_2446                     0.223      2.1875        mehgwatu42
+mehgwatu42_3415                  0.587859      2.1875        mehgwatu42
+mehgwatu42_3947                     0.446      2.1875        mehgwatu42
+mehgwatu42_4155                     0.204      2.1875        mehgwatu42
+mehgwatu42_4200                  0.166175      2.1875        mehgwatu42
+mehgwatu42_4216                     0.574      2.1875        mehgwatu42
+mehgwatu42_4567                   2.15665      2.1875        mehgwatu42
+mehgwatu42_4900                     0.526      2.1875        mehgwatu42
+mehgwatu42_4950                     0.439      2.1875        mehgwatu42
+mehgwatu42_5039                  0.692287      2.1875        mehgwatu42
+mehgwatu42_5506                   0.76446      2.1875        mehgwatu42
+mehgwatu42_5832                     0.332      2.1875        mehgwatu42
+mehgwatu42_5940                    0.1685      2.1875        mehgwatu42
+mehgwatu42_6226                  0.133818      2.1875        mehgwatu42
+mehgwatu42_7732                  1.745625      2.1875        mehgwatu42
+mehgwatu42_7901                    0.2525      2.1875        mehgwatu42
+mehgwatu42_7992                     0.206      2.1875        mehgwatu42
+mehgwatu42_8382                       0.3      2.1875        mehgwatu42
+mehgwatu42_8497                       0.9      2.1875        mehgwatu42
+mehgwatu42_8657                     0.255      2.1875        mehgwatu42
+mehgwatu42_9059                     0.179      2.1875        mehgwatu42
+mehgwatu42_9306                     0.385      2.1875        mehgwatu42
+mehgwatu42_9473                      0.34      2.1875        mehgwatu42
+mehgwatu42_9554                  0.723769      2.1875        mehgwatu42
+mehgwatu42_9858                     0.135      2.1875        mehgwatu42
+mehgwatu42d_2031                      0.2           0        mehgwatu42d
+mehgwatu42d_2745                 0.180615           0        mehgwatu42d
+mehgwatu42d_4247                 0.418975           0        mehgwatu42d
+mehgwatu42d_7718                    0.183           0        mehgwatu42d
+mehgwatu42d_8925                      0.3           0        mehgwatu42d
+mehgwatu42d_9397                      0.1           0        mehgwatu42d
+mehgwatu42d_9998                   0.2585           0        mehgwatu42d
+mehgwatu43_1054                     0.229           0        mehgwatu43
+mehgwatu43_1404                     0.414           0        mehgwatu43
+mehgwatu43_1460                     0.333           0        mehgwatu43
+mehgwatu43_1955                     0.269           0        mehgwatu43
+mehgwatu43_2364                      0.21           0        mehgwatu43
+mehgwatu43_2522                  0.378076           0        mehgwatu43
+mehgwatu43_3078                    0.2105           0        mehgwatu43
+mehgwatu43_3207                     0.284           0        mehgwatu43
+mehgwatu43_3520                     0.115           0        mehgwatu43
+mehgwatu43_3831                     0.142           0        mehgwatu43
+mehgwatu43_4066                      1.96           0        mehgwatu43
+mehgwatu43_4116                     0.756           0        mehgwatu43
+mehgwatu43_4190                  0.104817           0        mehgwatu43
+mehgwatu43_4241                     0.399           0        mehgwatu43
+mehgwatu43_4434                  0.554948           0        mehgwatu43
+mehgwatu43_4439                       5.8           0        mehgwatu43
+mehgwatu43_4464                     0.147           0        mehgwatu43
+mehgwatu43_4565                     0.325           0        mehgwatu43
+mehgwatu43_5052                     0.099           0        mehgwatu43
+mehgwatu43_5462                     0.083           0        mehgwatu43
+mehgwatu43_5757                       0.5           0        mehgwatu43
+mehgwatu43_5842                  0.584526           0        mehgwatu43
+mehgwatu43_6124                  0.250482           0        mehgwatu43
+mehgwatu43_6126                    0.3835           0        mehgwatu43
+mehgwatu43_6257                     0.403           0        mehgwatu43
+mehgwatu43_6350                     0.144           0        mehgwatu43
+mehgwatu43_6767                  1.369425           0        mehgwatu43
+mehgwatu43_6769                     0.522           0        mehgwatu43
+mehgwatu43_6774                  0.351897           0        mehgwatu43
+mehgwatu43_7426                     0.397           0        mehgwatu43
+mehgwatu43_7841                      1.09           0        mehgwatu43
+mehgwatu43_7850                     0.172           0        mehgwatu43
+mehgwatu43_7920                     0.701           0        mehgwatu43
+mehgwatu43_8026                  0.417123           0        mehgwatu43
+mehgwatu43_8116                     0.413           0        mehgwatu43
+mehgwatu43_8655                     0.229           0        mehgwatu43
+mehgwatu43_8682                  0.227686           0        mehgwatu43
+mehgwatu43_8755                      0.16           0        mehgwatu43
+mehgwatu43_8991                      0.69           0        mehgwatu43
+mehgwatu43_9042                    0.3065           0        mehgwatu43
+mehgwatu43_9334                     0.515           0        mehgwatu43
+mehgwatu43_9346                     0.456           0        mehgwatu43
+mehgwatu43_9445                      0.39           0        mehgwatu43
+mehgwatu43_9777                     0.197           0        mehgwatu43
+mehgwatu43_9920                      0.34           0        mehgwatu43
+mehgwatu43_9987                     0.165           0        mehgwatu43
+mehgwatu43d_1177                 0.232197           0        mehgwatu43d
+mehgwatu43d_1835                    0.122           0        mehgwatu43d
+mehgwatu43d_2606                    0.271           0        mehgwatu43d
+mehgwatu43d_2929                 0.153112           0        mehgwatu43d
+mehgwatu43d_3296                    0.114           0        mehgwatu43d
+mehgwatu43d_3543                    0.273           0        mehgwatu43d
+mehgwatu43d_4079                  0.16925           0        mehgwatu43d
+mehgwatu43d_4943                   0.1825           0        mehgwatu43d
+mehgwatu43d_5055                    0.205           0        mehgwatu43d
+mehgwatu43d_6052                 0.118375           0        mehgwatu43d
+mehgwatu43d_6127                    0.349           0        mehgwatu43d
+mehgwatu43d_6928                    0.226           0        mehgwatu43d
+mehgwatu43d_7489                    0.208           0        mehgwatu43d
+mehgwatu43d_7878                 0.116029           0        mehgwatu43d
+mehgwatu43d_8981                    0.239           0        mehgwatu43d
+mehgwatu43d_9071                   0.1755           0        mehgwatu43d
+mehgwatu43d_9462                    0.141           0        mehgwatu43d
+mehgwatu43d_9559                    0.311           0        mehgwatu43d
+mehgwatu7_1288                        0.2     13.3333        mehgwatu7
+mehgwatu7_1893                        0.3     13.3333        mehgwatu7
+mehgwatu7_4478                        0.4     13.3333        mehgwatu7
+mehgwatu7d_3961                       0.3           0        mehgwatu7d
+mehgwatu7d_6619                       0.3           0        mehgwatu7d
+mehgwatu7d_8000                       0.4           0        mehgwatu7d
+mehgwatu8_1729                        0.5     13.3333        mehgwatu8
+mehgwatu8_7967                        0.3     13.3333        mehgwatu8
+mehgwatu8_8619                        0.3     13.3333        mehgwatu8
+mehgwatu8d_1099                       0.2           0        mehgwatu8d
+mehgwatu8d_2170                       0.4           0        mehgwatu8d
+mehgwatu8d_2728                       0.4           0        mehgwatu8d
+tss1_2695                             115       0.025        tss1
+tss1_6506                              99       0.025        tss1
+tss10_1149                       43.16406     0.00294        tss10
+tss10_1874                           94.5     0.00294        tss10
+tss10_2396                       40.95272     0.00294        tss10
+tss10_2635                           70.5     0.00294        tss10
+tss10_3626                             87     0.00294        tss10
+tss10_4376                            156     0.00294        tss10
+tss10_4613                       74.70083     0.00294        tss10
+tss10_4818                          69.25     0.00294        tss10
+tss10_4906                          30.25     0.00294        tss10
+tss10_5474                       56.04853     0.00294        tss10
+tss10_5504                           36.5     0.00294        tss10
+tss10_5525                       43.40933     0.00294        tss10
+tss10_6703                             43     0.00294        tss10
+tss10_6983                           35.5     0.00294        tss10
+tss10_8045                          76.75     0.00294        tss10
+tss10_9166                           62.5     0.00294        tss10
+tss10_9561                       55.51181     0.00294        tss10
+tss10d_1313                      50.56672           0        tss10d
+tss10d_3241                         86.25           0        tss10d
+tss10d_4285                            69           0        tss10d
+tss10d_4990                          33.5           0        tss10d
+tss10d_9139                          43.5           0        tss10d
+tss11_1095                             24           0        tss11
+tss11_1183                           21.5           0        tss11
+tss11_1265                             15           0        tss11
+tss11_1412                             15           0        tss11
+tss11_1437                             16           0        tss11
+tss11_1550                          124.5           0        tss11
+tss11_2320                           24.5           0        tss11
+tss11_2617                             30           0        tss11
+tss11_2675                             35           0        tss11
+tss11_2798                             22           0        tss11
+tss11_2880                             23           0        tss11
+tss11_2918                             29           0        tss11
+tss11_3404                             15           0        tss11
+tss11_4108                             13           0        tss11
+tss11_4112                             25           0        tss11
+tss11_4467                             20           0        tss11
+tss11_4515                             18           0        tss11
+tss11_4643                             16           0        tss11
+tss11_4843                             28           0        tss11
+tss11_4976                             21           0        tss11
+tss11_5008                             14           0        tss11
+tss11_5336                             25           0        tss11
+tss11_5431                             17           0        tss11
+tss11_5451                           19.5           0        tss11
+tss11_5694                             21           0        tss11
+tss11_5931                       38.84298           0        tss11
+tss11_6238                             18           0        tss11
+tss11_6367                             10           0        tss11
+tss11_6526                             20           0        tss11
+tss11_6849                             26           0        tss11
+tss11_7209                       25.15723           0        tss11
+tss11_7803                              9           0        tss11
+tss11_7806                             20           0        tss11
+tss11_8178                       45.37815           0        tss11
+tss11_8938                             14           0        tss11
+tss11_9162                             27           0        tss11
+tss11_9267                              4           0        tss11
+tss11_9337                             51           0        tss11
+tss11_9356                             27           0        tss11
+tss11_9685                             54           0        tss11
+tss11_9904                             21           0        tss11
+tss11d_1638                            45           0        tss11d
+tss11d_3202                            36           0        tss11d
+tss11d_3326                            31           0        tss11d
+tss11d_3513                            26           0        tss11d
+tss11d_3522                            14           0        tss11d
+tss11d_3617                            29           0        tss11d
+tss11d_3883                            26           0        tss11d
+tss11d_4379                             6           0        tss11d
+tss11d_5418                            33           0        tss11d
+tss11d_6259                            23           0        tss11d
+tss11d_6535                            56           0        tss11d
+tss11d_6560                            27           0        tss11d
+tss11d_6690                          31.5           0        tss11d
+tss11d_7266                            35           0        tss11d
+tss11d_7329                            41           0        tss11d
+tss11d_7592                            39           0        tss11d
+tss11d_7598                          36.5           0        tss11d
+tss11d_8075                            23           0        tss11d
+tss11d_8146                            32           0        tss11d
+tss11d_8627                            25           0        tss11d
+tss11d_9575                            23           0        tss11d
+tss12_1518                             77           0        tss12
+tss12_2454                             98           0        tss12
+tss12_2704                            166           0        tss12
+tss12_3896                             24           0        tss12
+tss12_6182                             97           0        tss12
+tss12_6285                             24           0        tss12
+tss12_7801                             25           0        tss12
+tss12_7808                             16           0        tss12
+tss12_8968                            125           0        tss12
+tss12_9364                             15           0        tss12
+tss12_9897                             32           0        tss12
+tss12d_1205                            80           0        tss12d
+tss12d_2526                            80           0        tss12d
+tss12d_2708                            64           0        tss12d
+tss12d_3287                            62           0        tss12d
+tss12d_3778                            54           0        tss12d
+tss12d_3858                            46           0        tss12d
+tss12d_4691                            29           0        tss12d
+tss12d_4705                            49           0        tss12d
+tss12d_6197                            56           0        tss12d
+tss12d_7788                            53           0        tss12d
+tss12d_9668                            58           0        tss12d
+tss15_3016                           1040       0.005        tss15
+tss23_1092                            105     0.00185        tss23
+tss23_1352                       34.87333           0        tss23
+tss23_1736                       18.04611           0        tss23
+tss23_1763                       132.6367           0        tss23
+tss23_2358                            220     0.00185        tss23
+tss23_2879                             90     0.00185        tss23
+tss23_2889                          22.73           0        tss23
+tss23_3102                            270     0.00185        tss23
+tss23_3586                            563     0.00185        tss23
+tss23_3803                        147.892           0        tss23
+tss23_4217                            183     0.00185        tss23
+tss23_4410                        147.539           0        tss23
+tss23_4878                         48.865           0        tss23
+tss23_5006                       45.38617           0        tss23
+tss23_5393                       104.4829           0        tss23
+tss23_5529                          19.22           0        tss23
+tss23_6153                        74.2175           0        tss23
+tss23_6726                       107.4866           0        tss23
+tss23_7004                             78     0.00185        tss23
+tss23_7215                         241.95           0        tss23
+tss23_7290                       101.5356           0        tss23
+tss23_7777                       40.88167           0        tss23
+tss23_8104                         153.66           0        tss23
+tss23_8407                       25.48454           0        tss23
+tss23_8511                            107     0.00185        tss23
+tss23_8888                            219     0.00185        tss23
+tss23_9201                            300     0.00185        tss23
+tss23d_1291                        6.3535           0        tss23d
+tss23d_1295                         83.09           0        tss23d
+tss23d_1944                      14.61942           0        tss23d
+tss23d_2131                      43.62733           0        tss23d
+tss23d_2436                         8.984           0        tss23d
+tss23d_2497                         7.875           0        tss23d
+tss23d_3338                         11.54           0        tss23d
+tss23d_3380                        29.733           0        tss23d
+tss23d_4078                        36.155           0        tss23d
+tss23d_4831                      42.56333           0        tss23d
+tss23d_4913                          5.55           0        tss23d
+tss23d_4968                        22.264           0        tss23d
+tss23d_5365                      93.58333           0        tss23d
+tss23d_5489                          32.7           0        tss23d
+tss23d_6437                         7.635           0        tss23d
+tss23d_6754                       61.5615           0        tss23d
+tss23d_6912                      14.52195           0        tss23d
+tss23d_6914                         9.345           0        tss23d
+tss23d_7509                      22.89167           0        tss23d
+tss23d_8037                      52.76833           0        tss23d
+tss23d_8238                         6.111           0        tss23d
+tss23d_8243                        48.625           0        tss23d
+tss23d_8568                        33.245           0        tss23d
+tss23d_9185                         30.69           0        tss23d
+tss23d_9323                        134.73           0        tss23d
+tss23d_9357                      33.47675           0        tss23d
+tss23d_9467                         90.52           0        tss23d
+tss23d_9698                       17.1335           0        tss23d
+tss23d_9809                      12.87067           0        tss23d
+tss23d_9954                         65.69           0        tss23d
+tss25_1526                       60.60556     0.00417        tss25
+tss25_1989                             60           0        tss25
+tss25_2333                          18.16     0.00417        tss25
+tss25_2434                        11.4305     0.00417        tss25
+tss25_2733                         11.129           0        tss25
+tss25_2911                       15.34633     0.00417        tss25
+tss25_4113                       44.33333     0.00417        tss25
+tss25_5096                         30.428           0        tss25
+tss25_5788                           35.5     0.00417        tss25
+tss25_6445                            1.5           0        tss25
+tss25_7742                       44.65733     0.00417        tss25
+tss25_8058                         57.415     0.00417        tss25
+tss25d_2215                         43.33           0        tss25d
+tss25d_3368                         44.64           0        tss25d
+tss25d_3573                        73.335           0        tss25d
+tss25d_4887                          22.5           0        tss25d
+tss25d_5201                         19.71           0        tss25d
+tss25d_6816                         44.82           0        tss25d
+tss25d_7930                         29.79           0        tss25d
+tss25d_9431                        62.485           0        tss25d
+tss25d_9454                        108.77           0        tss25d
+tss26_4424                            260        0.05        tss26
+tss34d_6632                        110.25           0        tss34d
+tss34d_8856                      80.66667           0        tss34d
+tss35_1281                             73           0        tss35
+tss35_1357                             31           0        tss35
+tss35_1752                           29.5           0        tss35
+tss35_2168                             56           0        tss35
+tss35_2224                          38.25           0        tss35
+tss35_2511                             35           0        tss35
+tss35_2895                             50           0        tss35
+tss35_2914                          122.5           0        tss35
+tss35_2925                             65           0        tss35
+tss35_3819                             61           0        tss35
+tss35_3843                             14           0        tss35
+tss35_4228                       30.41667           0        tss35
+tss35_4350                             57           0        tss35
+tss35_4390                          30.25           0        tss35
+tss35_5890                             42           0        tss35
+tss35_6091                          22.75           0        tss35
+tss35_7295                             33           0        tss35
+tss35_7463                             29           0        tss35
+tss35_7886                           41.5           0        tss35
+tss35_7925                             26           0        tss35
+tss35_8065                             60           0        tss35
+tss35_8576                             31           0        tss35
+tss35_8978                             46           0        tss35
+tss35_9005                          22.25           0        tss35
+tss35_9730                             78           0        tss35
+tss35_9806                           31.5           0        tss35
+tss35_9999                         114.75           0        tss35
+tss35d_1796                         48.75           0        tss35d
+tss35d_1854                            85           0        tss35d
+tss35d_1903                           119           0        tss35d
+tss35d_3359                            23           0        tss35d
+tss35d_5496                          60.5           0        tss35d
+tss35d_5497                      68.28182           0        tss35d
+tss35d_6133                      23.18857           0        tss35d
+tss35d_6542                           142           0        tss35d
+tss35d_6740                         45.75           0        tss35d
+tss35d_6791                            25           0        tss35d
+tss35d_7187                          49.5           0        tss35d
+tss35d_7335                            27           0        tss35d
+tss35d_7348                            82           0        tss35d
+tss35d_7465                            64           0        tss35d
+tss35d_7653                            46           0        tss35d
+tss35d_8669                           102           0        tss35d
+tss35d_8677                            51           0        tss35d
+tss35d_9159                            58           0        tss35d
+tss35d_9372                            19           0        tss35d
+tss36d_5732                      54.93213           0        tss36d
+tss42_1419                       26.50602     0.03571        tss42
+tss42_1642                       50.52083     0.03571        tss42
+tss42_1680                       39.50617     0.03571        tss42
+tss42_2021                       28.03738     0.03571        tss42
+tss42_4747                       14.28571     0.03571        tss42
+tss42_5030                       27.91353     0.03571        tss42
+tss42_5981                       29.94792     0.03571        tss42
+tss42_7337                       24.78632     0.03571        tss42
+tss42_7894                       61.70635     0.03571        tss42
+tss42_8397                       135.3933     0.03571        tss42
+tss42_8545                       37.89474     0.03571        tss42
+tss42_9087                        48.4127     0.03571        tss42
+tss42_9394                       25.30864     0.03571        tss42
+tss42_9571                          109.6     0.03571        tss42
+tss42d_4674                      67.91045           0        tss42d
+tss43_1015                          87.75           0        tss43
+tss43_1021                            132           0        tss43
+tss43_1414                             29           0        tss43
+tss43_1451                              8           0        tss43
+tss43_1520                          67.95           0        tss43
+tss43_1745                        52.2238           0        tss43
+tss43_2010                       39.84064           0        tss43
+tss43_2093                           14.5           0        tss43
+tss43_2350                       54.92424           0        tss43
+tss43_2588                            105           0        tss43
+tss43_2789                             63           0        tss43
+tss43_3005                          55.45           0        tss43
+tss43_3072                             70           0        tss43
+tss43_3099                              9           0        tss43
+tss43_3103                            185           0        tss43
+tss43_3322                             70           0        tss43
+tss43_3418                             61           0        tss43
+tss43_3640                       43.62514           0        tss43
+tss43_3718                             42           0        tss43
+tss43_3720                             48           0        tss43
+tss43_3807                             32           0        tss43
+tss43_3817                            112           0        tss43
+tss43_4736                             13           0        tss43
+tss43_5029                       36.63366           0        tss43
+tss43_5127                             10           0        tss43
+tss43_5347                             31           0        tss43
+tss43_5465                           21.5           0        tss43
+tss43_5503                              3           0        tss43
+tss43_5522                       88.54962           0        tss43
+tss43_5631                       53.77358           0        tss43
+tss43_5774                             80           0        tss43
+tss43_5777                             28           0        tss43
+tss43_5938                       41.22137           0        tss43
+tss43_5978                             64           0        tss43
+tss43_6037                        64.0625           0        tss43
+tss43_6130                             50           0        tss43
+tss43_6216                       43.53448           0        tss43
+tss43_6715                             14           0        tss43
+tss43_6993                            251           0        tss43
+tss43_7542                             35           0        tss43
+tss43_7686                       40.39377           0        tss43
+tss43_8538                            194           0        tss43
+tss43_8590                          35.59           0        tss43
+tss43_8942                          19.25           0        tss43
+tss43_8958                             45           0        tss43
+tss43_8985                             92           0        tss43
+tss43_9031                           75.5           0        tss43
+tss43_9376                             79           0        tss43
+tss43_9472                       48.97297           0        tss43
+tss43_9502                          38.95           0        tss43
+tss43_9600                       73.03333           0        tss43
+tss43_9833                             58           0        tss43
+tss43_9849                       36.26374           0        tss43
+tss43d_1655                            36           0        tss43d
+tss43d_2292                            82           0        tss43d
+tss43d_2458                            65           0        tss43d
+tss43d_2516                      66.16541           0        tss43d
+tss43d_2692                         73.81           0        tss43d
+tss43d_2854                         36.29           0        tss43d
+tss43d_2945                            25           0        tss43d
+tss43d_3124                           218           0        tss43d
+tss43d_3436                            15           0        tss43d
+tss43d_3479                            92           0        tss43d
+tss43d_3726                            15           0        tss43d
+tss43d_3886                      83.78378           0        tss43d
+tss43d_4023                           155           0        tss43d
+tss43d_4399                           177           0        tss43d
+tss43d_4451                          17.5           0        tss43d
+tss43d_4519                          11.5           0        tss43d
+tss43d_4595                      157.8431           0        tss43d
+tss43d_4912                            31           0        tss43d
+tss43d_5044                            49           0        tss43d
+tss43d_5117                            23           0        tss43d
+tss43d_5453                          64.5           0        tss43d
+tss43d_5671                          22.5           0        tss43d
+tss43d_5953                            77           0        tss43d
+tss43d_6073                            15           0        tss43d
+tss43d_6162                           106           0        tss43d
+tss43d_6515                           109           0        tss43d
+tss43d_6564                         42.55           0        tss43d
+tss43d_6650                      104.5802           0        tss43d
+tss43d_6986                          20.5           0        tss43d
+tss43d_7068                         76.05           0        tss43d
+tss43d_7256                            14           0        tss43d
+tss43d_7429                         26.04           0        tss43d
+tss43d_7570                         26.25           0        tss43d
+tss43d_7900                      97.49536           0        tss43d
+tss43d_8807                      81.56348           0        tss43d
+tss43d_9165                      81.43939           0        tss43d
+tss43d_9388                           145           0        tss43d
+tss45_1714                            119        0.05        tss45
+tss5_1491                              60     0.00455        tss5
+tss5_2759                             131     0.00455        tss5
+tss5_4010                              49     0.00455        tss5
+tss5_4137                              94     0.00455        tss5
+tss5_6967                              68     0.00455        tss5
+tss5_8087                              78     0.00455        tss5
+tss5_8354                              80     0.00455        tss5
+tss5_9250                             107     0.00455        tss5
+tss5_9612                             363     0.00455        tss5
+tss5_9865                              46     0.00455        tss5
+tss5_9980                              86     0.00455        tss5
+tss7_6758                              53     0.01667        tss7
+tss7_7240                              40     0.01667        tss7
+tss7_8443                              58     0.01667        tss7
+tss7d_3545                            110           0        tss7d
+tss7d_5234                             64           0        tss7d
+tss7d_6278                             32           0        tss7d
+tss8_1783                              63     0.00333        tss8
+tss8_2356                            80.5     0.00333        tss8
+tss8_2410                              62     0.00333        tss8
+tss8_4109                              77     0.00333        tss8
+tss8_5159                              80     0.00333        tss8
+tss8_5652                              42     0.00333        tss8
+tss8_5811                              56     0.00333        tss8
+tss8_6160                              42     0.00333        tss8
+tss8_7277                              92     0.00333        tss8
+tss8_7982                             103     0.00333        tss8
+tss8_8618                              26     0.00333        tss8
+tss8_8760                             139     0.00333        tss8
+tss8_9553                             232     0.00333        tss8
+tss8_9650                             116     0.00333        tss8
+tss8_9723                              50     0.00333        tss8
+tss8d_3285                             80           0        tss8d
+tss8d_3339                             38           0        tss8d
+tss8d_8748                             58           0        tss8d
+tss9_2189                              28       0.025        tss9
+tss9_8916                             189       0.025        tss9
+mehgsed13_8558                       0.51           1        mehgsed13
+mehgsed25_1942                       1.22     0.33333        mehgsed25
+mehgsed25_8134                       1.37     0.33333        mehgsed25
+mehgsed25_9650                       1.49     0.33333        mehgsed25
+mehgsed35_4827                       0.12         0.5        mehgsed35
+mehgsed35_9927                       0.47         0.5        mehgsed35
+mehgsed43_6597                       0.18         0.5        mehgsed43
+mehgsed43_9868                       0.63         0.5        mehgsed43
+hgiif_11_2000                    56342898           0        an_avg_hgiif
+hgiif_13_2001                     4874042           0        an_avg_hgiif
+hgiif_15_2002                     9376120           0        an_avg_hgiif
+hgiif_17_2003                    16274850           0        an_avg_hgiif
+hgiif_19_2004                    41752339           0        an_avg_hgiif
+hgiif_21_2005                    17297530           0        an_avg_hgiif
+hgiif_23_2006                   176000000           0        an_avg_hgiif
+hgiif_25_2007                     3785459           0        an_avg_hgiif
+hgiif_27_2008                     6561338           0        an_avg_hgiif
+hgiif_29_2009                     3707850           0        an_avg_hgiif
+hgiif_31_2010                     8097567           0        an_avg_hgiif
+hgiif_33_2011                    51762766           0        an_avg_hgiif
+hgiif_35_2012                     5403046           0        an_avg_hgiif
+hgiif_5_1997                    122000000           0        an_avg_hgiif
+hgiif_7_1998                    180000000           0        an_avg_hgiif
+hgiif_9_1999                     43931613           0        an_avg_hgiif
+hgiiu_11_2000                   337000000           0        an_avg_hgiiu
+hgiiu_13_2001                    13195069           0        an_avg_hgiiu
+hgiiu_15_2002                    39164884           0        an_avg_hgiiu
+hgiiu_17_2003                    66160110           0        an_avg_hgiiu
+hgiiu_19_2004                   428000000           0        an_avg_hgiiu
+hgiiu_21_2005                    51583663           0        an_avg_hgiiu
+hgiiu_23_2006                  1220000000           0        an_avg_hgiiu
+hgiiu_25_2007                     8035309           0        an_avg_hgiiu
+hgiiu_27_2008                    16865809           0        an_avg_hgiiu
+hgiiu_29_2009                     8456548           0        an_avg_hgiiu
+hgiiu_31_2010                    24437313           0        an_avg_hgiiu
+hgiiu_33_2011                   367000000           0        an_avg_hgiiu
+hgiiu_35_2012                    11016321           0        an_avg_hgiiu
+hgiiu_5_1997                   1620000000           0        an_avg_hgiiu
+hgiiu_7_1998                   1930000000           0        an_avg_hgiiu
+hgiiu_9_1999                    202000000           0        an_avg_hgiiu
+mehgf_11_2000                     2052851           0        an_avg_mehgf
+mehgf_13_2001                    223085.4           0        an_avg_mehgf
+mehgf_15_2002                    465323.6           0        an_avg_mehgf
+mehgf_17_2003                    882825.2           0        an_avg_mehgf
+mehgf_19_2004                     1685674           0        an_avg_mehgf
+mehgf_21_2005                    988856.4           0        an_avg_mehgf
+mehgf_23_2006                     6412477           0        an_avg_mehgf
+mehgf_25_2007                      199219           0        an_avg_mehgf
+mehgf_27_2008                    358344.2           0        an_avg_mehgf
+mehgf_29_2009                    193046.8           0        an_avg_mehgf
+mehgf_31_2010                    444038.4           0        an_avg_mehgf
+mehgf_33_2011                     2031053           0        an_avg_mehgf
+mehgf_35_2012                      294057           0        an_avg_mehgf
+mehgf_5_1997                      4078857           0        an_avg_mehgf
+mehgf_7_1998                      6360332           0        an_avg_mehgf
+mehgf_9_1999                      1754671           0        an_avg_mehgf
+mehgu_11_2000                     7949282           0        an_avg_mehgu
+mehgu_13_2001                    449148.1           0        an_avg_mehgu
+mehgu_15_2002                     1285055           0        an_avg_mehgu
+mehgu_17_2003                     2253404           0        an_avg_mehgu
+mehgu_19_2004                     9736118           0        an_avg_mehgu
+mehgu_21_2005                     1961342           0        an_avg_mehgu
+mehgu_23_2006                    27631089           0        an_avg_mehgu
+mehgu_25_2007                    331059.8           0        an_avg_mehgu
+mehgu_27_2008                    668671.1           0        an_avg_mehgu
+mehgu_29_2009                    338510.7           0        an_avg_mehgu
+mehgu_31_2010                      919610           0        an_avg_mehgu
+mehgu_33_2011                     8495519           0        an_avg_mehgu
+mehgu_35_2012                    472759.5           0        an_avg_mehgu
+mehgu_5_1997                     33193701           0        an_avg_mehgu
+mehgu_7_1998                     41113329           0        an_avg_mehgu
+mehgu_9_1999                      5401191           0        an_avg_mehgu
+tss_11_2000                    2110000000           0        an_avg_tss
+tss_13_2001                      55904291           0        an_avg_tss
+tss_15_2002                     206000000           0        an_avg_tss
+tss_17_2003                     317000000           0        an_avg_tss
+tss_19_2004                    2980000000           0        an_avg_tss
+tss_21_2005                     272000000           0        an_avg_tss
+tss_23_2006                    8360000000           0        an_avg_tss
+tss_25_2007                      34992815           0        an_avg_tss
+tss_27_2008                      66518079           0        an_avg_tss
+tss_29_2009                      35866618           0        an_avg_tss
+tss_31_2010                     104000000           0        an_avg_tss
+tss_33_2011                    1960000000           0        an_avg_tss
+tss_35_2012                      40599145           0        an_avg_tss
+tss_5_1997                    14600000000           0        an_avg_tss
+tss_7_1998                    10800000000           0        an_avg_tss
+tss_9_1999                      918000000           0        an_avg_tss
+hgiif_39_1997                 44500000000           0        an_tot_hgiif
+hgiif_41_1998                 65900000000           0        an_tot_hgiif
+hgiif_43_1999                 16000000000           0        an_tot_hgiif
+hgiif_45_2000                 20600000000           0        an_tot_hgiif
+hgiif_47_2001                  1780000000           0        an_tot_hgiif
+hgiif_49_2002                  3420000000           0        an_tot_hgiif
+hgiif_51_2003                  5940000000           0        an_tot_hgiif
+hgiif_53_2004                 15300000000           0        an_tot_hgiif
+hgiif_55_2005                  6310000000           0        an_tot_hgiif
+hgiif_57_2006                 64200000000           0        an_tot_hgiif
+hgiif_59_2007                  1380000000           0        an_tot_hgiif
+hgiif_61_2008                  2400000000           0        an_tot_hgiif
+hgiif_63_2009                  1350000000           0        an_tot_hgiif
+hgiif_65_2010                  2960000000           0        an_tot_hgiif
+hgiif_67_2011                 18900000000           0        an_tot_hgiif
+hgiif_69_2012                  1320000000           0        an_tot_hgiif
+hgiiu_39_1997                    5.93E+11           0        an_tot_hgiiu
+hgiiu_41_1998                    7.04E+11           0        an_tot_hgiiu
+hgiiu_43_1999                 73700000000           0        an_tot_hgiiu
+hgiiu_45_2000                    1.23E+11           0        an_tot_hgiiu
+hgiiu_47_2001                  4820000000           0        an_tot_hgiiu
+hgiiu_49_2002                 14300000000           0        an_tot_hgiiu
+hgiiu_51_2003                 24100000000           0        an_tot_hgiiu
+hgiiu_53_2004                    1.57E+11           0        an_tot_hgiiu
+hgiiu_55_2005                 18800000000           0        an_tot_hgiiu
+hgiiu_57_2006                    4.44E+11           0        an_tot_hgiiu
+hgiiu_59_2007                  2930000000           0        an_tot_hgiiu
+hgiiu_61_2008                  6170000000           0        an_tot_hgiiu
+hgiiu_63_2009                  3090000000           0        an_tot_hgiiu
+hgiiu_65_2010                  8920000000           0        an_tot_hgiiu
+hgiiu_67_2011                    1.34E+11           0        an_tot_hgiiu
+hgiiu_69_2012                  2690000000           0        an_tot_hgiiu
+mehgf_39_1997                  1490000000           0        an_tot_mehgf
+mehgf_41_1998                  2320000000           0        an_tot_mehgf
+mehgf_43_1999                   640000000           0        an_tot_mehgf
+mehgf_45_2000                   751000000           0        an_tot_mehgf
+mehgf_47_2001                    81426166           0        an_tot_mehgf
+mehgf_49_2002                   170000000           0        an_tot_mehgf
+mehgf_51_2003                   322000000           0        an_tot_mehgf
+mehgf_53_2004                   617000000           0        an_tot_mehgf
+mehgf_55_2005                   361000000           0        an_tot_mehgf
+mehgf_57_2006                  2340000000           0        an_tot_mehgf
+mehgf_59_2007                    72714920           0        an_tot_mehgf
+mehgf_61_2008                   131000000           0        an_tot_mehgf
+mehgf_63_2009                    70462099           0        an_tot_mehgf
+mehgf_65_2010                   162000000           0        an_tot_mehgf
+mehgf_67_2011                   741000000           0        an_tot_mehgf
+mehgf_69_2012                    71749896           0        an_tot_mehgf
+mehgu_39_1997                 12100000000           0        an_tot_mehgu
+mehgu_41_1998                 15000000000           0        an_tot_mehgu
+mehgu_43_1999                  1970000000           0        an_tot_mehgu
+mehgu_45_2000                  2910000000           0        an_tot_mehgu
+mehgu_47_2001                   164000000           0        an_tot_mehgu
+mehgu_49_2002                   469000000           0        an_tot_mehgu
+mehgu_51_2003                   822000000           0        an_tot_mehgu
+mehgu_53_2004                  3560000000           0        an_tot_mehgu
+mehgu_55_2005                   716000000           0        an_tot_mehgu
+mehgu_57_2006                 10100000000           0        an_tot_mehgu
+mehgu_59_2007                   121000000           0        an_tot_mehgu
+mehgu_61_2008                   245000000           0        an_tot_mehgu
+mehgu_63_2009                   124000000           0        an_tot_mehgu
+mehgu_65_2010                   336000000           0        an_tot_mehgu
+mehgu_67_2011                  3100000000           0        an_tot_mehgu
+mehgu_69_2012                   115000000           0        an_tot_mehgu
+tss_39_1997                      5.32E+12           0        an_tot_tss
+tss_41_1998                      3.93E+12           0        an_tot_tss
+tss_43_1999                      3.35E+11           0        an_tot_tss
+tss_45_2000                      7.71E+11           0        an_tot_tss
+tss_47_2001                   20400000000           0        an_tot_tss
+tss_49_2002                   75400000000           0        an_tot_tss
+tss_51_2003                      1.16E+11           0        an_tot_tss
+tss_53_2004                      1.09E+12           0        an_tot_tss
+tss_55_2005                   99100000000           0        an_tot_tss
+tss_57_2006                      3.05E+12           0        an_tot_tss
+tss_59_2007                   12800000000           0        an_tot_tss
+tss_61_2008                   24300000000           0        an_tot_tss
+tss_63_2009                   13100000000           0        an_tot_tss
+tss_65_2010                   38000000000           0        an_tot_tss
+tss_67_2011                      7.14E+11           0        an_tot_tss
+tss_69_2012                    9910000000           0        an_tot_tss
+* model command line
+Oct19_DMCM_batch_rjh_nospace.bat
+* model input/output
+yolo1inputs.prn_13Sept19.tpl   yolo1inputs.prn
+TSS_8Oct19.ins          YoloBaseCase.57.DMCM_wat_solids.csv
+Water_Hg_8Oct19.ins	 YoloBaseCase.57.DMCM_wat_concs.csv
+sediment_hg.ins  YoloBaseCase.57.DMCM_sed_concs.csv
+stairstep-loads_rjh_sep19.ins summary-statistics-stairstep.txt
+fremont_loads_rjh_sep19.ins summary-statistics-fremontweir.txt
+29Oct19_mehg_solids_full_simulation.ins mehg_solids_full_simulation.txt
+29Oct19_mehg_solids_10yr_simulation.ins mehg_solids_20021002_to_20120531.txt
+++ forecasts(mehgu_5_1997,mehgf_5_1997,hgiiu_5_1997,hgiif_5_1997,tss_5_1997,mehgu_7_1998,mehgf_7_1998,hgiiu_7_1998,hgiif_7_1998,tss_7_1998,mehgu_9_1999,mehgf_9_1999,hgiiu_9_1999,hgiif_9_1999,tss_9_1999,mehgu_11_2000,mehgf_11_2000,hgiiu_11_2000,hgiif_11_2000,tss_11_2000,mehgu_13_2001,mehgf_13_2001,hgiiu_13_2001,hgiif_13_2001,tss_13_2001,mehgu_15_2002,mehgf_15_2002,hgiiu_15_2002,hgiif_15_2002,tss_15_2002,mehgu_17_2003,mehgf_17_2003,hgiiu_17_2003,hgiif_17_2003,tss_17_2003,mehgu_19_2004,mehgf_19_2004,hgiiu_19_2004,hgiif_19_2004,mehgu_21_2005,mehgf_21_2005,hgiiu_21_2005,hgiif_21_2005,tss_21_2005,mehgu_23_2006,mehgf_23_2006,hgiiu_23_2006,hgiif_23_2006,tss_23_2006,mehgu_25_2007,mehgf_25_2007,hgiiu_25_2007,hgiif_25_2007,tss_25_2007,mehgu_27_2008,mehgf_27_2008,hgiiu_27_2008,hgiif_27_2008,tss_27_2008,mehgu_29_2009,mehgf_29_2009,hgiiu_29_2009,hgiif_29_2009,tss_29_2009,mehgf_31_2010,hgiiu_31_2010,hgiif_31_2010,tss_31_2010,mehgu_33_2011,mehgf_33_2011,hgiiu_33_2011,hgiif_33_2011,tss_33_2011,mehgu_35_2012,mehgf_35_2012,hgiiu_35_2012,hgiif_35_2012,tss_35_2012,mehgu_39_1997,mehgf_39_1997,hgiiu_39_1997,hgiif_39_1997,tss_39_1997,mehgu_41_1998,mehgf_41_1998,hgiif_51_2003,tss_51_2003,mehgu_53_2004,mehgf_53_2004,hgiif_53_2004,hgiif_43_1999,tss_43_1999,mehgu_45_2000,mehgf_45_2000,hgiiu_45_2000,hgiif_45_2000,tss_45_2000,mehgu_47_2001,mehgf_47_2001,hgiiu_47_2001,hgiif_47_2001,tss_47_2001,mehgu_49_2002,mehgf_49_2002,hgiiu_49_2002,hgiif_49_2002,tss_49_2002,mehgu_51_2003,mehgf_51_2003,hgiiu_51_2003,tss_53_2004,mehgu_55_2005,mehgf_55_2005,hgiiu_55_2005,hgiif_55_2005,tss_55_2005,mehgu_57_2006,mehgf_57_2006,hgiiu_57_2006,hgiif_57_2006,tss_57_2006,mehgu_59_2007,mehgf_59_2007,hgiiu_59_2007,hgiif_59_2007,tss_59_2007,mehgu_61_2008,mehgf_61_2008,hgiiu_61_2008,hgiif_61_2008,tss_61_2008,mehgu_63_2009,mehgf_63_2009,hgiiu_63_2009,tss_63_2009,mehgu_65_2010,mehgf_65_2010,hgiiu_65_2010,hgiif_65_2010,tss_65_2010,mehgu_67_2011,mehgf_67_2011,hgiiu_67_2011,hgiif_67_2011,tss_67_2011,mehgu_69_2012,mehgf_69_2012,hgiiu_69_2012,hgiif_69_2012,tss_69_2012)
+++ UNCERTAINTY(TRUE)
+++ iteration_summary(true)
+++# SVD_PACK(PROPACK)
+++ N_ITER_BASE(1)
+++ N_ITER_SUPER(4)
+++ SUPER_EIGTHRES(1.0e-8)
+++ MAX_N_SUPER(208)
+++ OVERDUE_RESCHED_FAC(1.5)
+++ OVERDUE_GIVEUP_FAC(1.75)
+++# AUTO_NORM(4)
+++ LAMBDAS(.05, 1, 5, 50, 500, 5000)
