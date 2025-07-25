@@ -7634,6 +7634,10 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
             rnames.push_back(all_rnames[idx]);
         }
         Eigen::MatrixXd t = _pe.get_eigen(rnames,vector<string>());
+        if (t.rows() != _oe.shape().first)
+        {
+            throw_em_error("save_to_catalogue() error: _pe subset rows != _oe rows");
+        }
         pest_utils::save_dense_binary(file_manager.get_ofstream("par.cat.bin"),rnames,t);
         rnames.clear();
         all_rnames = _oe.get_real_names();
@@ -7646,6 +7650,11 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
     }
     else
     {
+        if (_pe.shape().first != _oe.shape().first)
+        {
+            throw_em_error("save_to_catalogue() error: _pe rows != _oe rows");
+        }
+
         pest_utils::save_dense_binary(file_manager.get_ofstream("par.cat.bin"),_pe.get_real_names(),_pe.get_eigen_const_ref());
         pest_utils::save_dense_binary(file_manager.get_ofstream("obs.cat.bin"),_oe.get_real_names(),_oe.get_eigen_const_ref());
     }
