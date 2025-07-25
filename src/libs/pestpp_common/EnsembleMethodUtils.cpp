@@ -7608,7 +7608,7 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
     if (!save_catalogue){
         return;
     }
-    if (subset_idxs.size() > 0)
+    if ((subset_idxs.size() > 0) && (_oe.shape().first != _pe.shape().first))
     {
         vector<int> use_subset_idxs;
         if (_oe.shape().first < subset_idxs.size())
