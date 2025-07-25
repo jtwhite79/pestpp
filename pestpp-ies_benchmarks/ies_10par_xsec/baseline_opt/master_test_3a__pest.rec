@@ -1,0 +1,1126 @@
+             pestpp-ies.exe - a GLM iterative Ensemble Smoother
+for PEST(++) datasets 
+
+                 by the PEST++ developement team
+
+
+
+using control file: "pest.pst"
+in directory: "C:\Dev\pestpp\pestpp-ies_benchmarks\ies_10par_xsec\master_test_3a"
+
+Note: 4 unused lines in pest control file:
+  -->  line number 6: '1.000000E-01  -4.000000E+00   3.000000E-01   3.000000E-02        10       999          lamforgive        noderforgive' 
+  -->  line number 10: '1         1         1         0             jcosave          verboserec          jcosaveitn          reisaveitn          parsaveitn        noparsaverun' 
+  -->  line number 12: '1' 
+  -->  line number 13: '1    1.000000E-03' 
+Model command line(s):- 
+    mfnwt 10par_xsec.nam
+
+Model interface files:-
+    template files:
+      hk_Layer_1.ref.tpl
+      strt_Layer_1.ref.tpl
+    model input files:
+      hk_Layer_1.ref
+      strt_Layer_1.ref
+
+    instruction files:
+      10par_xsec.hds.ins
+    model output files:
+      10par_xsec.hds
+
+
+Parameter group information
+NAME            INCREMENT TYPE     DERIVATIVE INCREMENT    INCREMENT LOWER BOUND  FORCE CENTRAL     INCREMENT MULTIPLIER
+k                     RELATIVE                     0.01                        0         SWITCH                        2
+
+
+
+Parameter information
+NAME           TRANSFORMATION        CHANGE LIMIT  INITIAL VALUE    LOWER BOUND    UPPER BOUND          GROUP          SCALE         OFFSET  DERIVATIVE COMMAND
+stage          fixed                   FACTOR              1            0.1              3              k              1              0                   1
+k_01           fixed                   FACTOR            2.5           0.25             25              k              1              0                   1
+k_02           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+k_03           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+k_04           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+k_05           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+k_06           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+k_07           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+k_08           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+k_09           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+k_10           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+
+
+
+Observation information
+NAME                                    VALUE               GROUP              WEIGHT
+h01_01                                    1.5                head                   0
+h01_02                                    1.7                head                   0
+h01_03                                    1.9                head                   0
+h01_04                                    2.1                head                   1
+h01_05                                    2.3                head                   0
+h01_06                                    2.5                head                   1
+h01_07                                    2.7                head                   0
+h01_08                                    2.9                head                   0
+h01_09                                    3.1                head                   0
+h01_10                                    3.3                head                   0
+h02_01                                    1.5                head                   0
+h02_02                                    1.9                head                   0
+h02_03                                    2.3                head                   0
+h02_04                                    2.7                head                   0
+h02_05                                    3.1                head                   0
+h02_06                                    3.5                head                   0
+h02_07                                    3.9                head                   0
+h02_08                                    4.3                head                   0
+h02_09                                    4.7                head                   0
+h02_10                                    5.1                head                   0
+
+
+
+  ---  initializing  ---  
+...using REDSVD for truncated svd solve
+...maxsing: 1
+...eigthresh:  0.001
+...using lambda multipliers: 0.1 , 0.5 , 1 , 2 , 5 , 
+...using lambda scaling factors: 0.5 , 0.75 , 0.95 , 1 , 1.1 , 
+...acceptable phi factor:  1.05
+...lambda increase factor:  10
+...lambda decrease factor:  0.75
+...max run fail:  1
+...parcov loaded  from parameter bounds, using par_sigma_range 4
+...initializing observation noise covariance matrix
+...obscov loaded  from observation weights
+...using reg_factor:  0
+...loading par ensemble from csv file restart_failed_par.csv
+...not using prior parameter covariance matrix scaling
+...loading obs ensemble from csv file restart_failed_base_obs.csv
+...Warning: even though `ies_include_base` is true, you passed a restart obs en, not adding 'base' realization...
+...saved initial parameter ensemble to  pest.0.par.csv
+...saved base observation ensemble (obsval+noise) to  pest.base.obs.csv
+...using subset in lambda testing, only first  4
+...subset how:  RANDOM
+...forming inverse sqrt obscov
+...restarting with existing obs ensemble restart_failed.csv
+...loading restart obs ensemble from csv file restart_failed.csv
+reordering oe_base to align with restart obs en,num reals: 7
+
+  ---  pre-drop initial phi summary  ---  
+       phi type           mean            std            min            max
+      composite        1.74892        1.57089       0.237839        4.47498
+       measured        1.74892        1.57089       0.237839        4.47498
+ regularization              0              0              0              0
+         actual         1.0509         1.4916       0.059866        4.35168
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  WARNING: less than 10 active realizations...might not be enough  ---  
+
+  ---  initial phi summary  ---  
+       phi type           mean            std            min            max
+      composite        1.74892        1.57089       0.237839        4.47498
+       measured        1.74892        1.57089       0.237839        4.47498
+ regularization              0              0              0              0
+         actual         1.0509         1.4916       0.059866        4.35168
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+...current lambda: 0.1
+
+  ---  initialization complete  ---  
+
+  ---  starting solve for iteration: 1  ---  
+...WARNING: less than 10 active realizations...might not be enough
+...starting lambda calcs for lambda 0.01
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.01
+...starting lambda calcs for lambda 0.05
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.05
+...starting lambda calcs for lambda 0.1
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.1
+...starting lambda calcs for lambda 0.2
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.2
+...starting lambda calcs for lambda 0.5
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.5
+
+  ---  running lambda ensembles  ---  
+...subset idx:pe real name:  5:5, 6:6, 1:1, 2:2, 
+
+  ---  evaluting lambda ensembles  ---  
+...last mean:  1.74892
+...last stdev:  1.57089
+
+  ---  phi summary for lambda, scale fac:0.01 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.27268        1.34407       0.328524        3.21048
+       measured        1.27268        1.34407       0.328524        3.21048
+ regularization      0.0209603      0.0204249              0      0.0529891
+         actual        2.01315        3.08844       0.219249         6.6369
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.01 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.22098         1.3446       0.294193        3.17656
+       measured        1.22098         1.3446       0.294193        3.17656
+ regularization      0.0464052      0.0454028              0       0.119226
+         actual        2.29839         3.7675       0.214805        7.94538
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.01 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.18229        1.34567       0.265459        3.14663
+       measured        1.18229        1.34567       0.265459        3.14663
+ regularization      0.0702242      0.0706451              0       0.191291
+         actual        2.34734        3.93794       0.211642        8.25152
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.01 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.17273        1.34505       0.258152        3.13759
+       measured        1.17273        1.34505       0.258152        3.13759
+ regularization      0.0770546       0.078035              0       0.211957
+         actual        2.36078        3.98192        0.21064        8.33122
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.01 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.15551        1.34361       0.243191        3.12013
+       measured        1.15551        1.34361       0.243191        3.12013
+ regularization      0.0917663      0.0940615              0       0.256467
+         actual        2.38897        4.06997       0.209221        8.49196
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.05 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite         1.2767        1.34442       0.330143        3.21403
+       measured         1.2767        1.34442       0.330143        3.21403
+ regularization      0.0200342      0.0194845              0      0.0504444
+         actual         2.0033        3.06329        0.22009        6.58909
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.05 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.22609        1.34679       0.296545         3.1841
+       measured        1.22609        1.34679       0.296545         3.1841
+ regularization      0.0445623      0.0434495              0         0.1135
+         actual        2.29459        3.75284       0.216882         7.9195
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.05 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.18711        1.34776       0.267689        3.15366
+       measured        1.18711        1.34776       0.267689        3.15366
+ regularization      0.0672673      0.0673667              0       0.182104
+         actual        2.34015        3.91662       0.213242        8.21226
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.05 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.17798        1.34671       0.261113        3.14461
+       measured        1.17798        1.34671       0.261113        3.14461
+ regularization      0.0737783       0.074383              0       0.201778
+         actual        2.35284         3.9589       0.212228        8.28866
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.05 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.16035        1.34503       0.246723        3.12661
+       measured        1.16035        1.34503       0.246723        3.12661
+ regularization       0.087802        0.08961              0       0.244151
+         actual        2.38125        4.04648       0.210308        8.44892
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.1 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.28172        1.34424       0.332639        3.21759
+       measured        1.28172        1.34424       0.332639        3.21759
+ regularization      0.0189664       0.018405              0      0.0475317
+         actual         1.9913        3.03217       0.220933        6.53006
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.1 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.23062        1.34686       0.298907        3.18764
+       measured        1.23062        1.34686       0.298907        3.18764
+ regularization      0.0424489      0.0412325              0       0.106946
+         actual           2.29        3.73537       0.217705         7.8885
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.1 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.19306         1.3491       0.271397         3.1607
+       measured        1.19306         1.3491       0.271397         3.1607
+ regularization      0.0638765       0.063627              0       0.171589
+         actual        2.33304         3.8933        0.21485        8.17006
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.1 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite         1.1839        1.34822       0.264006        3.15164
+       measured         1.1839        1.34822       0.264006        3.15164
+ regularization      0.0700211      0.0702145              0       0.190127
+         actual        2.34574        3.93542       0.213824        8.24622
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.1 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.16737        1.34802       0.250281        3.13712
+       measured        1.16737        1.34802       0.250281        3.13712
+ regularization      0.0832558      0.0845245              0       0.230053
+         actual        2.37118        4.01751       0.212669         8.3953
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.2 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.29013        1.34489       0.335144        3.22517
+       measured        1.29013        1.34489       0.335144        3.22517
+ regularization      0.0170865      0.0165164              0      0.0424592
+         actual        1.96972        2.97635        0.22304        6.42411
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.2 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite         1.2394        1.34994       0.303553        3.19826
+       measured         1.2394        1.34994       0.303553        3.19826
+ regularization      0.0384447      0.0371618              0      0.0955331
+         actual        2.26166        3.66297       0.220186        7.75116
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.2 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.20428        1.35229       0.277403         3.1748
+       measured        1.20428        1.35229       0.277403         3.1748
+ regularization      0.0579538      0.0571548              0       0.153278
+         actual         2.3209        3.85252        0.21809         8.0965
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.2 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.19486        1.35149       0.270618        3.16571
+       measured        1.19486        1.35149       0.270618        3.16571
+ regularization      0.0634587       0.062992              0       0.169837
+         actual        2.33175        3.89061        0.21704        8.16479
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.2 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.17966         1.3522       0.258152        3.15416
+       measured        1.17966         1.3522       0.258152        3.15416
+ regularization      0.0753152      0.0756989              0       0.205502
+         actual        2.35537        3.96771       0.216169         8.3046
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.5 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.31107        1.34134       0.341832        3.23541
+       measured        1.31107        1.34134       0.341832        3.23541
+ regularization      0.0129159      0.0123788              0      0.0314683
+         actual        1.91259        2.83256       0.225178        6.14929
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.5 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.25924        1.35521       0.315488         3.2191
+       measured        1.25924        1.35521       0.315488         3.2191
+ regularization      0.0290608      0.0278522              0      0.0708038
+         actual         2.1584        3.41659       0.224765        7.27696
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.5 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.23089        1.35609       0.292665        3.20212
+       measured        1.23089        1.35609       0.292665        3.20212
+ regularization      0.0450316      0.0434034              0       0.113601
+         actual        2.29205        3.75085       0.223754        7.91432
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.5 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.22288        1.35643       0.286491        3.19601
+       measured        1.22288        1.35643       0.286491        3.19601
+ regularization      0.0491404       0.047591              0       0.125873
+         actual        2.30027        3.78313        0.22301        7.97132
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.5 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.20827        1.35903       0.275131         3.1884
+       measured        1.20827        1.35903       0.275131         3.1884
+ regularization      0.0579901      0.0567824              0       0.152307
+         actual        2.31789        3.84741       0.223325        8.08602
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for best lambda, scale fac: 0.01 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.15551        1.34361       0.243191        3.12013
+       measured        1.15551        1.34361       0.243191        3.12013
+ regularization      0.0917663      0.0940615              0       0.256467
+         actual        2.38897        4.06997       0.209221        8.49196
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  running remaining realizations for best lambda, scale:0.01 , 1.1 ,   ---  
+...phi summary for entire ensemble using lambda,scale_fac 0.01 , 1.1 , 
+       phi type           mean            std            min            max
+      composite        1.27059        1.21115       0.166924        3.12013
+       measured        1.27059        1.21115       0.166924        3.12013
+ regularization       0.366503       0.488349      0.0901752        1.44097
+         actual        1.49711        3.08861       0.027716        8.49196
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+...last best mean phi * acceptable phi factor:  1.83637
+...current best mean phi:  1.27059
+
+  ---  updating parameter ensemble  ---  
+
+  ---  updating lambda to  0.0075  ---  
+
+  ---  IterEnsembleSmoother iteration 1 report  ---  
+   number of active realizations:  7
+   number of model runs:           103
+      current obs ensemble saved to pest.1.obs.csv
+      current par ensemble saved to pest.1.par.csv
+       phi type           mean            std            min            max
+      composite        1.27059        1.21115       0.166924        3.12013
+       measured        1.27059        1.21115       0.166924        3.12013
+ regularization       0.366503       0.488349      0.0901752        1.44097
+         actual        1.49711        3.08861       0.027716        8.49196
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+   parameter group percent change summmary
+   (compared to the initial ensemble using active realizations)
+          group    mean change     std change
+              K       -12.0877         1.2694
+
+
+  ---  phi-based termination criteria check  ---  
+...phiredstp:  0.005
+...nphistp:  4
+...nphinored (also used for consecutive bad lambda cycles):  4
+...best mean phi sequence: 1.74892 , 1.27059 , 
+...best phi yet:  1.27059
+...number of consecutive bad lambda testing cycles:  0
+...number of iterations satisfying phiredstp criteria:  1
+...number of iterations since best yet mean phi:  0
+
+  ---  starting solve for iteration: 2  ---  
+...WARNING: less than 10 active realizations...might not be enough
+...starting lambda calcs for lambda 0.00075
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.00075
+...starting lambda calcs for lambda 0.00375
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.00375
+...starting lambda calcs for lambda 0.0075
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.0075
+...starting lambda calcs for lambda 0.015
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.015
+...starting lambda calcs for lambda 0.0375
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.0375
+
+  ---  running lambda ensembles  ---  
+...subset idx:pe real name:  5:3, 6:4, 1:2, 2:5, 
+
+  ---  evaluting lambda ensembles  ---  
+...last mean:  1.27059
+...last stdev:  1.21115
+
+  ---  phi summary for lambda, scale fac:0.00075 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.658405       0.903897       0.151159        2.01242
+       measured       0.658405       0.903897       0.151159        2.01242
+ regularization       0.241996       0.284987              0       0.749438
+         actual         2.2542        3.59808       0.371201        7.65001
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00075 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.555535       0.727652       0.142805        1.64499
+       measured       0.555535       0.727652       0.142805        1.64499
+ regularization       0.294945       0.362652              0       0.953391
+         actual        2.17846        3.39411       0.347525         7.2658
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00075 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.476207       0.586977       0.137014        1.35395
+       measured       0.476207       0.586977       0.137014        1.35395
+ regularization       0.342151       0.432191              0        1.13535
+         actual        2.13312        3.23902       0.327905        6.98333
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00075 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        0.45668       0.551922       0.135047         1.2815
+       measured        0.45668       0.551922       0.135047         1.2815
+ regularization       0.354626       0.450594              0        1.18345
+         actual        2.12373        3.20041       0.322976        6.91428
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00075 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.419118       0.483241       0.132181        1.14002
+       measured       0.419118       0.483241       0.132181        1.14002
+ regularization       0.380384       0.488614              0        1.28278
+         actual        2.10706        3.12324       0.313268         6.7775
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00375 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.658405       0.903897       0.151159        2.01242
+       measured       0.658405       0.903897       0.151159        2.01242
+ regularization       0.241803         0.2847              0        0.74868
+         actual         2.2542        3.59808       0.371201        7.65001
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00375 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.556184        0.72889       0.142805         1.6475
+       measured       0.556184        0.72889       0.142805         1.6475
+ regularization       0.294615       0.362161              0       0.952096
+         actual        2.17991        3.39773       0.347525        7.27272
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00375 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.476941       0.588022       0.137014        1.35622
+       measured       0.476941       0.588022       0.137014        1.35622
+ regularization       0.341693       0.431508              0        1.13355
+         actual        2.13323        3.24009       0.327905         6.9851
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00375 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.457233       0.553023       0.135047        1.28371
+       measured       0.457233       0.553023       0.135047        1.28371
+ regularization       0.354133       0.449859              0        1.18151
+         actual        2.12338         3.2006       0.322976        6.91428
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00375 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.419639       0.484276       0.132181         1.1421
+       measured       0.419639       0.484276       0.132181         1.1421
+ regularization       0.379819       0.487772              0        1.28056
+         actual        2.10668        3.12344       0.313268         6.7775
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0075 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.659098       0.905281       0.151159         2.0152
+       measured       0.659098       0.905281       0.151159         2.0152
+ regularization       0.241562       0.284344              0       0.747738
+         actual          2.254        3.59821       0.371201        7.65001
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0075 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.556811       0.730141       0.142805           1.65
+       measured       0.556811       0.730141       0.142805           1.65
+ regularization       0.294205       0.361551              0       0.950488
+         actual        2.17964        3.39789       0.347525        7.27272
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0075 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.477657       0.589051       0.137014        1.35849
+       measured       0.477657       0.589051       0.137014        1.35849
+ regularization       0.341124        0.43066              0        1.13131
+         actual        2.13301        3.24019       0.328354         6.9851
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0075 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.457756       0.554139       0.135047        1.28592
+       measured       0.457756       0.554139       0.135047        1.28592
+ regularization       0.353521       0.448947              0        1.17911
+         actual        2.12471        3.20413       0.322976        6.92099
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0075 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.420228       0.485574       0.132181        1.14466
+       measured       0.420228       0.485574       0.132181        1.14466
+ regularization       0.379117       0.486725              0         1.2778
+         actual        2.10824        3.12679       0.313268        6.78413
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.015 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.659177       0.905235       0.151159         2.0152
+       measured       0.659177       0.905235       0.151159         2.0152
+ regularization       0.241086       0.283638              0       0.745872
+         actual        2.25578        3.60178       0.371201        7.65716
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.015 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.557691        0.73159       0.143162        1.65307
+       measured       0.557691        0.73159       0.143162        1.65307
+ regularization       0.293393       0.360344              0       0.947305
+         actual        2.18126        3.40143       0.347525        7.27965
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.015 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.478905       0.591586       0.137014        1.36356
+       measured       0.478905       0.591586       0.137014        1.36356
+ regularization       0.339998       0.428982              0        1.12689
+         actual        2.13433        3.24377       0.328354        6.99185
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.015 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.459376       0.556347        0.13537        1.29085
+       measured       0.459376       0.556347        0.13537        1.29085
+ regularization        0.35231       0.447142              0        1.17435
+         actual         2.1247        3.20526       0.323417        6.92274
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.015 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite         0.4213       0.487613        0.13249        1.14884
+       measured         0.4213       0.487613        0.13249        1.14884
+ regularization       0.377727       0.484653              0        1.27234
+         actual        2.10898        3.13061       0.313268        6.79076
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0375 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.661658        0.90954       0.151159        2.02413
+       measured       0.661658        0.90954       0.151159        2.02413
+ regularization       0.239693       0.281576              0       0.740416
+         actual         2.2574        3.60545       0.371722        7.66431
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0375 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.561544       0.737433       0.143162        1.66565
+       measured       0.561544       0.737433       0.143162        1.66565
+ regularization       0.291022       0.356818              0       0.938006
+         actual        2.18296        3.40729       0.349085        7.29031
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0375 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.482883       0.598402       0.137014        1.37778
+       measured       0.482883       0.598402       0.137014        1.37778
+ regularization       0.336708       0.424084              0        1.11398
+         actual        2.13686        3.25207        0.32986        7.00715
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0375 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        0.46345       0.564293        0.13537        1.30691
+       measured        0.46345       0.564293        0.13537        1.30691
+ regularization       0.348772       0.441872              0        1.16046
+         actual        2.12789        3.21628       0.324466         6.9429
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0375 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.426101       0.495898        0.13249         1.1661
+       measured       0.426101       0.495898        0.13249         1.1661
+ regularization       0.373669       0.478608              0        1.25641
+         actual        2.11081        3.14007        0.31473        6.80746
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for best lambda, scale fac: 0.00075 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite       0.419118       0.483241       0.132181        1.14002
+       measured       0.419118       0.483241       0.132181        1.14002
+ regularization       0.380384       0.488614              0        1.28278
+         actual        2.10706        3.12324       0.313268         6.7775
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  running remaining realizations for best lambda, scale:0.00075 , 1.1 ,   ---  
+...phi summary for entire ensemble using lambda,scale_fac 0.00075 , 1.1 , 
+       phi type           mean            std            min            max
+      composite       0.956733        1.00626       0.132181        2.98337
+       measured       0.956733        1.00626       0.132181        2.98337
+ regularization        1.00865        1.43027      0.0997584        4.13742
+         actual        1.30388        2.42837       0.025769         6.7775
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+...last best mean phi * acceptable phi factor:  1.33411
+...current best mean phi:  0.956733
+
+  ---  updating parameter ensemble  ---  
+
+  ---  updating lambda to  0.0005625  ---  
+
+  ---  IterEnsembleSmoother iteration 2 report  ---  
+   number of active realizations:  7
+   number of model runs:           206
+      current obs ensemble saved to pest.2.obs.csv
+      current par ensemble saved to pest.2.par.csv
+       phi type           mean            std            min            max
+      composite       0.956733        1.00626       0.132181        2.98337
+       measured       0.956733        1.00626       0.132181        2.98337
+ regularization        1.00865        1.43027      0.0997584        4.13742
+         actual        1.30388        2.42837       0.025769         6.7775
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+   parameter group percent change summmary
+   (compared to the initial ensemble using active realizations)
+          group    mean change     std change
+              K       -24.6771        1.16976
+
+
+  ---  phi-based termination criteria check  ---  
+...phiredstp:  0.005
+...nphistp:  4
+...nphinored (also used for consecutive bad lambda cycles):  4
+...best mean phi sequence: 1.74892 , 1.27059 , 0.956733 , 
+...best phi yet:  0.956733
+...number of consecutive bad lambda testing cycles:  0
+...number of iterations satisfying phiredstp criteria:  1
+...number of iterations since best yet mean phi:  0
+
+  ---  starting solve for iteration: 3  ---  
+...WARNING: less than 10 active realizations...might not be enough
+...starting lambda calcs for lambda 5.625e-05
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 5.625e-05
+...starting lambda calcs for lambda 0.00028125
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.00028125
+...starting lambda calcs for lambda 0.0005625
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.0005625
+...starting lambda calcs for lambda 0.001125
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.001125
+...starting lambda calcs for lambda 0.0028125
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 0.0028125
+
+  ---  running lambda ensembles  ---  
+...subset idx:pe real name:  5:6, 6:0, 1:5, 2:3, 
+
+  ---  evaluting lambda ensembles  ---  
+...last mean:  0.956733
+...last stdev:  1.00626
+
+  ---  phi summary for lambda, scale fac:5.625e-05 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.07284        1.29328       0.122741        2.86605
+       measured        1.07284        1.29328       0.122741        2.86605
+ regularization        1.02628        2.03256              0        5.15451
+         actual        0.24347       0.179355       0.030329       0.461465
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:5.625e-05 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite         1.0436        1.26807       0.117348        2.80433
+       measured         1.0436        1.26807       0.117348        2.80433
+ regularization        1.14102        2.25092              0        5.71259
+         actual         0.2412       0.179853       0.033205       0.467161
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:5.625e-05 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01953        1.24694       0.106968        2.75295
+       measured        1.01953        1.24694       0.106968        2.75295
+ regularization        1.23789        2.43484              0        6.18283
+         actual        0.23982       0.180459       0.035897       0.472141
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:5.625e-05 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01362        1.24141       0.104679        2.73986
+       measured        1.01362        1.24141       0.104679        2.73986
+ regularization        1.26281         2.4821              0        6.30369
+         actual        0.23996       0.181008       0.036724        0.47437
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:5.625e-05 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.00032        1.22878      0.0997479        2.70994
+       measured        1.00032        1.22878      0.0997479        2.70994
+ regularization           1.31        2.56983              0        6.52881
+         actual       0.239538       0.181353       0.038617       0.476968
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00028125 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.07284        1.29328       0.122741        2.86605
+       measured        1.07284        1.29328       0.122741        2.86605
+ regularization        1.02625        2.03251              0        5.15439
+         actual        0.24347       0.179355       0.030329       0.461465
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00028125 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite         1.0436        1.26807       0.117348        2.80433
+       measured         1.0436        1.26807       0.117348        2.80433
+ regularization        1.14098        2.25084              0        5.71239
+         actual         0.2412       0.179853       0.033205       0.467161
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00028125 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01965        1.24682       0.107442        2.75295
+       measured        1.01965        1.24682       0.107442        2.75295
+ regularization        1.23783        2.43473              0        6.18257
+         actual       0.240061       0.180487       0.035897       0.472141
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00028125 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01362        1.24141       0.104679        2.73986
+       measured        1.01362        1.24141       0.104679        2.73986
+ regularization        1.26275        2.48199              0        6.30341
+         actual        0.23996       0.181008       0.036724        0.47437
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.00028125 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.00032        1.22878      0.0997479        2.70994
+       measured        1.00032        1.22878      0.0997479        2.70994
+ regularization        1.30995        2.56974              0        6.52857
+         actual       0.239538       0.181353       0.038617       0.476968
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0005625 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.07284        1.29328       0.122741        2.86605
+       measured        1.07284        1.29328       0.122741        2.86605
+ regularization        1.02622        2.03245              0        5.15423
+         actual        0.24347       0.179355       0.030329       0.461465
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0005625 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite         1.0436        1.26807       0.117348        2.80433
+       measured         1.0436        1.26807       0.117348        2.80433
+ regularization        1.14092        2.25075              0        5.71214
+         actual         0.2412       0.179853       0.033205       0.467161
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0005625 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01965        1.24682       0.107442        2.75295
+       measured        1.01965        1.24682       0.107442        2.75295
+ regularization        1.23776         2.4346              0        6.18223
+         actual       0.240061       0.180487       0.035897       0.472141
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0005625 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01362        1.24141       0.104679        2.73986
+       measured        1.01362        1.24141       0.104679        2.73986
+ regularization        1.26268        2.48185              0        6.30306
+         actual        0.23996       0.181008       0.036724        0.47437
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0005625 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.00032        1.22878      0.0997479        2.70994
+       measured        1.00032        1.22878      0.0997479        2.70994
+ regularization        1.30989        2.56963              0        6.52828
+         actual       0.239538       0.181353       0.038617       0.476968
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.001125 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.07284        1.29328       0.122741        2.86605
+       measured        1.07284        1.29328       0.122741        2.86605
+ regularization        1.02615        2.03233              0        5.15392
+         actual        0.24347       0.179355       0.030329       0.461465
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.001125 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite         1.0436        1.26807       0.117348        2.80433
+       measured         1.0436        1.26807       0.117348        2.80433
+ regularization        1.14082        2.25055              0        5.71164
+         actual         0.2412       0.179853       0.033205       0.467161
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.001125 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01965        1.24682       0.107442        2.75295
+       measured        1.01965        1.24682       0.107442        2.75295
+ regularization        1.23763        2.43435              0        6.18157
+         actual       0.240061       0.180487       0.035897       0.472141
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.001125 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01343        1.24106       0.104679         2.7391
+       measured        1.01343        1.24106       0.104679         2.7391
+ regularization        1.26253        2.48157              0        6.30235
+         actual       0.239779       0.181067       0.036724        0.47437
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.001125 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.00112        1.23026      0.0997479        2.71314
+       measured        1.00112        1.23026      0.0997479        2.71314
+ regularization        1.30976         2.5694              0         6.5277
+         actual       0.239659       0.181314       0.038617       0.476968
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0028125 , 0.5 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.07284        1.29328       0.122741        2.86605
+       measured        1.07284        1.29328       0.122741        2.86605
+ regularization        1.02596        2.03196              0        5.15298
+         actual        0.24347       0.179355       0.030329       0.461465
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0028125 , 0.75 ,   ---  
+       phi type           mean            std            min            max
+      composite         1.0436        1.26807       0.117348        2.80433
+       measured         1.0436        1.26807       0.117348        2.80433
+ regularization        1.14051        2.24997              0        5.71015
+         actual         0.2412       0.179853       0.033205       0.467161
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0028125 , 0.95 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01965        1.24682       0.107442        2.75295
+       measured        1.01965        1.24682       0.107442        2.75295
+ regularization        1.23721        2.43358              0        6.17959
+         actual       0.240061       0.180487       0.035897       0.472141
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0028125 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.01343        1.24106       0.104679         2.7391
+       measured        1.01343        1.24106       0.104679         2.7391
+ regularization        1.26209        2.48075              0        6.30024
+         actual       0.239779       0.181067       0.036724        0.47437
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for lambda, scale fac:0.0028125 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.00147        1.23029      0.0997479        2.71314
+       measured        1.00147        1.23029      0.0997479        2.71314
+ regularization        1.30937        2.56873              0        6.52595
+         actual       0.239567        0.18145        0.03825       0.476968
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for best lambda, scale fac: 5.625e-05 , 1.1 ,   ---  
+       phi type           mean            std            min            max
+      composite        1.00032        1.22878      0.0997479        2.70994
+       measured        1.00032        1.22878      0.0997479        2.70994
+ regularization           1.31        2.56983              0        6.52881
+         actual       0.239538       0.181353       0.038617       0.476968
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  running remaining realizations for best lambda, scale:5.625e-05 , 1.1 ,   ---  
+...phi summary for entire ensemble using lambda,scale_fac 5.625e-05 , 1.1 , 
+       phi type           mean            std            min            max
+      composite       0.727724       0.947395      0.0997479        2.70994
+       measured       0.727724       0.947395      0.0997479        2.70994
+ regularization        1.69782        2.23279       0.241754        6.52881
+         actual        1.63587        2.88116       0.038617        8.01204
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+...last best mean phi * acceptable phi factor:  1.00457
+...current best mean phi:  0.727724
+
+  ---  updating parameter ensemble  ---  
+
+  ---  updating lambda to  4.21875e-05  ---  
+
+  ---  IterEnsembleSmoother iteration 3 report  ---  
+   number of active realizations:  7
+   number of model runs:           309
+      current obs ensemble saved to pest.3.obs.csv
+      current par ensemble saved to pest.3.par.csv
+       phi type           mean            std            min            max
+      composite       0.727724       0.947395      0.0997479        2.70994
+       measured       0.727724       0.947395      0.0997479        2.70994
+ regularization        1.69782        2.23279       0.241754        6.52881
+         actual        1.63587        2.88116       0.038617        8.01204
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+   parameter group percent change summmary
+   (compared to the initial ensemble using active realizations)
+          group    mean change     std change
+              K       -35.2326      -0.915337
+
+
+  ---  phi-based termination criteria check  ---  
+...phiredstp:  0.005
+...nphistp:  4
+...nphinored (also used for consecutive bad lambda cycles):  4
+...best mean phi sequence: 1.74892 , 1.27059 , 0.956733 , 0.727724 , 
+...best phi yet:  0.727724
+...number of consecutive bad lambda testing cycles:  0
+...number of iterations satisfying phiredstp criteria:  1
+...number of iterations since best yet mean phi:  0

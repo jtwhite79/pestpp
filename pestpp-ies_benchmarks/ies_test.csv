@@ -1,0 +1,12 @@
+,ies_par_en,ies_obs_en,ies_restart_obs_en,ies_bad_phi,parcov_filename,ies_num_reals,ies_use_approx,ies_use_prior_scaling,ies_reg_factor,ies_lambda_mults,ies_initial_lambda,ies_subset_size,ies_include_base,lambda_scale_fac,pyemu_compare,text
+0),,,,,,"""10""",,,,,,,,,0,"0) ies_10par_xsec ""standard user mode"" - draw reals from par-bounds prior and obs noise from weights"
+1),par.csv,obs.csv,,,,"""10""",,,,,,,,,1,1) ies_10par_xsec start with existing par csv and obs csv
+1a),par.csv,obs.csv,,,prior.jcb,"""10""",,,,,,,,,0,1a) ies_10par_xsec start with existing par csv and obs csv - using parcov file
+1b),par.jcb,obs.jcb,,,prior.jcb,"""10""",,,,,,,,,0,1a) ies_10par_xsec start with existing binary par csv and obs csv - using parcov file
+3a),restart_failed_par.csv,restart_failed_base_obs.csv,restart_failed.csv,,,"""10""",,,,,,,,,0,3a) ies_10par_xsec restart with failed runs in simulated obs en
+3b1),restart_failed_par.csv,restart_failed_base_obs.csv,restart_failed.csv,1000,,"""10""",,,,"0.1,1.0,10.0",,"""10""",,,0,3b1) ies_10par_xsec restart with failed runs and bad phi runs in simulated obs en with multiple lam
+4),,,,,,"""10""",,,0.5,,,,,,0,4) ies_10par_xsec reg_factor = 0.5 test
+5),,,,,,"""10""","""false""",,,,,,,,0,5)  ies_10par_xsec full solution test with standard draw mode
+5a),,,,,,"""10""","""false""","""true""",,,1000,,,,0,5a) ies_10par_xsec full solution test with empirical parcov
+6),,,,,prior.jcb,"""10""",,,,"0.1,1.0,10.0",,,,"0.5,1.0",0,"6) ies_freyberg ""standard user mode"" - draw reals from par-bounds prior and obs noise from weights"
+8),restart_failed_par.csv,restart_failed_base_obs.csv,restart_failed.csv,100000,,"""10""","""false""","""true""",,"0.1,1.0,10.0",10000,,,"0.5,1.0",0,"8) ies_freyberg full solution with empirical parcov - supplied par csv, obs csv and restart csv with fails, bad phi,MAP solution, prior scaling, lam mults "

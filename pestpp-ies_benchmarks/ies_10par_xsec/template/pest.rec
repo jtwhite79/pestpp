@@ -1,0 +1,204 @@
+             pestpp-ies.exe - a GLM iterative Ensemble Smoother
+for PEST(++) datasets 
+
+                 by the PEST++ developement team
+
+
+
+using control file: "pest.pst"
+in directory: "C:\Dev\pestpp\pestpp-ies_benchmarks\ies_10par_xsec\template"
+
+Note: 4 unused lines in pest control file:
+  -->  line number 6: '1.000000E-01  -4.000000E+00   3.000000E-01   3.000000E-02        10       999          lamforgive        noderforgive' 
+  -->  line number 10: '1         1         1         0             jcosave          verboserec          jcosaveitn          reisaveitn          parsaveitn        noparsaverun' 
+  -->  line number 12: '1' 
+  -->  line number 13: '1    1.000000E-03' 
+Model command line(s):- 
+    mfnwt 10par_xsec.nam
+
+Model interface files:-
+    template files:
+      hk_Layer_1.ref.tpl
+      strt_Layer_1.ref.tpl
+    model input files:
+      hk_Layer_1.ref
+      strt_Layer_1.ref
+
+    instruction files:
+      10par_xsec.hds.ins
+    model output files:
+      10par_xsec.hds
+
+
+Parameter group information
+NAME            INCREMENT TYPE     DERIVATIVE INCREMENT    INCREMENT LOWER BOUND  FORCE CENTRAL     INCREMENT MULTIPLIER
+k                     RELATIVE                     0.01                        0         SWITCH                        2
+
+
+
+Parameter information
+NAME           TRANSFORMATION        CHANGE LIMIT  INITIAL VALUE    LOWER BOUND    UPPER BOUND          GROUP          SCALE         OFFSET  DERIVATIVE COMMAND
+stage          fixed                   FACTOR              1            0.1              3              k              1              0                   1
+k_01           fixed                   FACTOR            2.5           0.25             25              k              1              0                   1
+k_02           log                     FACTOR            2.5           0.25             25              k              1              0                   1
+k_03           tied                    FACTOR            2.5           0.25             25              k              1              0                   1
+k_04           tied                    FACTOR            2.5           0.25             25              k              1              0                   1
+k_05           tied                    FACTOR            2.5           0.25             25              k              1              0                   1
+k_06           tied                    FACTOR            2.5           0.25             25              k              1              0                   1
+k_07           tied                    FACTOR            2.5           0.25             25              k              1              0                   1
+k_08           tied                    FACTOR            2.5           0.25             25              k              1              0                   1
+k_09           tied                    FACTOR            2.5           0.25             25              k              1              0                   1
+k_10           tied                    FACTOR            2.5           0.25             25              k              1              0                   1
+
+
+
+Observation information
+NAME                                    VALUE               GROUP              WEIGHT
+h01_01                                    1.5                head                   0
+h01_02                                    1.7                head                   0
+h01_03                                    1.9                head                   0
+h01_04                                    2.1                head                  10
+h01_05                                    2.3                head                   0
+h01_06                                    2.5                head                  10
+h01_07                                    2.7                head                   0
+h01_08                                    2.9                head                   0
+h01_09                                    3.1                head                   0
+h01_10                                    3.3                head                   0
+h02_01                                    1.5                head                   0
+h02_02                                    1.9                head                   0
+h02_03                                    2.3                head                   0
+h02_04                                    2.7                head                   0
+h02_05                                    3.1                head                   0
+h02_06                                    3.5                head                   0
+h02_07                                    3.9                head                   0
+h02_08                                    4.3                head                   0
+h02_09                                    4.7                head                   0
+h02_10                                    5.1                head                   0
+
+
+
+  ---  initializing  ---  
+...using REDSVD for truncated svd solve
+...maxsing: 1
+...eigthresh:  0.001
+...using lambda multipliers: 1 , 
+...using lambda scaling factors: 1 , 
+...acceptable phi factor:  1.05
+...lambda increase factor:  10
+...lambda decrease factor:  0.75
+...max run fail:  1
+...parcov loaded  from parameter bounds, using par_sigma_range 4
+...initializing observation noise covariance matrix
+...obscov loaded  from observation weights
+...using reg_factor:  0
+...loading par ensemble from binary file par_fixed.jcb
+...not using prior parameter covariance matrix scaling
+...drawing observation noise realizations:  10
+...saved initial parameter ensemble to  pest.0.par.csv
+...saved base observation ensemble (obsval+noise) to  pest.base.obs.csv
+...using subset in lambda testing, only first  4
+...subset how:  RANDOM
+...running initial ensemble of size 10
+...saved initial obs ensemble to pest.0.obs.csv
+
+  ---  pre-drop initial phi summary  ---  
+       phi type           mean            std            min            max
+      composite        290.718         235.52        64.2172        677.166
+       measured        290.718         235.52        64.2172        677.166
+ regularization              0              0              0              0
+         actual        300.785        241.661         73.673        720.827
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  initial phi summary  ---  
+       phi type           mean            std            min            max
+      composite        290.718         235.52        64.2172        677.166
+       measured        290.718         235.52        64.2172        677.166
+ regularization              0              0              0              0
+         actual        300.785        241.661         73.673        720.827
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+...current lambda: 10
+
+  ---  initialization complete  ---  
+
+  ---  starting solve for iteration: 1  ---  
+...starting lambda calcs for lambda 10
+preparing fast-look containers for threaded localization solve
+...finished calcs for lambda: 10
+
+  ---  running lambda ensembles  ---  
+...subset idx:pe real name:  1:1, 8:8, 5:5, 3:3, 
+
+  ---  evaluting lambda ensembles  ---  
+...last mean:  290.718
+...last stdev:  235.52
+
+  ---  phi summary for lambda, scale fac:10 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        94.9139        102.502        15.6598        241.638
+       measured        94.9139        102.502        15.6598        241.638
+ regularization       0.606171        0.65866              0        1.43112
+         actual        114.718        119.723        22.2362        274.498
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  phi summary for best lambda, scale fac: 10 , 1 ,   ---  
+       phi type           mean            std            min            max
+      composite        94.9139        102.502        15.6598        241.638
+       measured        94.9139        102.502        15.6598        241.638
+ regularization       0.606171        0.65866              0        1.43112
+         actual        114.718        119.723        22.2362        274.498
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+  ---  running remaining realizations for best lambda, scale:10 , 1 ,   ---  
+...phi summary for entire ensemble using lambda,scale_fac 10 , 1 , 
+       phi type           mean            std            min            max
+      composite        83.5232        67.6764        15.6598        241.638
+       measured        83.5232        67.6764        15.6598        241.638
+ regularization       0.544416       0.491626      0.0561294        1.43112
+         actual        92.4923        79.9765        21.2693        274.498
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+...last best mean phi * acceptable phi factor:  305.254
+...current best mean phi:  83.5232
+
+  ---  updating parameter ensemble  ---  
+
+  ---  updating lambda to  7.5  ---  
+
+  ---  IterEnsembleSmoother iteration 1 report  ---  
+   number of active realizations:  10
+   number of model runs:           20
+      current obs ensemble saved to pest.1.obs.csv
+      current par ensemble saved to pest.1.par.csv
+       phi type           mean            std            min            max
+      composite        83.5232        67.6764        15.6598        241.638
+       measured        83.5232        67.6764        15.6598        241.638
+ regularization       0.544416       0.491626      0.0561294        1.43112
+         actual        92.4923        79.9765        21.2693        274.498
+    (note: reg_factor is zero; regularization phi reported but not used)
+
+
+
+   parameter group percent change summmary
+   (compared to the initial ensemble using active realizations)
+          group    mean change     std change
+              K        61.0949        30.5532
+
+
+  ---  phi-based termination criteria check  ---  
+...phiredstp:  0.005
+...nphistp:  4
+...nphinored (also used for consecutive bad lambda cycles):  4
+...best mean phi sequence: 290.718 , 83.5232 , 
+...best phi yet:  83.5232
+...number of consecutive bad lambda testing cycles:  0
+...number of iterations satisfying phiredstp criteria:  1
+...number of iterations since best yet mean phi:  0

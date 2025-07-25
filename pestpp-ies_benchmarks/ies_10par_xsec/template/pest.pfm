@@ -1,0 +1,180 @@
+PEST++ performance logger started at:  13:35:00
+        ( time = 13:35:00,  elapsed time = 6ms )
+  starting to process control file
+          ( time = 13:35:22,  elapsed time = 21sec )
+  finished processing control file
+          ( time = 13:35:22,  elapsed time = 16ms )
+    starting basic model IO error checking
+            ( time = 13:35:22,  elapsed time = 24ms )
+    finished basic model IO error checking
+            ( time = 13:35:22,  elapsed time = 12ms )
+    
+  ---  initializing  ---  
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...using REDSVD for truncated svd solve
+            ( time = 13:35:22,  elapsed time = 462us )
+    ...maxsing: 1
+            ( time = 13:35:22,  elapsed time = 554us )
+    ...eigthresh:  0.001
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...using lambda multipliers: 1 , 
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...using lambda scaling factors: 1 , 
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...acceptable phi factor:  1.05
+            ( time = 13:35:22,  elapsed time = 3ms )
+    ...lambda increase factor:  10
+            ( time = 13:35:22,  elapsed time = 2ms )
+    ...lambda decrease factor:  0.75
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...max run fail:  1
+            ( time = 13:35:22,  elapsed time = 304us )
+    initializing parcov
+            ( time = 13:35:22,  elapsed time = 2ms )
+    ...parcov loaded  from parameter bounds, using par_sigma_range 4
+            ( time = 13:35:22,  elapsed time = 3ms )
+    ...initializing observation noise covariance matrix
+            ( time = 13:35:22,  elapsed time = 5ms )
+    ...obscov loaded  from observation weights
+            ( time = 13:35:22,  elapsed time = 2ms )
+    ...using reg_factor:  0
+            ( time = 13:35:22,  elapsed time = 175us )
+    processing par csv par_fixed.jcb
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...loading par ensemble from binary file par_fixed.jcb
+            ( time = 13:35:22,  elapsed time = 19ms )
+    ...not using prior parameter covariance matrix scaling
+            ( time = 13:35:22,  elapsed time = 102us )
+    load obscov
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...drawing observation noise realizations:  10
+            ( time = 13:35:22,  elapsed time = 1ms )
+    making standard normal draws
+            ( time = 13:35:22,  elapsed time = 204us )
+    scaling by std
+            ( time = 13:35:22,  elapsed time = 147us )
+    checking realization for invalid values
+            ( time = 13:35:22,  elapsed time = 499us )
+    resizing reals matrix
+            ( time = 13:35:22,  elapsed time = 116us )
+    filling reals matrix and adding mean values
+            ( time = 13:35:22,  elapsed time = 23ms )
+    ...saved initial parameter ensemble to  pest.0.par.csv
+            ( time = 13:35:22,  elapsed time = 42ms )
+    ...saved base observation ensemble (obsval+noise) to  pest.base.obs.csv
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...using subset in lambda testing, only first  4
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...subset how:  RANDOM
+            ( time = 13:35:22,  elapsed time = 2ms )
+    running initial ensemble
+            ( time = 13:35:22,  elapsed time = 1ms )
+    ...running initial ensemble of size 10
+            ( time = 13:35:22,  elapsed time = 212us )
+    queuing 10 runs
+            ( time = 13:35:22,  elapsed time = 20ms )
+    making runs
+            ( time = 13:35:32,  elapsed time = 10sec )
+    processing runs
+            ( time = 13:35:32,  elapsed time = 41ms )
+    ...saved initial obs ensemble to pest.0.obs.csv
+            ( time = 13:35:32,  elapsed time = 106us )
+    calc initial phi
+            ( time = 13:35:39,  elapsed time = 7sec )
+    
+  ---  pre-drop initial phi summary  ---  
+            ( time = 13:35:39,  elapsed time = 20ms )
+    calc initial phi
+            ( time = 13:35:39,  elapsed time = 9ms )
+    
+  ---  initial phi summary  ---  
+            ( time = 13:35:44,  elapsed time = 4sec )
+    ...current lambda: 10
+            ( time = 13:35:44,  elapsed time = 3ms )
+    
+  ---  initialization complete  ---  
+            ( time = 13:35:44,  elapsed time = 10ms )
+    
+  ---  starting solve for iteration: 1  ---  
+            ( time = 13:35:44,  elapsed time = 226us )
+    starting solve for iteration: 1
+            ( time = 13:35:44,  elapsed time = 2ms )
+    ...starting lambda calcs for lambda 10
+            ( time = 13:35:44,  elapsed time = 1ms )
+    preparing fast-look containers for threaded localization solve
+            ( time = 13:35:44,  elapsed time = 24ms )
+    ...finished calcs for lambda: 10
+            ( time = 13:35:44,  elapsed time = 3ms )
+    
+  ---  running lambda ensembles  ---  
+            ( time = 13:35:44,  elapsed time = 377us )
+    queuing 1 ensembles
+            ( time = 13:35:44,  elapsed time = 15ms )
+    ...subset idx:pe real name:  1:1, 8:8, 5:5, 3:3, 
+            ( time = 13:35:44,  elapsed time = 6ms )
+    making runs
+            ( time = 13:35:48,  elapsed time = 4sec )
+    processing runs
+            ( time = 13:35:48,  elapsed time = 6ms )
+    
+  ---  evaluting lambda ensembles  ---  
+            ( time = 13:35:48,  elapsed time = 1ms )
+    ...last mean:  290.718
+            ( time = 13:35:48,  elapsed time = 4ms )
+    ...last stdev:  235.52
+            ( time = 13:35:48,  elapsed time = 7ms )
+    
+  ---  phi summary for lambda, scale fac:10 , 1 ,   ---  
+            ( time = 13:35:48,  elapsed time = 4ms )
+    
+  ---  phi summary for best lambda, scale fac: 10 , 1 ,   ---  
+            ( time = 13:35:48,  elapsed time = 22ms )
+    
+  ---  running remaining realizations for best lambda, scale:10 , 1 ,   ---  
+            ( time = 13:35:48,  elapsed time = 104us )
+    dropping subset idxs from remaining_pe_lam
+            ( time = 13:35:48,  elapsed time = 600us )
+    dropping subset idxs from remaining_oe_lam
+            ( time = 13:35:48,  elapsed time = 721us )
+    queuing 6 runs
+            ( time = 13:35:48,  elapsed time = 19ms )
+    making runs
+            ( time = 13:35:54,  elapsed time = 6sec )
+    processing runs
+            ( time = 13:35:54,  elapsed time = 10ms )
+    assembling ensembles
+            ( time = 13:35:54,  elapsed time = 5ms )
+    updating phi
+            ( time = 13:35:54,  elapsed time = 10ms )
+    ...phi summary for entire ensemble using lambda,scale_fac 10 , 1 , 
+            ( time = 13:35:54,  elapsed time = 29ms )
+    ...last best mean phi * acceptable phi factor:  305.254
+            ( time = 13:35:54,  elapsed time = 2ms )
+    ...current best mean phi:  83.5232
+            ( time = 13:35:54,  elapsed time = 3ms )
+    
+  ---  updating parameter ensemble  ---  
+            ( time = 13:35:54,  elapsed time = 154us )
+    updating parameter ensemble
+            ( time = 13:35:54,  elapsed time = 2ms )
+    
+  ---  updating lambda to  7.5  ---  
+            ( time = 13:35:54,  elapsed time = 125ms )
+    
+  ---  phi-based termination criteria check  ---  
+            ( time = 13:35:54,  elapsed time = 3ms )
+    ...phiredstp:  0.005
+            ( time = 13:35:54,  elapsed time = 2ms )
+    ...nphistp:  4
+            ( time = 13:35:54,  elapsed time = 3ms )
+    ...nphinored (also used for consecutive bad lambda cycles):  4
+            ( time = 13:35:54,  elapsed time = 2ms )
+    ...best mean phi sequence: 290.718 , 83.5232 , 
+            ( time = 13:35:54,  elapsed time = 2ms )
+    ...best phi yet:  83.5232
+            ( time = 13:35:54,  elapsed time = 4ms )
+    ...number of consecutive bad lambda testing cycles:  0
+            ( time = 13:35:54,  elapsed time = 3ms )
+    ...number of iterations satisfying phiredstp criteria:  1
+            ( time = 13:35:54,  elapsed time = 3ms )
+    ...number of iterations since best yet mean phi:  0
