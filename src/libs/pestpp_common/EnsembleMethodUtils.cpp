@@ -7616,13 +7616,12 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
             set<string> ssub_names;
             for (auto real_name: _oe.get_real_names())
                 ssub_names.emplace(real_name);
-            vector<string> oreal_names = _oe.get_real_names();
-            vector<string> preal_names = _pe.get_real_names();
+            vector<string> oreal_names = oe.get_real_names();
+            vector<string> preal_names = pe.get_real_names();
 
             for (auto idx: subset_idxs)
                 if (ssub_names.find(oreal_names[idx]) != ssub_names.end())
                     use_subset_idxs.push_back(idx);
-
         }
         else
         {

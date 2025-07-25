@@ -1969,6 +1969,7 @@ def large_fake_test():
 
 
 if __name__ == "__main__":
+    fr_timeout_test()
     #large_fake_test()
     #exit()
     #sweep_large_xfer_test()
