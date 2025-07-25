@@ -1,0 +1,24 @@
+                                  MODFLOW-NWT-SWR1 
+      U.S. GEOLOGICAL SURVEY MODULAR FINITE-DIFFERENCE GROUNDWATER-FLOW MODEL
+                             VERSION 1.1.4 4/01/2018
+                    BASED ON MODFLOW-2005 VERSION 1.12.00 02/03/2017
+
+ LIST FILE: dewater.lst
+                         UNIT   10
+
+ OPENING dewater.dis
+ FILE TYPE:DIS   UNIT   11   STATUS:OLD    
+ FORMAT:FORMATTED              ACCESS:SEQUENTIAL          
+
+ OPENING dewater.ba6
+ FILE TYPE:BAS6   UNIT   12   STATUS:OLD    
+ FORMAT:FORMATTED              ACCESS:SEQUENTIAL          
+
+ OPENING dewater.bc6
+ FILE TYPE:BCF6   UNIT   13   STATUS:OLD    
+ FORMAT:FORMATTED              ACCESS:SEQUENTIAL          
+
+ OPENING dewater.pcg
+ FILE TYPE:PCG   UNIT   14   STATUS:OLD    
+ FORMAT:FORMATTED              ACCESS:SEQUENTIAL          
+ ILLEGAL FILE TYPE IN NAME FILE: GWM
