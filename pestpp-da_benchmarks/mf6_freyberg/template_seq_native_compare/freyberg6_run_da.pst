@@ -1,0 +1,32 @@
+pcf version=2
+* control data keyword
+pestmode                                 estimation
+noptmax                                 3
+svdmode                                 1
+maxsing                          10000000
+eigthresh                           1e-06
+eigwrite                                1
+ies_verbose_level              1
+ies_no_noise                   False
+da_use_mda                     false
+da_parameter_cycle_table       par_cycle_tbl.csv
+da_observation_cycle_table     obs_cycle_tbl.csv
+da_weight_cycle_table          weight_cycle_tbl.csv
+ies_par_en                     da_prior.jcb
+ies_autoadaloc                 False
+ies_save_lambda_en             False
+ies_drop_conflicts             True
+ies_num_reals                  50
+ies_use_mda                    False
+* parameter groups external
+freyberg6_run_da.pargp_data.csv
+* parameter data external
+freyberg6_run_da.par_data.csv
+* observation data external
+freyberg6_run_da.obs_data.csv
+* model command line
+mf6
+* model input external
+freyberg6_run_da.tplfile_data.csv
+* model output external
+freyberg6_run_da.insfile_data.csv

@@ -1,0 +1,6 @@
+begin griddata
+strt layered
+open/close 'heads_0.dat_in' FACTOR 1.0
+open/close 'heads_1.dat_in' FACTOR 1.0
+open/close 'heads_2.dat_in' FACTOR 1.0
+end griddata

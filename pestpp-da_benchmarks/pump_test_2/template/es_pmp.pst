@@ -1,0 +1,25 @@
+pcf version=2
+* control data keyword
+pestmode                                 estimation
+noptmax                                 4
+svdmode                                 1
+maxsing                          10000000
+eigthresh                           1e-06
+eigwrite                                1
+da_parameter_ensemble          initial_k_ens.csv
+da_num_reals                   10
+da_use_mda                     False
+da_mda_init_fac                100
+da_mda_dec_fac                 0.2
+* parameter groups external
+es_pmp.pargp_data.csv
+* parameter data external
+es_pmp.par_data.csv
+* observation data external
+es_pmp.obs_data.csv
+* model command line
+python forward_model.py
+* model input external
+es_pmp.tplfile_data.csv
+* model output external
+es_pmp.insfile_data.csv

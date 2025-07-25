@@ -1,0 +1,27 @@
+time,elapsed_seconds,message
+13:21:37,9.03e-05,PEST++ performance logger started
+13:21:37,0.0021394,starting to process control file
+13:21:40,2.88872,finished processing control file
+13:21:40,0.0717424,starting basic model IO error checking
+13:21:40,0.53753,finished basic model IO error checking
+13:21:41,0.19418,initializing parcov
+13:21:41,0.28354,...parcov loaded  from parameter bounds, using par_sigma_range 4
+13:21:41,0.357821,processing par csv ies_prior.jcb
+13:21:41,0.0001651,...loading par ensemble from binary file ies_prior.jcb
+13:21:46,4.71658,instantiating child pest object
+13:21:46,0.406966,starting basic model IO error checking
+13:21:46,0.0052436,finished basic model IO error checking
+13:21:47,0.449877,instantiating DA instance
+13:21:47,0.116867,instantiating cycle parameter ensemble instance
+13:21:47,0.234202,
+  ---  initializing cycle 0  ---  
+13:21:47,0.0551029,
+  ---  'noptmax'=0, running control file parameter values and quitting  ---  
+13:21:47,0.307986,...running control file parameter values
+13:21:47,7.49e-05,queuing 1 runs
+13:21:48,0.25576,making runs
+13:21:50,2.6536,processing runs
+13:21:51,0.125105,...saving results from control file parameter value run to  freyberg6_run_ies.obs.csv
+13:21:51,0.105837,
+  ---  control file parameter phi report:  ---  
+13:21:52,1.69053,updating parent ensemble with cycle ensemble columns

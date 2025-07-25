@@ -1,0 +1,191 @@
+             pestpp-da.exe - a Data Assimilation Tool
+for PEST(++) datasets 
+
+                 by the PEST++ developement team
+
+
+
+
+
+version: 5.0.7
+binary compiled on Nov 17 2020 at 13:11:44
+
+using control file: "freyberg6_run_da.pst"
+in directory: "C:\Dev\pestpp\benchmarks\mf6_freyberg\template"
+on host: "WHITEJEREMY9828"
+
+control file parsing warning: could not find 'parameter data external' section for cycle info, all parameter quantities being assigned 'cycle'=-1
+control file parsing warning: could not find 'observation data external' section, assigning all observations to cycle '0', effectively forming an 'ensemble smoother' run
+control file parsing warning: could not find 'model input external' section, all template/model input files will be used every cycle
+control file parsing warning: could not find 'model output external' section, assigning all instruction/out files to cycle '0', effectively forming an 'ensemble smoother' run
+
+Note 'NOPTMAX' == 0, switching to forgiveness mode when checking inputs
+
+Note: 3 unused lines in pest control file:
+  -->  line number 6: '2.000000E+01  -3.000000E+00   3.000000E-01   1.000000E-02        -7       999          lamforgive        noderforgive' 
+  -->  line number 10: '0         0         0         0             jcosave          verboserec          jcosaveitn          reisaveitn          parsaveitn        noparsaverun' 
+  -->  line number 12: '1' 
+noptmax = 0, resetting max_run_fail = 1
+Model command line(s):- 
+    mf6
+
+Model interface files:-
+    template files:
+      freyberg6.rch.tpl
+      freyberg6.wel.tpl
+      npf_k33_0.dat.tpl
+      npf_k33_1.dat.tpl
+      npf_k33_2.dat.tpl
+      npf_k_0.dat.tpl
+      npf_k_1.dat.tpl
+      npf_k_2.dat.tpl
+      sto_ss_0.dat.tpl
+      sto_ss_1.dat.tpl
+      sto_ss_2.dat.tpl
+      sto_sy_0.dat.tpl
+      sto_sy_1.dat.tpl
+      sto_sy_2.dat.tpl
+    model input files:
+      freyberg6.rch
+      freyberg6.wel
+      npf_k33_0.dat
+      npf_k33_1.dat
+      npf_k33_2.dat
+      npf_k_0.dat
+      npf_k_1.dat
+      npf_k_2.dat
+      sto_ss_0.dat
+      sto_ss_1.dat
+      sto_ss_2.dat
+      sto_sy_0.dat
+      sto_sy_1.dat
+      sto_sy_2.dat
+
+    instruction files:
+      freyberg6.lst.ins
+      heads.csv.ins
+      sfr.csv.ins
+    model output files:
+      freyberg6.lst
+      heads.csv
+      sfr.csv
+
+
+...preparing global parameter ensemble for all parameters across all cycles
+...parcov loaded  from parameter bounds, using par_sigma_range 4
+...drawing parameter realizations:  15
+...preparing global observation ensemble for all observations across all cycles
+...global parameter ensemble has 1 rows and 8175 columns
+...global observation ensemble has 1 rows and 1025 columns
+
+ =======================================
+ >>>> Assimilating data in cycle 0
+ =======================================
+Model command line(s):- 
+    mf6
+
+Model interface files:-
+    template files:
+      freyberg6.rch.tpl
+      freyberg6.wel.tpl
+      npf_k33_0.dat.tpl
+      npf_k33_1.dat.tpl
+      npf_k33_2.dat.tpl
+      npf_k_0.dat.tpl
+      npf_k_1.dat.tpl
+      npf_k_2.dat.tpl
+      sto_ss_0.dat.tpl
+      sto_ss_1.dat.tpl
+      sto_ss_2.dat.tpl
+      sto_sy_0.dat.tpl
+      sto_sy_1.dat.tpl
+      sto_sy_2.dat.tpl
+    model input files:
+      freyberg6.rch
+      freyberg6.wel
+      npf_k33_0.dat
+      npf_k33_1.dat
+      npf_k33_2.dat
+      npf_k_0.dat
+      npf_k_1.dat
+      npf_k_2.dat
+      sto_ss_0.dat
+      sto_ss_1.dat
+      sto_ss_2.dat
+      sto_sy_0.dat
+      sto_sy_1.dat
+      sto_sy_2.dat
+
+    instruction files:
+      freyberg6.lst.ins
+      heads.csv.ins
+      sfr.csv.ins
+    model output files:
+      freyberg6.lst
+      heads.csv
+      sfr.csv
+
+
+Model command line(s):- 
+    mf6
+
+Model interface files:-
+    template files:
+      freyberg6.rch.tpl
+      freyberg6.wel.tpl
+      npf_k33_0.dat.tpl
+      npf_k33_1.dat.tpl
+      npf_k33_2.dat.tpl
+      npf_k_0.dat.tpl
+      npf_k_1.dat.tpl
+      npf_k_2.dat.tpl
+      sto_ss_0.dat.tpl
+      sto_ss_1.dat.tpl
+      sto_ss_2.dat.tpl
+      sto_sy_0.dat.tpl
+      sto_sy_1.dat.tpl
+      sto_sy_2.dat.tpl
+    model input files:
+      freyberg6.rch
+      freyberg6.wel
+      npf_k33_0.dat
+      npf_k33_1.dat
+      npf_k33_2.dat
+      npf_k_0.dat
+      npf_k_1.dat
+      npf_k_2.dat
+      sto_ss_0.dat
+      sto_ss_1.dat
+      sto_ss_2.dat
+      sto_sy_0.dat
+      sto_sy_1.dat
+      sto_sy_2.dat
+
+    instruction files:
+      freyberg6.lst.ins
+      heads.csv.ins
+      sfr.csv.ins
+    model output files:
+      freyberg6.lst
+      heads.csv
+      sfr.csv
+
+
+...number of adjustable parameters in cycle 0: 8175
+...number of non-zero weighted observations in cycle 0: 36
+
+  ---  initializing cycle 0  ---  
+
+  ---  'noptmax'=0, running control file parameter values and quitting  ---  
+...running control file parameter values
+...saving results from control file parameter value run to  freyberg6_run_da.obs.csv
+
+  ---  control file parameter phi report:  ---  
+       phi type           mean            std            min            max
+       measured        387.017              0        387.017        387.017
+         actual        387.017              0        387.017        387.017
+     note: 'measured' phi reported above includes 
+           realizations of measurement noise, 
+           'actual' phi does not.
+
+

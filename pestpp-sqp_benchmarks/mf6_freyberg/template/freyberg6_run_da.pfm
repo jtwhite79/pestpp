@@ -1,0 +1,32 @@
+time,elapsed_seconds,message
+13:13:14,7.3e-05,PEST++ performance logger started
+13:13:14,0.0016702,starting to process control file
+13:13:17,2.92216,finished processing control file
+13:13:17,0.0746877,starting basic model IO error checking
+13:13:18,0.46637,finished basic model IO error checking
+13:13:18,0.1983,initializing parcov
+13:13:18,0.285353,...parcov loaded  from parameter bounds, using par_sigma_range 4
+13:13:19,0.353373,...drawing parameter realizations:  15
+13:13:20,1.14552,parameters not grouped by parameter groups, reordering par ensemble
+13:13:20,0.388274,making standard normal draws
+13:13:20,0.130772,scaling by std
+13:13:20,0.033162,checking realization for invalid values
+13:13:20,0.0325094,resizing reals matrix
+13:13:20,0.0093206,filling reals matrix and adding mean values
+13:13:22,1.57921,instantiating child pest object
+13:13:22,0.411655,starting basic model IO error checking
+13:13:22,0.0052991,finished basic model IO error checking
+13:13:23,0.456423,instantiating DA instance
+13:13:23,0.116427,instantiating cycle parameter ensemble instance
+13:13:23,0.243061,
+  ---  initializing cycle 0  ---  
+13:13:23,0.053747,
+  ---  'noptmax'=0, running control file parameter values and quitting  ---  
+13:13:23,0.30877,...running control file parameter values
+13:13:23,7.8e-05,queuing 1 runs
+13:13:24,0.259532,making runs
+13:13:26,2.65915,processing runs
+13:13:26,0.127064,...saving results from control file parameter value run to  freyberg6_run_da.obs.csv
+13:13:27,0.106294,
+  ---  control file parameter phi report:  ---  
+13:13:28,1.64558,updating global ensemble with cycle ensemble columns
