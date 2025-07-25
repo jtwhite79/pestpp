@@ -7639,14 +7639,9 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
             throw_em_error("save_to_catalogue() error: _pe subset rows != _oe rows");
         }
         pest_utils::save_dense_binary(file_manager.get_ofstream("par.cat.bin"),rnames,t);
-        rnames.clear();
-        all_rnames = _oe.get_real_names();
-        for (auto& idx : use_subset_idxs)
-        {
-            rnames.push_back(all_rnames[idx]);
-        }
-        t = _oe.get_eigen(rnames,vector<string>());
-        pest_utils::save_dense_binary(file_manager.get_ofstream("obs.cat.bin"),rnames,t);
+        
+        
+        pest_utils::save_dense_binary(file_manager.get_ofstream("obs.cat.bin"),_oe.get_real_names(),_oe.get_eigen_const_ref());
     }
     else
     {
