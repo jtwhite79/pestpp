@@ -478,7 +478,7 @@ protected:
 
 	vector<int> get_subset_idxs(int size, int _subset_size);
 
-	Eigen::MatrixXd get_Am(const vector<string>& real_names, const vector<string>& par_names);
+	Eigen::MatrixXd get_Am(ParameterEnsemble& _pe_base, const vector<string>& real_names, const vector<string>& par_names);
 
 
 	void zero_weight_obs(vector<string>& obs_to_zero_weight, bool update_obscov = true, bool update_oe_base = true);
@@ -506,6 +506,8 @@ protected:
     void reset_par_ensemble_to_prior_mean(double reinflate_factor);
 
     void save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemble& _oe, vector<int> subset_idxs=vector<int>());
+
+    void fill_components_from_catalogue();
 
 };
 #endif

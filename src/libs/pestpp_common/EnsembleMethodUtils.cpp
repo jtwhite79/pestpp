@@ -7084,7 +7084,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 	Eigen::MatrixXd Am;
 	if ((!use_mda) && (!pest_scenario.get_pestpp_options().get_ies_use_approx()))
 	{
-		Am = get_Am(pe.get_real_names(), pe.get_var_names());
+		Am = get_Am(pe_base, pe.get_real_names(), pe.get_var_names());
 	}
 
 	vector<int> subset_idxs = get_subset_idxs(pe.shape().first, local_subset_size);
@@ -8952,11 +8952,11 @@ void EnsembleMethod::zero_weight_obs(vector<string>& obs_to_zero_weight, bool up
 }
 
 
-Eigen::MatrixXd EnsembleMethod::get_Am(const vector<string>& real_names, const vector<string>& par_names)
+Eigen::MatrixXd EnsembleMethod::get_Am(ParameterEnsemble& _pe_base, const vector<string>& real_names, const vector<string>& par_names)
 {
 
 	double scale = (1.0 / (sqrt(double(real_names.size() - 1))));
-	Eigen::MatrixXd par_diff = scale * pe_base.get_eigen_anomalies(real_names, par_names, pest_scenario.get_pestpp_options().get_ies_center_on());
+	Eigen::MatrixXd par_diff = scale * _pe_base.get_eigen_anomalies(real_names, par_names, pest_scenario.get_pestpp_options().get_ies_center_on());
 	par_diff.transposeInPlace();
 	if (verbose_level > 1)
 	{
