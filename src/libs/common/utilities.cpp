@@ -1564,6 +1564,7 @@ void save_dense_binary(ofstream& out,const vector<string>& row_names,const Eigen
     {
         throw runtime_error("save_dense_binary(): stream not good");
     }
+    out.flush();
 }
 
 void prep_save_dense_binary(ofstream& out,const vector<string>& col_names)

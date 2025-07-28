@@ -452,6 +452,8 @@ protected:
     ObservationInfo org_obs_info;
     string dense_file_ext = ".bin";
     bool save_catalogue;
+    bool use_catalogue;
+    string cat_file_tag = ".cat.bin";
 
 
 	bool solve_glm(int cycle = NetPackage::NULL_DA_CYCLE);
@@ -507,7 +509,9 @@ protected:
 
     void save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemble& _oe, vector<int> subset_idxs=vector<int>());
 
-    void fill_components_from_catalogue();
+    void fill_components_from_catalogue(ParameterEnsemble& pe_cat,ObservationEnsemble& oe_cat);
+
+    void prep_catalogue();
 
 };
 #endif

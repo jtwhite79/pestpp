@@ -3944,11 +3944,6 @@ def freyberg_mean_invest():
                                 worker_root=model_d, port=port)
 
 
-
-
-
-    
-
 def freyberg_stacked_pe_invest():
     import flopy
     model_d = "ies_freyberg"
@@ -4078,8 +4073,78 @@ def tenpar_iqr_bad_phi_sigma_test():
     assert df1.iloc[0,5:].max() < badphi
 
 
+def tenpar_catalogue_test():
+
+    model_d = "ies_10par_xsec"
+    test_d = os.path.join(model_d, "master_catalogue")
+    template_d = os.path.join(model_d, "test_template")
+
+    if not os.path.exists(template_d):
+        raise Exception("template_d {0} not found".format(template_d))
+    if os.path.exists(test_d):
+        shutil.rmtree(test_d)
+    shutil.copytree(template_d,test_d)
+    
+    pst_name = os.path.join(test_d, "pest.pst")
+    pst = pyemu.Pst(pst_name)
+
+    pst.pestpp_options = {}
+    
+    pst.control_data.noptmax = 2
+    pst.write(pst_name,version=2)
+    pyemu.os_utils.run("{0} pest.pst".format(exe_path),cwd=test_d)
+
+    pcat_filename = os.path.join(test_d,"pest.par.cat.bin")
+    assert os.path.exists(pcat_filename)
+    pe = pyemu.ParameterEnsemble.from_binary(pst=None,filename=pcat_filename)
+    print(pe.shape)
+    assert pe.shape[0] > 0
+    assert pe.shape[1] == pst.npar_adj
+
+    ocat_filename = os.path.join(test_d,"pest.obs.cat.bin")
+    assert os.path.exists(pcat_filename)
+    oe = pyemu.ObservationEnsemble.from_binary(pst=None,filename=ocat_filename)
+    print(oe.shape)
+    assert oe.shape[0] > 0
+    assert oe.shape[1] == pst.nobs
+    assert pe.shape[0] == oe.shape[0]
+    #exit()
+
+    
+
+    test_d2 = test_d+"2"
+    if os.path.exists(test_d2):
+        shutil.rmtree(test_d2)
+    shutil.copytree(test_d,test_d2)
+    
+    pst_name = os.path.join(test_d2, "pest.pst")
+    pst = pyemu.Pst(pst_name)
+
+    pst.pestpp_options = {"ies_use_run_catalogue":True}
+    
+    pst.control_data.noptmax = 1
+    pst.write(pst_name,version=2)
+    pyemu.os_utils.run("{0} pest.pst".format(exe_path),cwd=test_d2)
+    pcat_filename = os.path.join(test_d2,"pest.par.cat.bin")
+    assert os.path.exists(pcat_filename)
+    pe = pyemu.ParameterEnsemble.from_binary(pst=None,filename=pcat_filename)
+    print(pe.shape)
+    assert pe.shape[0] > 0
+    assert pe.shape[1] == pst.npar_adj
+
+    ocat_filename = os.path.join(test_d2,"pest.obs.cat.bin")
+    assert os.path.exists(pcat_filename)
+    oe = pyemu.ObservationEnsemble.from_binary(pst=None,filename=ocat_filename)
+    print(oe.shape)
+    assert oe.shape[0] > 0
+    assert oe.shape[1] == pst.nobs
+    assert pe.shape[0] == oe.shape[0]
+
+
+
 if __name__ == "__main__":
-    tenpar_iqr_bad_phi_sigma_test()
+    tenpar_catalogue_test()
+    #tenpar_iqr_bad_phi_sigma_test()
     #tenpar_fixed_restart_test()
     #freyberg_stacked_pe_invest()
     #freyberg_mean_invest()

@@ -4208,6 +4208,11 @@ void EnsembleMethod::sanity_checks()
         errors.push_back("Covariance-based localization not supported with MDA solver");
     }
 
+    if (pest_scenario.get_pestpp_options().get_ies_use_mda() && (pest_scenario.get_pestpp_options().get_ies_use_run_catalogue()))
+    {
+        errors.push_back("run catalogue augmented solver not supported with MDA solver");
+    }
+
 //    if (pest_scenario.get_control_info().noptmax > 10)
 //	{
 //		warnings.push_back("noptmax > 10, don't expect anything meaningful from the results!");
@@ -5988,15 +5993,21 @@ void EnsembleMethod::initialize(int cycle, bool run, bool use_existing)
         message(1, "current lambda:", last_best_lam);
     }
     save_catalogue = pest_scenario.get_pestpp_options().get_ies_save_run_catalogue();
+    use_catalogue = pest_scenario.get_pestpp_options().get_ies_use_run_catalogue();
+    if (use_catalogue)
+    {
+        message(1,"using run catalogue in ensemble solution");
+        if (!save_catalogue)
+        {
+            message(1,"resetting 'ies_save_run_catalogue' to 'true'");
+            save_catalogue = true;
+        }
+    }
+
+
     if (save_catalogue)
     {
-        vector<string> names = pe.get_var_names();
-        ofstream& f1 = file_manager.open_ofile_ext("par.cat.bin");
-        pest_utils::prep_save_dense_binary(f1,names);
-
-        names = oe.get_var_names();
-        ofstream& f2 = file_manager.open_ofile_ext("obs.cat.bin");
-        pest_utils::prep_save_dense_binary(f2,names);
+        prep_catalogue();
 
         save_to_catalogue(pe,oe);
     }
@@ -7080,12 +7091,18 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 	{
 		throw_em_error("EnsembleMethod::solve() internal error: loc_map is empty");
 	}
-	//get this once and reuse it for each lambda
-	Eigen::MatrixXd Am;
-	if ((!use_mda) && (!pest_scenario.get_pestpp_options().get_ies_use_approx()))
-	{
-		Am = get_Am(pe_base, pe.get_real_names(), pe.get_var_names());
-	}
+
+    ParameterEnsemble pe_cat(pe.get_pest_scenario_ptr(), &rand_gen, pe.get_eigen(vector<string>(), act_par_names, false), pe.get_real_names(), act_par_names);
+    pe_cat.set_zeros();
+    pe_cat.set_trans_status(pe.get_trans_status());
+    ObservationEnsemble oe_cat(oe.get_pest_scenario_ptr(), &rand_gen, oe.get_eigen(vector<string>(), act_obs_names, false), oe.get_real_names(), act_obs_names);
+
+    if (use_catalogue)
+    {
+        fill_components_from_catalogue(pe_cat,oe_cat);
+
+
+    }
 
 	vector<int> subset_idxs = get_subset_idxs(pe.shape().first, local_subset_size);
 	vector<string> pe_filenames;
@@ -7095,6 +7112,11 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 	pe_upgrade.set_zeros();
 	pe_upgrade.set_trans_status(pe.get_trans_status());
 	ObservationEnsemble oe_upgrade(oe.get_pest_scenario_ptr(), &rand_gen, oe.get_eigen(vector<string>(), act_obs_names, false), oe.get_real_names(), act_obs_names);
+    Eigen::MatrixXd Am;
+    if ((!use_mda) && (!pest_scenario.get_pestpp_options().get_ies_use_approx()))
+    {
+        Am = get_Am(pe_base, pe.get_real_names(), pe.get_var_names());
+    }
     EnsembleSolver es(performance_log, file_manager, pest_scenario, pe, oe_upgrade, oe_base, weights, localizer, parcov, Am, ph,
 		use_localizer, iter, act_par_names, act_obs_names);
     double mm_alpha = pest_scenario.get_pestpp_options().get_ies_multimodal_alpha();
@@ -7656,6 +7678,87 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 	return true;
 }
 
+void EnsembleMethod::fill_components_from_catalogue(ParameterEnsemble& pe_cat,ObservationEnsemble& oe_cat)
+{
+    stringstream ss;
+    //if a catalogue run is missing from pe_base/weights/oe_base, then just fill with control file values
+    string pcat_filename = file_manager.get_base_filename()+".par"+cat_file_tag;
+    string ocat_filename = file_manager.get_base_filename()+".obs"+cat_file_tag;
+
+    ParameterEnsemble pe_temp(&pest_scenario,&rand_gen);
+    pe_temp.set_trans_status(pe_cat.get_trans_status());
+    pe_temp.from_binary(pcat_filename);
+    vector<string> drop_names;
+    set<string> s_act;
+    for (auto& name : act_par_names)
+    {
+        s_act.emplace(name);
+    }
+    auto send = s_act.end();
+    for (auto& name : pe_temp.get_var_names())
+    {
+        if (s_act.find(name) == send)
+            drop_names.push_back(name);
+    }
+    if (!drop_names.empty())
+    {
+        pe_temp.drop_cols(drop_names);
+    }
+    pe_temp.reorder(vector<string>(),pe_cat.get_var_names());
+    ss.str("");
+    ss << "loaded " << pe_temp.shape().first << " realizations from parameter catalogue";
+    message(1,ss.str());
+
+    ObservationEnsemble oe_temp(&pest_scenario,&rand_gen);
+    oe_temp.from_binary(ocat_filename);
+    s_act.clear();
+    drop_names.clear();
+    for (auto& name : act_obs_names)
+    {
+        s_act.emplace(name);
+    }
+    send = s_act.end();
+    for (auto& name : oe_temp.get_var_names())
+    {
+        if (s_act.find(name) == send)
+            drop_names.push_back(name);
+    }
+    if (!drop_names.empty())
+    {
+        oe_temp.drop_cols(drop_names);
+    }
+    oe_temp.reorder(vector<string>(),oe_cat.get_var_names());
+    ss.str("");
+    ss << "loaded " << oe_temp.shape().first << " realizations from observation catalogue";
+    message(1,ss.str());
+    if (pe_temp.shape().first != oe_temp.shape().first)
+    {
+        throw_em_error("fill_components_from_catalogue() error: pe catalogue num reals != oe catalogue num reals");
+    }
+    //big assumption: the last pe_cat-num-reals in the catalogue are already in pe_cat, so we need to drop them
+    vector<int> drop_rows;
+    int start = pe_temp.shape().first - pe_cat.shape().first;
+    int end = pe_temp.shape().first;
+    for (int i=start;i<end;i++)
+    {
+        drop_rows.push_back(i);
+    }
+    pe_temp.drop_rows(drop_rows,true);
+    oe_temp.drop_rows(drop_rows,true);
+}
+
+void EnsembleMethod::prep_catalogue()
+{
+    vector<string> names = pe.get_var_names();
+
+    ofstream& f1 = file_manager.open_ofile_ext("par"+cat_file_tag);
+    pest_utils::prep_save_dense_binary(f1,names);
+
+    names = oe.get_var_names();
+    ofstream& f2 = file_manager.open_ofile_ext("obs"+cat_file_tag);
+    pest_utils::prep_save_dense_binary(f2,names);
+}
+
 void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemble& _oe, vector<int> subset_idxs)
 {
     if (!save_catalogue){
@@ -7691,10 +7794,10 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
         {
             throw_em_error("save_to_catalogue() error: _pe subset rows != _oe rows");
         }
-        pest_utils::save_dense_binary(file_manager.get_ofstream("par.cat.bin"),rnames,t);
+        pest_utils::save_dense_binary(file_manager.get_ofstream("par"+cat_file_tag),rnames,t);
         
         
-        pest_utils::save_dense_binary(file_manager.get_ofstream("obs.cat.bin"),_oe.get_real_names(),_oe.get_eigen_const_ref());
+        pest_utils::save_dense_binary(file_manager.get_ofstream("obs"+cat_file_tag),_oe.get_real_names(),_oe.get_eigen_const_ref());
     }
     else
     {
@@ -7703,8 +7806,8 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
             throw_em_error("save_to_catalogue() error: _pe rows != _oe rows");
         }
 
-        pest_utils::save_dense_binary(file_manager.get_ofstream("par.cat.bin"),_pe.get_real_names(),_pe.get_eigen_const_ref());
-        pest_utils::save_dense_binary(file_manager.get_ofstream("obs.cat.bin"),_oe.get_real_names(),_oe.get_eigen_const_ref());
+        pest_utils::save_dense_binary(file_manager.get_ofstream("par"+cat_file_tag),_pe.get_real_names(),_pe.get_eigen_const_ref());
+        pest_utils::save_dense_binary(file_manager.get_ofstream("obs"+cat_file_tag),_oe.get_real_names(),_oe.get_eigen_const_ref());
     }
 
 }

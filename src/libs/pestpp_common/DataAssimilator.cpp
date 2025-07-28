@@ -94,6 +94,11 @@ void DataAssimilator::sanity_checks()
 
 	EnsembleMethod::sanity_checks();
 
+    if (pest_scenario.get_pestpp_options().get_ies_use_run_catalogue())
+    {
+        errors.push_back("run catalogue augmented solver not supported with PESTPP-DA");
+    }
+
 
 	if ((pest_scenario.get_pestpp_options().get_da_weight_cycle_table().size() > 0) &&
             (pest_scenario.get_pestpp_options().get_ies_weights_csv().size() > 0))
