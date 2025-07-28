@@ -1525,6 +1525,7 @@ void save_dense_binary(ofstream& out,const string& row_name,const Eigen::VectorX
     {
         throw runtime_error("save_dense_binary(): stream not good");
     }
+    out.flush();
 }
 
 
@@ -1604,6 +1605,7 @@ void prep_save_dense_binary(ofstream& out,const vector<string>& col_names)
     {
         throw runtime_error("prep_save_dense_binary(): stream not good");
     }
+    out.flush();
 }
 
 void save_binary_orgfmt(const string &filename, const vector<string> &row_names, const vector<string> &col_names, const Eigen::SparseMatrix<double> &matrix)

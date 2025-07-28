@@ -7754,10 +7754,12 @@ void EnsembleMethod::prep_catalogue()
     vector<string> names = pe.get_var_names();
 
     ofstream& f1 = file_manager.open_ofile_ext("par"+cat_file_tag);
+    f1 << nounitbuf;
     pest_utils::prep_save_dense_binary(f1,names);
 
     names = oe.get_var_names();
     ofstream& f2 = file_manager.open_ofile_ext("obs"+cat_file_tag);
+    f2 << nounitbuf;
     pest_utils::prep_save_dense_binary(f2,names);
 }
 
