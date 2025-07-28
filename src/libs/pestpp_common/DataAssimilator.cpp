@@ -96,7 +96,8 @@ void DataAssimilator::sanity_checks()
 
     if (pest_scenario.get_pestpp_options().get_ies_use_run_catalogue())
     {
-        errors.push_back("run catalogue augmented solver not supported with PESTPP-DA");
+        warnings.push_back("run catalogue augmented solver not supported with PESTPP-DA, resetting");
+        pest_scenario.get_pestpp_options_ptr()->set_ies_use_run_catalogue(false);
     }
 
 
