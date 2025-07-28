@@ -32,4 +32,4 @@ clean = { cmd = "ninja -t clean", cwd = ".build" }
 clean-build = { cmd = "rm -rf .build" }
 
 # test build
-test = { cmd = "python basic_tests.py", cwd = "benchmarks" }
+test = { cmd = "python devenv_tests.py", cwd = "benchmarks" }
