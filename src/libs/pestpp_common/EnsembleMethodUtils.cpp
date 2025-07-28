@@ -7743,8 +7743,10 @@ void EnsembleMethod::fill_components_from_catalogue(ParameterEnsemble& pe_cat,Ob
     {
         drop_rows.push_back(i);
     }
-    pe_temp.drop_rows(drop_rows,true);
-    oe_temp.drop_rows(drop_rows,true);
+    //if (!drop_rows.empty()) {
+        pe_temp.drop_rows(drop_rows, true);
+        oe_temp.drop_rows(drop_rows, true);
+    //}
 }
 
 void EnsembleMethod::prep_catalogue()

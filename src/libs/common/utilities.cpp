@@ -954,7 +954,7 @@ bool read_dense_binary_records(ifstream& in,int n_records,int n_col,vector<strin
         if (!in.good())
         {
             ss.str("");
-            ss << "read_dense_binary(), dense format incomplete record: error reading row name for row number " << i << "...continuing";
+            ss << "read_dense_binary(), dense format incomplete record: error reading row name '" << row_name << "' for row number " << i << "...continuing";
             cout << ss.str();
             success = false;
             break;
