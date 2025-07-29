@@ -4143,8 +4143,8 @@ def tenpar_catalogue_test():
 
 
 if __name__ == "__main__":
-    tenpar_extra_binary_vars_test()
-    #tenpar_catalogue_test()
+    #tenpar_extra_binary_vars_test()
+    tenpar_catalogue_test()
     #tenpar_iqr_bad_phi_sigma_test()
     #tenpar_fixed_restart_test()
     #freyberg_stacked_pe_invest()

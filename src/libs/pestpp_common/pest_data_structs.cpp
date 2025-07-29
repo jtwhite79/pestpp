@@ -2097,7 +2097,7 @@ void PestppOptions::set_defaults()
     set_save_dense(false);
     set_ies_aal_indicator_pars(vector<string>());
     set_ies_save_run_catalogue(true);
-    set_ies_use_run_catalogue(false);
+    set_ies_use_run_catalogue(true);
 
 	// DA parameters
 	//set_da_use_ies(false);
