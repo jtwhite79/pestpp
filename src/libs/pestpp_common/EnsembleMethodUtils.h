@@ -349,11 +349,12 @@ public:
 
 	void work(int thread_id, int iter, double cur_lam,bool use_glm_form, vector<string> par_names, vector<string> obs_names);
 };
-
+static const string cat_file_tag = ".cat.bin";
 class EnsembleMethod
 {
 
 public:
+
 	EnsembleMethod(Pest& _pest_scenario, FileManager& _file_manager,
 		OutputFileWriter& _output_file_writer, PerformanceLog* _performance_log,
 		RunManagerAbstract* _run_mgr_ptr, string _alg_tag="EnsembleMethod");
@@ -453,7 +454,7 @@ protected:
     string dense_file_ext = ".bin";
     bool save_catalogue;
     bool use_catalogue;
-    string cat_file_tag = ".cat.bin";
+
 
 
 	bool solve_glm(int cycle = NetPackage::NULL_DA_CYCLE);

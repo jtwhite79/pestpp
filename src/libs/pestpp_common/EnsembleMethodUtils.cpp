@@ -4210,7 +4210,8 @@ void EnsembleMethod::sanity_checks()
 
     if (pest_scenario.get_pestpp_options().get_ies_use_mda() && (pest_scenario.get_pestpp_options().get_ies_use_run_catalogue()))
     {
-        errors.push_back("run catalogue augmented solver not supported with MDA solver");
+        warnings.push_back("run catalogue augmented solver not supported with MDA solver, resetting");
+        pest_scenario.get_pestpp_options_ptr()->set_ies_use_run_catalogue(false);
     }
 
 //    if (pest_scenario.get_control_info().noptmax > 10)

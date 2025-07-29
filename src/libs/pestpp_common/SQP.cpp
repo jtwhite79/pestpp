@@ -1514,7 +1514,7 @@ void SeqQuadProgram::iterate_2_solution()
 		if (n_consec_infeas > MAX_CONSEC_INFEAS_IES)
         {
 		    ss.str("");
-		    ss << "number of consecutive infeasible iterations > " << MAX_CONSEC_INFEAS << ", switching to IES to seek feasibility";
+		    ss << "number of consecutive infeasible iterations > " << MAX_CONSEC_INFEAS_IES << ", switching to IES to seek feasibility";
 		    message(0,ss.str());
 		    seek_feasible();
 		    n_consec_infeas = 0;
@@ -2702,6 +2702,8 @@ bool SeqQuadProgram::seek_feasible()
     ss << "feas_ies_" << iter << "_" << org_base;
 
     file_manager.set_base_filename(ss.str());
+    file_manager.close_file("obs"+cat_file_tag);
+    file_manager.close_file("par"+cat_file_tag);
     IterEnsembleSmoother ies(ies_pest_scenario, file_manager, output_file_writer, performance_log, run_mgr_ptr);
     if (use_ensemble_grad) {
         ies.set_pe(dv);
