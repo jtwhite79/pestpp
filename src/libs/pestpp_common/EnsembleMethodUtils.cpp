@@ -7766,12 +7766,12 @@ void EnsembleMethod::prep_catalogue()
 {
     vector<string> names = pe.get_var_names();
 
-    fstream& f1 = file_manager.open_iofile_ext("par"+cat_file_tag,std::fstream::binary|std::fstream::in|std::fstream::out|std::fstream::app|std::fstream::ate);
+    fstream& f1 = file_manager.open_iofile_ext("par"+cat_file_tag,ios_base::binary|ios_base::in|ios_base::out|ios_base::app);
     f1 << nounitbuf;
     pest_utils::prep_save_dense_binary(f1,names);
 
     names = oe.get_var_names();
-    fstream& f2 = file_manager.open_iofile_ext("obs"+cat_file_tag,std::fstream::binary|std::fstream::in|std::fstream::out|std::fstream::app|std::fstream::ate);
+    fstream& f2 = file_manager.open_iofile_ext("obs"+cat_file_tag,ios_base::binary|ios_base::in|ios_base::out|ios_base::app);
     f2 << nounitbuf;
     pest_utils::prep_save_dense_binary(f2,names);
 }

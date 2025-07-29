@@ -333,7 +333,7 @@ void prep_sweep_output_file(Pest &pest_scenario, ofstream &out, bool& is_binary)
     pest_utils::lower_ip(obs_ext);
     if (obs_ext.compare("bin") == 0)
     {
-        out.open(filename,ios::binary);
+        out.open(filename,ios_base::binary|ios_base::out);
         if (!out.good()) {
             throw runtime_error("could not open sweep_output_file for writing: " +
                                 filename);
@@ -741,7 +741,7 @@ int main(int argc, char* argv[])
             cout << "  ---  dense binary file detected for par_csv" << endl;
             fout_rec << "  ---  dense binary file detected for par_csv" << endl;
 			par_stream.close();
-			par_stream.open(par_csv_file, ifstream::binary);
+			par_stream.open(par_csv_file, ios_base::binary|ios_base::in);
             vector<string> col_names;
             header_info = prepare_parameter_dense_binary(pest_scenario.get_ctl_parameters(),par_stream,
                                                          pest_scenario.get_pestpp_options().get_sweep_forgive(),col_names);

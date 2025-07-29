@@ -1122,7 +1122,7 @@ void read_dense_binary(const string& filename, vector<string>& row_names, vector
 {
 	stringstream ss;
 	fstream in;
-	in.open(filename.c_str(), fstream::binary|fstream::in);
+	in.open(filename.c_str(), ios_base::binary|ios_base::in);
     if (!in.good())
 	{
 		ss.str("");
