@@ -25,6 +25,7 @@ PerformanceLog::PerformanceLog(ofstream &_fout)
 	prev_time = system_clock::now();
 	//fout << "PEST++ performance logger started at:  " << time_to_string(prev_time) << endl;
 	fout << "time,elapsed_seconds,message" << endl;
+    fout << unitbuf;
 	log_event("PEST++ performance logger started");
 
 }

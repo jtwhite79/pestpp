@@ -518,9 +518,9 @@ def tenpar_binary_nz_test():
     assert d.max().max() < 1.0e-6
 
 
-
-
 if __name__ == "__main__":
+    invest()
+    exit()
     #shutil.copy2(os.path.join("..","exe","windows","x64","Debug","pestpp-ies.exe"),os.path.join("..","bin","win","pestpp-ies.exe"))
  
 	#tenpar_binary_nz_test()
@@ -535,7 +535,7 @@ if __name__ == "__main__":
     #compare_suite("ies_freyberg")
     #test_freyberg()
     #shutil.copy2(os.path.join("..","exe","windows","x64","Debug","pestpp-ies.exe"),os.path.join("..","bin","win","pestpp-ies.exe"))
-    #tenpar_localize_with_drop_test()
-    test_10par_xsec()
+    tenpar_localize_with_drop_test()
+    #test_10par_xsec()
 
     
