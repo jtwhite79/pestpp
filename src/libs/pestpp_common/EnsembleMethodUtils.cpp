@@ -7684,10 +7684,17 @@ void EnsembleMethod::fill_components_from_catalogue(ParameterEnsemble& pe_cat,Ob
     //if a catalogue run is missing from pe_base/weights/oe_base, then just fill with control file values
     string pcat_filename = file_manager.get_base_filename()+".par"+cat_file_tag;
     string ocat_filename = file_manager.get_base_filename()+".obs"+cat_file_tag;
+    fstream& cat = file_manager.get_fstream("par"+cat_file_tag);
+    streampos current_pos = cat.tellg();
+    cat.seekg(0,std::ios::beg);
 
-    ParameterEnsemble pe_temp(&pest_scenario,&rand_gen);
-    pe_temp.set_trans_status(pe_cat.get_trans_status());
-    pe_temp.from_binary(pcat_filename);
+    vector<string> row_names,col_names;
+    Eigen::MatrixXd matrix;
+    pest_utils::read_dense_binary(cat,row_names,col_names,matrix);
+    cat.seekp(0,ios::end);
+    ParameterEnsemble pe_temp(&pest_scenario,&rand_gen, matrix,row_names, col_names);
+    pe_temp.set_trans_status(ParameterEnsemble::transStatus::CTL);
+    pe_temp.transform_ip(pe_cat.get_trans_status());
     vector<string> drop_names;
     set<string> s_act;
     for (auto& name : act_par_names)
@@ -7709,8 +7716,14 @@ void EnsembleMethod::fill_components_from_catalogue(ParameterEnsemble& pe_cat,Ob
     ss << "loaded " << pe_temp.shape().first << " realizations from parameter catalogue";
     message(1,ss.str());
 
-    ObservationEnsemble oe_temp(&pest_scenario,&rand_gen);
-    oe_temp.from_binary(ocat_filename);
+    fstream& cat2 = file_manager.get_fstream("obs"+cat_file_tag);
+    current_pos = cat2.tellg();
+    cat2.seekg(0,std::ios::beg);
+
+    pest_utils::read_dense_binary(cat2,row_names,col_names,matrix);
+    cat2.seekp(0,ios::end);
+
+    ObservationEnsemble oe_temp(&pest_scenario,&rand_gen, matrix,row_names, col_names);
     s_act.clear();
     drop_names.clear();
     for (auto& name : act_obs_names)
@@ -7753,12 +7766,12 @@ void EnsembleMethod::prep_catalogue()
 {
     vector<string> names = pe.get_var_names();
 
-    ofstream& f1 = file_manager.open_ofile_ext("par"+cat_file_tag);
+    fstream& f1 = file_manager.open_iofile_ext("par"+cat_file_tag,std::fstream::binary|std::fstream::in|std::fstream::out|std::fstream::app|std::fstream::ate);
     f1 << nounitbuf;
     pest_utils::prep_save_dense_binary(f1,names);
 
     names = oe.get_var_names();
-    ofstream& f2 = file_manager.open_ofile_ext("obs"+cat_file_tag);
+    fstream& f2 = file_manager.open_iofile_ext("obs"+cat_file_tag,std::fstream::binary|std::fstream::in|std::fstream::out|std::fstream::app|std::fstream::ate);
     f2 << nounitbuf;
     pest_utils::prep_save_dense_binary(f2,names);
 }
@@ -7798,10 +7811,10 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
         {
             throw_em_error("save_to_catalogue() error: _pe subset rows != _oe rows");
         }
-        pest_utils::save_dense_binary(file_manager.get_ofstream("par"+cat_file_tag),rnames,t);
+        pest_utils::save_dense_binary(file_manager.get_fstream("par"+cat_file_tag),rnames,t);
         
         
-        pest_utils::save_dense_binary(file_manager.get_ofstream("obs"+cat_file_tag),_oe.get_real_names(),_oe.get_eigen_const_ref());
+        pest_utils::save_dense_binary(file_manager.get_fstream("obs"+cat_file_tag),_oe.get_real_names(),_oe.get_eigen_const_ref());
     }
     else
     {
@@ -7810,8 +7823,8 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
             throw_em_error("save_to_catalogue() error: _pe rows != _oe rows");
         }
 
-        pest_utils::save_dense_binary(file_manager.get_ofstream("par"+cat_file_tag),_pe.get_real_names(),_pe.get_eigen_const_ref());
-        pest_utils::save_dense_binary(file_manager.get_ofstream("obs"+cat_file_tag),_oe.get_real_names(),_oe.get_eigen_const_ref());
+        pest_utils::save_dense_binary(file_manager.get_fstream("par"+cat_file_tag),_pe.get_real_names(),_pe.get_eigen_const_ref());
+        pest_utils::save_dense_binary(file_manager.get_fstream("obs"+cat_file_tag),_oe.get_real_names(),_oe.get_eigen_const_ref());
     }
 
 }

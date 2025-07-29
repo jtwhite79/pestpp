@@ -50,7 +50,7 @@ using namespace std;
 using namespace pest_utils;
 
 
-map<string,int> prepare_parameter_csv(Parameters pars, ifstream &csv, bool forgive)
+map<string,int> prepare_parameter_csv(Parameters pars, fstream &csv, bool forgive)
 {
 	if (!csv.good())
 	{
@@ -116,7 +116,7 @@ map<string,int> prepare_parameter_csv(Parameters pars, ifstream &csv, bool forgi
 	return header_info;
 }
 
-map<string,int> prepare_parameter_dense_binary(Parameters pars, ifstream &in, bool forgive, vector<string>& header_tokens)
+map<string,int> prepare_parameter_dense_binary(Parameters pars, fstream &in, bool forgive, vector<string>& header_tokens)
 {
     stringstream ss;
     if (!in.good())
@@ -178,7 +178,7 @@ map<string,int> prepare_parameter_dense_binary(Parameters pars, ifstream &in, bo
 }
 
 //pair<vector<string>,vector<Parameters>> load_parameters_from_csv(map<string,int> &header_info, ifstream &csv, int chunk, const Parameters &ctl_pars, vector<string> &run_ids, vector<Parameters> &sweep_pars)
-void load_parameters_from_csv(map<string, int>& header_info, ifstream& csv, int chunk, const Parameters& ctl_pars, vector<string>& run_ids, vector<Parameters>& sweep_pars)
+void load_parameters_from_csv(map<string, int>& header_info, fstream& csv, int chunk, const Parameters& ctl_pars, vector<string>& run_ids, vector<Parameters>& sweep_pars)
 
 {
 	cout << endl;
@@ -265,7 +265,7 @@ void load_parameters_from_csv(map<string, int>& header_info, ifstream& csv, int 
 	//return pair<vector<string>,vector<Parameters>> (run_ids,sweep_pars);
 }
 
-void load_parameters_from_dense_binary(map<string, int>& header_info, ifstream& in, int chunk, const Parameters& ctl_pars, vector<string>& run_ids, vector<Parameters>& sweep_pars)
+void load_parameters_from_dense_binary(map<string, int>& header_info, fstream& in, int chunk, const Parameters& ctl_pars, vector<string>& run_ids, vector<Parameters>& sweep_pars)
 
 {
     cout << endl;
@@ -633,7 +633,7 @@ int main(int argc, char* argv[])
 
 
 
-		ifstream par_stream(par_csv_file);
+		fstream par_stream(par_csv_file,fstream::in);
 		if (!par_stream.good())
 		{
 			throw runtime_error("could not open parameter sweep file " + par_csv_file);

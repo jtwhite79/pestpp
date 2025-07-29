@@ -872,7 +872,7 @@ bool parse_string_arg_to_bool(string arg)
 	}
 }
 
-vector<string> read_dense_binary_col_names(ifstream& in,int n_col)
+vector<string> read_dense_binary_col_names(fstream& in,int n_col)
 {
     //first read the names of the columns
     stringstream ss;
@@ -914,7 +914,8 @@ vector<string> read_dense_binary_col_names(ifstream& in,int n_col)
 
 }
 
-bool read_dense_binary_records(ifstream& in,int n_records,int n_col,vector<string>& row_names, vector<vector<double>>& rec_vecs)
+
+bool read_dense_binary_records(fstream& in,int n_records,int n_col,vector<string>& row_names, vector<vector<double>>& rec_vecs)
 {
     stringstream ss;
     int i, name_size;
@@ -1013,7 +1014,8 @@ bool read_dense_binary_records(ifstream& in,int n_records,int n_col,vector<strin
     return success;
 }
 
-vector<string> read_dense_binary_remaining_row_names(ifstream& in,const vector<string>& col_names)
+
+vector<string> read_dense_binary_remaining_row_names(fstream& in,const vector<string>& col_names)
 {
     stringstream ss;
     int name_size = 0;
@@ -1088,7 +1090,7 @@ vector<string> read_dense_binary_remaining_row_names(ifstream& in,const vector<s
     return row_names;
 }
 
-void read_binary_matrix_header(ifstream& in, int& tmp1, int& tmp2, int& tmp3)
+void read_binary_matrix_header(fstream& in, int& tmp1, int& tmp2, int& tmp3)
 {
     stringstream ss;
 
@@ -1107,21 +1109,20 @@ void read_binary_matrix_header(ifstream& in, int& tmp1, int& tmp2, int& tmp3)
         ss << "read_binary_matrix_header - stream is not good";
         throw runtime_error(ss.str());
     }
-
-
-
 }
+
 
 bool is_dense_binary_matrix(int tmp1, int tmp2, int tmp3)
 {
     return ((tmp1 == 0) && (tmp2 < 0) && (tmp3 < 0) && (tmp2 == tmp3));
 }
 
+
 void read_dense_binary(const string& filename, vector<string>& row_names, vector<string>& col_names, Eigen::MatrixXd& matrix)
 {
 	stringstream ss;
-	ifstream in;
-	in.open(filename.c_str(), ifstream::binary);
+	fstream in;
+	in.open(filename.c_str(), fstream::binary|fstream::in);
     if (!in.good())
 	{
 		ss.str("");
@@ -1182,6 +1183,69 @@ void read_dense_binary(const string& filename, vector<string>& row_names, vector
         throw runtime_error("binary matrix header values do not indicate a dense matrix format");
     }
 }
+
+
+void read_dense_binary(fstream& in, vector<string>& row_names, vector<string>& col_names, Eigen::MatrixXd& matrix)
+    {
+        stringstream ss;
+
+        if (!in.good())
+        {
+            ss.str("");
+            ss << "read_dense_binary() fstream not good";
+            throw runtime_error(ss.str());
+        }
+
+        row_names.clear();
+        col_names.clear();
+        matrix.resize(0, 0);
+
+        int n_par;
+        int n_nonzero;
+        int n_obs_and_pi;
+        int i, j;
+        double data;
+
+        read_binary_matrix_header(in,n_par,n_obs_and_pi,n_nonzero);
+
+        //if ((n_par == 0) && (n_obs_and_pi < 0) && (n_nonzero < 0) && (n_obs_and_pi == n_nonzero))
+        if (is_dense_binary_matrix(n_par,n_obs_and_pi,n_nonzero))
+        {
+            n_obs_and_pi *= -1;
+            cout << "reading 'dense' format matrix with " << n_obs_and_pi << " columns" << endl;
+            //first read the names of the columns and the rows
+            col_names = read_dense_binary_col_names(in,n_obs_and_pi);
+            streampos first_record = in.tellg();
+            row_names = read_dense_binary_remaining_row_names(in,col_names);
+
+            in.seekg(first_record);
+            //resize the matrix now that we know big it should be
+            matrix.resize(row_names.size(), col_names.size());
+
+            for (int i=0;i<row_names.size();i++)
+            {
+                //skip the name (and its size int)
+                in.seekg(sizeof(int) + row_names[i].size(), ios_base::cur);
+                for (int j = 0; j < col_names.size(); j++)
+                {
+                    if (!in.good())
+                    {
+                        ss.str("");
+                        ss << "read_dense_binary(), dense format incomplete record: error reading row,col value  " << i << "," << j << "...continuing ";
+                        cout << ss.str();
+                        break;
+                    }
+                    in.read((char*)&(data), sizeof(data));
+                    matrix(i,j) = data;
+                }
+            }
+        }
+        else
+        {
+            throw runtime_error("binary matrix header values do not indicate a dense matrix format");
+        }
+    }
+
 
 void read_binary_matrix_header(const string& filename, int& tmp1, int& tmp2, int& tmp3)
 {
@@ -1528,6 +1592,34 @@ void save_dense_binary(ofstream& out,const string& row_name,const Eigen::VectorX
     out.flush();
 }
 
+void save_dense_binary(fstream& out,const string& row_name,const Eigen::VectorXd& data)
+{
+    if (!out.good())
+    {
+        throw runtime_error("save_dense_binary(): stream not good");
+    }
+    int tmp;
+    double d;
+    tmp = row_name.size();
+    char *real_name = new char[tmp];
+    out.write((char *) &tmp, sizeof(tmp));
+    pest_utils::string_to_fortran_char(row_name, real_name, tmp);
+    out.write(real_name, tmp);
+    delete[] real_name;
+    for (int jcol = 0; jcol < data.size(); ++jcol)
+    {
+        d = data(jcol);
+        out.write((char*)&(d), sizeof(d));
+    }
+
+    if (!out.good())
+    {
+        throw runtime_error("save_dense_binary(): stream not good");
+    }
+    out.flush();
+}
+
+
 
 void save_dense_binary(ofstream& out,const vector<string>& row_names,const Eigen::MatrixXd& data)
 {
@@ -1568,6 +1660,48 @@ void save_dense_binary(ofstream& out,const vector<string>& row_names,const Eigen
     out.flush();
 }
 
+
+void save_dense_binary(fstream& out,const vector<string>& row_names,const Eigen::MatrixXd& data)
+{
+    if (!out.good())
+    {
+        throw runtime_error("save_dense_binary(): stream not good");
+    }
+    streampos current_pos = out.tellp();
+    if (current_pos == 0)
+    {
+        throw runtime_error("save_dense_binary(): stream is uninitialized");
+    }
+    int tmp;
+    double d;
+    Eigen::VectorXd row;
+    string name;
+    for (int irow=0;irow<row_names.size();irow++)
+    {
+        row = data.row(irow);
+        save_dense_binary(out,row_names[irow],row);
+//        string name = row_names[irow];
+//        tmp = name.size();
+//        char *real_name = new char[tmp];
+//        out.write((char *) &tmp, sizeof(tmp));
+//        pest_utils::string_to_fortran_char(name, real_name, tmp);
+//        out.write(real_name, tmp);
+//        delete[] real_name;
+//        for (int jcol = 0; jcol < data.cols(); ++jcol)
+//        {
+//            d = data(irow,jcol);
+//            out.write((char*)&(d), sizeof(d));
+//        }
+    }
+    if (!out.good())
+    {
+        throw runtime_error("save_dense_binary(): stream not good");
+    }
+    out.flush();
+}
+
+
+
 void prep_save_dense_binary(ofstream& out,const vector<string>& col_names)
 {
     if (!out.good())
@@ -1607,6 +1741,46 @@ void prep_save_dense_binary(ofstream& out,const vector<string>& col_names)
     }
     out.flush();
 }
+
+void prep_save_dense_binary(fstream& out,const vector<string>& col_names)
+    {
+        if (!out.good())
+        {
+            throw runtime_error("prep_save_dense_binary(): stream not good");
+        }
+        int tmp = 0;
+        out.write((char*)&tmp, sizeof(tmp));
+        int n_var = col_names.size();
+        int n = -1 * n_var;
+        out.write((char*)&n, sizeof(n));
+        out.write((char*)&n, sizeof(n));
+        for (vector<string>::const_iterator b = col_names.begin(), e = col_names.end();
+             b != e; ++b)
+        {
+            string name = pest_utils::lower_cp(*b);
+            tmp = name.size();
+            out.write((char*)&tmp, sizeof(tmp));
+            //mx = max(tmp, mx);
+        }
+        if (!out.good())
+        {
+            throw runtime_error("prep_save_dense_binary(): stream not good");
+        }
+        for (vector<string>::const_iterator b = col_names.begin(), e = col_names.end();
+             b != e; ++b)
+        {
+            string name = pest_utils::lower_cp(*b);
+            char* par_name = new char[name.size()];
+            pest_utils::string_to_fortran_char(name, par_name, name.size());
+            out.write(par_name, name.size());
+            delete[] par_name;
+        }
+        if (!out.good())
+        {
+            throw runtime_error("prep_save_dense_binary(): stream not good");
+        }
+        out.flush();
+    }
 
 void save_binary_orgfmt(const string &filename, const vector<string> &row_names, const vector<string> &col_names, const Eigen::SparseMatrix<double> &matrix)
 {
