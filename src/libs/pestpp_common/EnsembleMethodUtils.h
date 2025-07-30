@@ -224,7 +224,7 @@ public:
 	EnsembleSolver(PerformanceLog* _performance_log, FileManager& _file_manager, Pest& _pest_scenario, ParameterEnsemble& _pe,
 		ObservationEnsemble& _oe, ObservationEnsemble& _base_oe, ObservationEnsemble& _weights, Localizer& _localizer,
 		Covariance& _parcov,Eigen::MatrixXd& _Am, L2PhiHandler& _ph,
-		bool _use_localizer, int _iter, vector<string>& _act_par_names, vector<string> &_act_obs_names);
+		bool _use_localizer, int _iter, vector<string>& _act_par_names, vector<string> &_act_obs_names,int _upgrade_first_n_reals=0);
 
 	void solve(int num_threads, double cur_lam, bool use_glm_form, ParameterEnsemble& pe_upgrade, unordered_map<string, pair<vector<string>, vector<string>>>& loc_map);
     void solve_multimodal(int num_threads, double cur_lam, bool use_glm_form, ParameterEnsemble& pe_upgrade, unordered_map<string,pair<vector<string>, vector<string>>>& loc_map, double mm_alpha);
@@ -235,6 +235,7 @@ private:
 	PerformanceLog* performance_log;
 	FileManager& file_manager;
 	int iter, verbose_level;
+    int upgrade_first_n_reals;
 	bool use_localizer;
 	Pest& pest_scenario;
 	ParameterEnsemble& pe;
@@ -510,7 +511,9 @@ protected:
 
     void save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemble& _oe, vector<int> subset_idxs=vector<int>());
 
-    void fill_components_from_catalogue(ParameterEnsemble& pe_cat,ObservationEnsemble& oe_cat);
+    void fill_components_from_catalogue(ParameterEnsemble& pe_cat,ObservationEnsemble& oe_cat,
+                                        ParameterEnsemble& pe_base_cat, ObservationEnsemble& oe_base_cat,
+                                        ObservationEnsemble& weights_cat);
 
     void prep_catalogue();
 

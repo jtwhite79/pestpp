@@ -28,9 +28,9 @@
 
 EnsembleSolver::EnsembleSolver(PerformanceLog* _performance_log, FileManager& _file_manager, Pest& _pest_scenario, ParameterEnsemble& _pe,
 	ObservationEnsemble& _oe, ObservationEnsemble& _base_oe, ObservationEnsemble& _weights, Localizer& _localizer, Covariance& _parcov, Eigen::MatrixXd& _Am, L2PhiHandler& _ph,
-	bool _use_localizer, int _iter, vector<string>& _act_par_names, vector<string>& _act_obs_names) :
+	bool _use_localizer, int _iter, vector<string>& _act_par_names, vector<string>& _act_obs_names,int _upgrade_first_n_reals) :
 	file_manager(_file_manager), pest_scenario(_pest_scenario), pe(_pe), oe(_oe), base_oe(_base_oe), weights(_weights), localizer(_localizer),
-	parcov(_parcov), Am(_Am), ph(_ph), act_par_names(_act_par_names),act_obs_names(_act_obs_names) {
+	parcov(_parcov), Am(_Am), ph(_ph), act_par_names(_act_par_names),act_obs_names(_act_obs_names),upgrade_first_n_reals(_upgrade_first_n_reals) {
     performance_log = _performance_log;
     use_localizer = _use_localizer;
     iter = _iter;
@@ -7094,31 +7094,50 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 	}
 
     ParameterEnsemble pe_cat(pe.get_pest_scenario_ptr(), &rand_gen, pe.get_eigen(vector<string>(), act_par_names, false), pe.get_real_names(), act_par_names);
-    pe_cat.set_zeros();
     pe_cat.set_trans_status(pe.get_trans_status());
     ObservationEnsemble oe_cat(oe.get_pest_scenario_ptr(), &rand_gen, oe.get_eigen(vector<string>(), act_obs_names, false), oe.get_real_names(), act_obs_names);
 
-    if (use_catalogue)
+    ParameterEnsemble pe_base_cat(pe_base.get_pest_scenario_ptr(), &rand_gen, pe_base.get_eigen(vector<string>(), act_par_names, false), pe_base.get_real_names(), act_par_names);
+    pe_base_cat.set_trans_status(pe_base.get_trans_status());
+
+    ObservationEnsemble oe_base_cat(oe_base.get_pest_scenario_ptr(), &rand_gen, oe_base.get_eigen(vector<string>(), act_obs_names, true), oe_base.get_real_names(), act_obs_names);
+    ObservationEnsemble weights_cat(weights.get_pest_scenario_ptr(), &rand_gen, weights.get_eigen(vector<string>(),act_obs_names,true),weights.get_real_names(),act_obs_names);
+     if (use_catalogue)
     {
-        fill_components_from_catalogue(pe_cat,oe_cat);
-
-
+        performance_log->log_event("fill ensembles from catalogue");
+        fill_components_from_catalogue(pe_cat,oe_cat, pe_base_cat, oe_base_cat, weights_cat);
+        ss.str("");
+        ss << "ensembles augmented with catalogue, " << pe_cat.shape().first << " realizations being used";
+        message(1,ss.str());
     }
 
 	vector<int> subset_idxs = get_subset_idxs(pe.shape().first, local_subset_size);
 	vector<string> pe_filenames;
+    L2PhiHandler ph_cat(&pest_scenario,&file_manager,&oe_base_cat,&pe_base_cat,&parcov,false);
+//    cout << ph_cat.get_par_resid(pe_cat) << endl << endl;
+//    cout << pe_cat.get_eigen() << endl << endl;
+//    cout << pe_base_cat.get_eigen() << endl << endl;
+//    cout << pe_base_cat.get_eigen() << endl << endl;
 
-	performance_log->log_event("preparing EnsembleSolver");
-	ParameterEnsemble pe_upgrade(pe.get_pest_scenario_ptr(), &rand_gen, pe.get_eigen(vector<string>(), act_par_names, false), pe.get_real_names(), act_par_names);
-	pe_upgrade.set_zeros();
-	pe_upgrade.set_trans_status(pe.get_trans_status());
-	ObservationEnsemble oe_upgrade(oe.get_pest_scenario_ptr(), &rand_gen, oe.get_eigen(vector<string>(), act_obs_names, false), oe.get_real_names(), act_obs_names);
+    performance_log->log_event("preparing EnsembleSolver");
+	//ParameterEnsemble pe_upgrade(pe.get_pest_scenario_ptr(), &rand_gen, pe.get_eigen(vector<string>(), act_par_names, true), pe.get_real_names(), act_par_names);
+    ParameterEnsemble pe_upgrade(pe_cat.get_pest_scenario_ptr(), &rand_gen, pe_cat.get_eigen(vector<string>(), act_par_names, true), pe_cat.get_real_names(), act_par_names);
+//    cout << pe_cat.get_eigen_ptr()->row(0) << endl;
+//    cout << pe_upgrade.get_eigen_ptr()->row(0) << endl;
+
+    pe_upgrade.set_zeros();
+    pe_upgrade.set_trans_status(pe.get_trans_status());
+
+
+    //ObservationEnsemble oe_upgrade(oe.get_pest_scenario_ptr(), &rand_gen, oe.get_eigen(vector<string>(), act_obs_names, true), oe.get_real_names(), act_obs_names);
+    ObservationEnsemble oe_upgrade(oe_cat.get_pest_scenario_ptr(), &rand_gen, oe_cat.get_eigen(vector<string>(), act_obs_names, true), oe_cat.get_real_names(), act_obs_names);
+
     Eigen::MatrixXd Am;
     if ((!use_mda) && (!pest_scenario.get_pestpp_options().get_ies_use_approx()))
     {
-        Am = get_Am(pe_base, pe.get_real_names(), pe.get_var_names());
+        Am = get_Am(pe_base_cat, pe.get_real_names(), pe.get_var_names());
     }
-    EnsembleSolver es(performance_log, file_manager, pest_scenario, pe, oe_upgrade, oe_base, weights, localizer, parcov, Am, ph,
+    EnsembleSolver es(performance_log, file_manager, pest_scenario, pe_cat, oe_upgrade, oe_base_cat, weights_cat, localizer, parcov, Am, ph_cat,
 		use_localizer, iter, act_par_names, act_obs_names);
     double mm_alpha = pest_scenario.get_pestpp_options().get_ies_multimodal_alpha();
     if (mm_alpha != 1.0)
@@ -7137,7 +7156,9 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 			message(1, "starting calcs for mda factor", cur_lam);
 		message(2, "see .log file for more details");
 
-		pe_upgrade = ParameterEnsemble(pe.get_pest_scenario_ptr(), &rand_gen, pe.get_eigen(vector<string>(), act_par_names, false), pe.get_real_names(), act_par_names);
+		//pe_upgrade = ParameterEnsemble(pe.get_pest_scenario_ptr(), &rand_gen, pe.get_eigen(vector<string>(), act_par_names, true), pe.get_real_names(), act_par_names);
+        pe_upgrade = ParameterEnsemble(pe_cat.get_pest_scenario_ptr(), &rand_gen, pe_cat.get_eigen(vector<string>(), act_par_names, true), pe_cat.get_real_names(), act_par_names);
+
         pe_upgrade.set_zeros();
 		pe_upgrade.set_trans_status(pe.get_trans_status());
 
@@ -7149,6 +7170,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 		else{
             es.solve(num_threads, cur_lam, !use_mda, pe_upgrade, loc_map);
 		}
+        pe_upgrade.keep_rows(pe.get_real_names());
 
 		map<string, double> norm_map;
 		for (auto sf : backtrack_factors)
@@ -7679,7 +7701,10 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 	return true;
 }
 
-void EnsembleMethod::fill_components_from_catalogue(ParameterEnsemble& pe_cat,ObservationEnsemble& oe_cat)
+void EnsembleMethod::fill_components_from_catalogue(ParameterEnsemble& pe_cat,ObservationEnsemble& oe_cat,
+                                                    ParameterEnsemble& pe_base_cat,
+                                                    ObservationEnsemble& oe_base_cat,
+                                                    ObservationEnsemble& weights_cat)
 {
     stringstream ss;
     //if a catalogue run is missing from pe_base/weights/oe_base, then just fill with control file values
@@ -7692,6 +7717,10 @@ void EnsembleMethod::fill_components_from_catalogue(ParameterEnsemble& pe_cat,Ob
     vector<string> row_names,col_names;
     Eigen::MatrixXd matrix;
     pest_utils::read_dense_binary(cat,row_names,col_names,matrix);
+    if (row_names.size() <= pe_cat.shape().first)
+    {
+        return;
+    }
     cat.seekp(0,ios::end);
     ParameterEnsemble pe_temp(&pest_scenario,&rand_gen, matrix,row_names, col_names);
     pe_temp.set_trans_status(ParameterEnsemble::transStatus::CTL);
@@ -7757,10 +7786,47 @@ void EnsembleMethod::fill_components_from_catalogue(ParameterEnsemble& pe_cat,Ob
     {
         drop_rows.push_back(i);
     }
-    //if (!drop_rows.empty()) {
+    if ((!drop_rows.empty() && (drop_rows.size() < pe_temp.shape().first))) {
         pe_temp.drop_rows(drop_rows, true);
         oe_temp.drop_rows(drop_rows, true);
-    //}
+
+        string new_name;
+        vector<string> new_real_names;
+        int ireal = 0;
+        for (auto& name : pe_temp.get_real_names())
+        {
+            ss.str("");
+            ss << "cata_iter" << iter << "_ireal" << ireal << "_real" << name;
+            ireal++;
+            new_name = ss.str();
+            //vec = pe_base_cat.get_real_vector(name);
+            pe_base_cat.append(new_name,pe_base_cat.get_real_vector(name));
+            new_real_names.push_back(new_name);
+        }
+        pe_temp.set_real_names(new_real_names,true);
+        pe_cat.append_other_rows(pe_temp);
+        Eigen::VectorXd wvec;
+        wvec.resize(act_obs_names.size());
+        ObservationInfo* oiptr = pest_scenario.get_observation_info_ptr();
+        for (int i=0;i<act_obs_names.size();i++)
+        {
+            wvec[i] = oiptr->get_weight(act_obs_names[i]);
+        }
+        new_real_names.clear();
+        for (auto& name : oe_temp.get_real_names())
+        {
+            ss.str("");
+            ss << "cata_iter" << iter << "_ireal" << ireal << "_real" << name;
+            ireal++;
+            new_name = ss.str();
+            oe_base_cat.append(new_name,oe_base_cat.get_real_vector(name));
+            weights_cat.append(new_name,wvec);
+            new_real_names.push_back(new_name);
+        }
+        oe_temp.set_real_names(new_real_names,true);
+        oe_cat.append_other_rows(oe_temp);
+
+    }
 }
 
 void EnsembleMethod::prep_catalogue()
@@ -7782,6 +7848,14 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
     if (!save_catalogue){
         return;
     }
+    ParameterEnsemble::transStatus tstat = _pe.get_trans_status();
+    bool backtrans = false;
+    if (_pe.get_trans_status() != ParameterEnsemble::transStatus::CTL)
+    {
+        _pe.transform_ip(ParameterEnsemble::transStatus::CTL);
+        backtrans = true;
+    }
+
     if ((subset_idxs.size() > 0) && (_oe.shape().first != _pe.shape().first))
     {
         vector<int> use_subset_idxs;
@@ -7826,6 +7900,10 @@ void EnsembleMethod::save_to_catalogue(ParameterEnsemble& _pe, ObservationEnsemb
 
         pest_utils::save_dense_binary(file_manager.get_fstream("par"+cat_file_tag),_pe.get_real_names(),_pe.get_eigen_const_ref());
         pest_utils::save_dense_binary(file_manager.get_fstream("obs"+cat_file_tag),_oe.get_real_names(),_oe.get_eigen_const_ref());
+    }
+    if (backtrans)
+    {
+        _pe.transform_ip(tstat);
     }
 
 }

@@ -4087,10 +4087,13 @@ def tenpar_catalogue_test():
     
     pst_name = os.path.join(test_d, "pest.pst")
     pst = pyemu.Pst(pst_name)
+    pst.observation_data["weight"] = 1.0
 
-    pst.pestpp_options = {}
+    pst.pestpp_options = {"ies_num_reals":20}
+    pst.pestpp_options["ies_verbose_level"] = 4
+    pst.pestpp_options["ies_multimodal_alpha"] = 0.2
     
-    pst.control_data.noptmax = 2
+    pst.control_data.noptmax = 5
     pst.write(pst_name,version=2)
     pyemu.os_utils.run("{0} pest.pst".format(exe_path),cwd=test_d)
 
@@ -4108,10 +4111,8 @@ def tenpar_catalogue_test():
     assert oe.shape[0] > 0
     assert oe.shape[1] == pst.nobs
     assert pe.shape[0] == oe.shape[0]
-    #exit()
-
     
-
+    
     test_d2 = test_d+"2"
     if os.path.exists(test_d2):
         shutil.rmtree(test_d2)
@@ -4120,9 +4121,8 @@ def tenpar_catalogue_test():
     pst_name = os.path.join(test_d2, "pest.pst")
     pst = pyemu.Pst(pst_name)
 
-    pst.pestpp_options = {"ies_use_run_catalogue":True}
-    
-    pst.control_data.noptmax = 1
+    pst.pestpp_options["ies_use_run_catalogue"] = True
+
     pst.write(pst_name,version=2)
     pyemu.os_utils.run("{0} pest.pst".format(exe_path),cwd=test_d2)
     pcat_filename = os.path.join(test_d2,"pest.par.cat.bin")
