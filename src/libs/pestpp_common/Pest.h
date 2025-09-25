@@ -160,6 +160,7 @@ protected:
 	void tokens_to_pi_rec(ofstream& f_rec, const vector<string>& tokens);
 	void tokens_to_pi_rec(ofstream& f_rec, const string& line_upper);
 	void rectify_par_groups();
+	vector<string> tokenize_with_quote_chars(const string& line);
 	map<string, vector<pest_utils::ExternalCtlFile>> efiles_map;
 	DaCycleInfo parse_cycle_str(string& raw_cycle_val, string& efilename, int row, ofstream& f_rec);
 };

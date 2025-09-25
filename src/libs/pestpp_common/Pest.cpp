@@ -491,7 +491,7 @@ int Pest::process_ctl_file(ifstream& fin, string _pst_filename, ofstream& f_rec)
 	string line;
 	string line_upper;
 	string section("");
-	vector<string> tokens;
+	vector<string> tokens, quote_tokens;
 	int sec_begin_lnum, sec_lnum;
 	double value;
 	string name;
@@ -554,6 +554,8 @@ int Pest::process_ctl_file(ifstream& fin, string _pst_filename, ofstream& f_rec)
 			tokens_case_sen.clear();
 			tokenize(line_upper, tokens);
 			tokenize(line, tokens_case_sen);
+            quote_tokens.clear();
+            quote_tokens = tokenize_with_quote_chars(line);
 			sec_lnum = lnum - sec_begin_lnum;
 
 			if (lnum == 1)
@@ -1057,23 +1059,16 @@ int Pest::process_ctl_file(ifstream& fin, string _pst_filename, ofstream& f_rec)
 
 			else if (section == "MODEL INPUT")
 			{
-				if (tokens.size() != 2)
-					throw_control_file_error(f_rec, "wrong number of tokens on '* model input' line '" + line + "' expecting 2");
-				for (auto& token : tokens_case_sen)
-                {
-                    if ((token.find('\"') != std::string::npos) || (token.find('\'') != std::string::npos))
+				if (tokens.size() != 2){
+                    if (quote_tokens.size() == 2) {
+                        tokens_case_sen = quote_tokens;
+                    }
+                    else
                     {
-                        ss.str("");
-                        ss << "WARNING: single and/or double quote char(s) found in model interface file: " << token << endl;
-                        cout << ss.str();
-                        f_rec << ss.str();
-                        string temp_line = token;
-                        temp_line.erase(std::remove_if(temp_line.begin(), temp_line.end(), IsQuote), temp_line.end());
-                        token = string(temp_line);
+                        throw_control_file_error(f_rec, "wrong number of tokens on '* model input' line '" + line + "' expecting 2");
+
                     }
                 }
-
-
                 model_exec_info.tplfile_vec.push_back(tokens_case_sen[0]);
 				model_exec_info.inpfile_vec.push_back(tokens_case_sen[1]);
 			}
@@ -1126,18 +1121,14 @@ int Pest::process_ctl_file(ifstream& fin, string _pst_filename, ofstream& f_rec)
 
 			else if (section == "MODEL OUTPUT")
 			{
-				if (tokens.size() != 2)
-					throw_control_file_error(f_rec, "wrong number of tokens on '* model output' line '" + line + "' expecting 2");
-                for (auto& token : tokens_case_sen) {
-                    if ((token.find('\"') != std::string::npos) || (token.find('\'') != std::string::npos)) {
-                        ss.str("");
-                        ss << "WARNING: single and/or double quote char(s) found in model interface file: " << token
-                           << endl;
-                        cout << ss.str();
-                        f_rec << ss.str();
-                        string temp_line = token;
-                        temp_line.erase(std::remove_if(temp_line.begin(), temp_line.end(), IsQuote), temp_line.end());
-                        token = string(temp_line);
+				if (tokens.size() != 2){
+                    if (quote_tokens.size() == 2) {
+                        tokens_case_sen = quote_tokens;
+                    }
+                    else
+                    {
+                        throw_control_file_error(f_rec, "wrong number of tokens on '* model output' line '" + line + "' expecting 2");
+
                     }
                 }
 				model_exec_info.insfile_vec.push_back(tokens_case_sen[0]);
@@ -1189,23 +1180,18 @@ int Pest::process_ctl_file(ifstream& fin, string _pst_filename, ofstream& f_rec)
 					efiles_map[section].push_back(efile);
 			
 			}
-			else if (section == "MODEL INPUT/OUTPUT")
-			{
-			if (tokens.size() != 2)
-				throw_control_file_error(f_rec, "wrong number of tokens on '* model input/output' line '" + line + "' expecting 2");
-                for (auto& token : tokens_case_sen)
-                {
-                    if ((token.find('\"') != std::string::npos) || (token.find('\'') != std::string::npos))
-                    {
-                        ss.str("");
-                        ss << "WARNING: single and/or double quote char(s) found in model interface file: " << token << endl;
-                        cout << ss.str();
-                        f_rec << ss.str();
-                        string temp_line = token;
-                        temp_line.erase(std::remove_if(temp_line.begin(), temp_line.end(), IsQuote), temp_line.end());
-                        token = string(temp_line);
+			else if (section == "MODEL INPUT/OUTPUT") {
+                if (tokens.size() != 2) {
+                    if (quote_tokens.size() == 2) {
+                        tokens_case_sen = quote_tokens;
+                    } else {
+
+                        throw_control_file_error(f_rec,
+                                                 "wrong number of tokens on '* model input/output' line '" + line +
+                                                 "' expecting 2");
                     }
                 }
+
 				if (i_tpl_ins < num_tpl_file)
 				{
 					model_exec_info.tplfile_vec.push_back(tokens_case_sen[0]);
@@ -3071,6 +3057,52 @@ void Pest::tokens_to_obs_rec(ofstream& f_rec, const vector<string> &tokens)
         ObservationGroupRec ogr;
         observation_info.groups[obs_i.group] = ogr;
 	}
+}
+
+vector<string> Pest::tokenize_with_quote_chars(const string& line)
+{
+    //check for double quotes
+    string wline = line;
+    //first replace any single quotes with doubles
+    replace(wline.begin(),wline.end(),'\'','\"');
+    vector<string> tokens, quote_tokens, temp_tokens;
+    tokenize(wline, quote_tokens, "\"", false);
+    bool stripped_last = false;
+    int last_size = 0;
+    string ddelim = " \t";
+    if (quote_tokens[quote_tokens.size()-1].size() == 0)
+    {
+        quote_tokens.pop_back();
+        stripped_last = true;
+    }
+    if (quote_tokens.size() > 1) {
+        int nqt = quote_tokens.size();
+        if ((!stripped_last) && (nqt % 2 == 0))
+            throw PestError("unbalanced double quotes on line " + line);
+        tokens.clear();
+        for (int i = 0; i < nqt; i++) {
+            if (i % 2 == 0) {
+                if (quote_tokens[i].size() == 0) {
+                    continue;
+                }
+                temp_tokens.clear();
+                tokenize(strip_cp(quote_tokens[i]), temp_tokens, ddelim, false);
+
+                last_size = quote_tokens[i].size();
+                if (quote_tokens[i].substr(last_size - 1, last_size) == ddelim)
+                    temp_tokens.pop_back();
+                for (auto &t: temp_tokens) {
+                    if (t.empty())
+                        continue;
+                    tokens.push_back(t);
+                }
+
+            } else if (quote_tokens[i].size() > 0)
+                tokens.push_back(quote_tokens[i]);
+
+        }
+    }
+    return tokens;
 }
 
 void Pest::tokens_to_pi_rec(ofstream& f_rec, const string& line_upper)
