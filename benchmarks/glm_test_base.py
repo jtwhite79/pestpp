@@ -952,9 +952,9 @@ if __name__ == "__main__":
     #shutil.copy2(os.path.join("..","exe","windows","x64","Debug","pestpp-glm.exe"),os.path.join("..","bin","win","pestpp-glm.exe"))
     #tenpar_xsec_stress_test_2()
     #tenpar_xsec_stress_test_3()
-    tenpar_xsec_stress_test_5super()
+    #tenpar_xsec_stress_test_5super()
     
-    tenpar_xsec_stress_test_5()
+    #tenpar_xsec_stress_test_5()
 
     
 
@@ -962,5 +962,5 @@ if __name__ == "__main__":
     #invest()
     #tenpar_xsec_high_phi_test()
     
-    #new_fmt_load_test()
+    new_fmt_load_test()
     #threept_fail_test()
