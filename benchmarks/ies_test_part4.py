@@ -4224,8 +4224,49 @@ def tenpar_iqr_bad_phi_sigma_test():
     assert df1.iloc[0,5:].max() < badphi
 
 
+def tenpar_reg_factor_test():
+    model_d = "ies_10par_xsec"
+    test_d = os.path.join(model_d, "master_regfac")
+    template_d = os.path.join(model_d, "test_template")
+
+    if not os.path.exists(template_d):
+        raise Exception("template_d {0} not found".format(template_d))
+    pst_name = os.path.join(template_d, "pest.pst")
+    pst = pyemu.Pst(pst_name)
+
+    if os.path.exists(test_d):
+        shutil.rmtree(test_d)
+    shutil.copytree(template_d,test_d)
+    results = []
+    reg_factors = np.arange(-2.0,-0.01,0.1)
+    reg_factors = [-2,-1,-0.5,0.0]
+    pst.pestpp_options["ies_use_approx"] = False
+    pst.control_data.noptmax = 3
+    for reg_factor in reg_factors:
+
+    
+        pst.pestpp_options["ies_reg_factor"] = -0.5
+        pst_name = "pest.pst"
+        pst.write(os.path.join(test_d,pst_name),version=2)
+        pyemu.os_utils.run("{0} pest.pst".format(exe_path),cwd=test_d)
+        pst = pyemu.Pst(os.path.join(test_d,pst_name))
+        oe,pe = pst.ies.obsen,pst.ies.paren
+        results.append(pst.ies.phiactual)
+    fig,ax = plt.subplots(1,1)
+    colors = ['b','g','r']
+    for c,result in zip(colors,results):
+        itrs = result.iteration.values
+        vals = np.log10(result.iloc[:,6:].values)
+        [ax.plot(itrs,vals[:,i],color=c,alpha=0.5) for i in range(vals.shape[1])]
+    
+    plt.show()
+
+
+
+
 if __name__ == "__main__":
-    tenpar_high_phi_test()
+    tenpar_reg_factor_test()
+    #tenpar_high_phi_test()
     #tenpar_iqr_bad_phi_sigma_test()
     #multimodal_test()
     #plot_mm1_sweep_results()

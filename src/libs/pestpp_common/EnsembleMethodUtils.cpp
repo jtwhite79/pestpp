@@ -28,9 +28,9 @@
 
 EnsembleSolver::EnsembleSolver(PerformanceLog* _performance_log, FileManager& _file_manager, Pest& _pest_scenario, ParameterEnsemble& _pe,
 	ObservationEnsemble& _oe, ObservationEnsemble& _base_oe, ObservationEnsemble& _weights, Localizer& _localizer, Covariance& _parcov, Eigen::MatrixXd& _Am, L2PhiHandler& _ph,
-	bool _use_localizer, int _iter, vector<string>& _act_par_names, vector<string>& _act_obs_names) :
+	bool _use_localizer, int _iter, vector<string>& _act_par_names, vector<string>& _act_obs_names, double _reg_factor) :
 	file_manager(_file_manager), pest_scenario(_pest_scenario), pe(_pe), oe(_oe), base_oe(_base_oe), weights(_weights), localizer(_localizer),
-	parcov(_parcov), Am(_Am), ph(_ph), act_par_names(_act_par_names),act_obs_names(_act_obs_names) {
+	parcov(_parcov), Am(_Am), ph(_ph), act_par_names(_act_par_names),act_obs_names(_act_obs_names), reg_factor(_reg_factor) {
     performance_log = _performance_log;
     use_localizer = _use_localizer;
     iter = _iter;
@@ -809,7 +809,7 @@ void EnsembleSolver::solve_multimodal(int num_threads, double cur_lam, bool use_
         message(2, "launching threads");
 
         MmUpgradeThread* ut_ptr = new MmUpgradeThread(performance_log, par_resid_map, par_diff_map, obs_resid_map, obs_diff_map, obs_err_map,
-                                                                        mm_q_vec_map, pe_upgrade,mm_real_name_map);
+                                                                        mm_q_vec_map, pe_upgrade,mm_real_name_map,reg_factor);
 
         Eigen::VectorXd parcov_inv_vec = 1. / parcov.e_ptr()->diagonal().array();
         for (int i = 0; i < num_threads; i++)
@@ -1027,7 +1027,7 @@ void EnsembleSolver::nonlocalized_solve(double cur_lam,bool use_glm_form, Parame
     par_resid.transposeInPlace();
     obs_err.transposeInPlace();
     UpgradeThread::ensemble_solution(iter,verbose_level,maxsing,0,0,use_prior_scaling,use_approx,use_glm_form,cur_lam,eigthresh,par_resid,
-                      par_diff,Am,obs_resid,obs_diff,upgrade_1,obs_err,local_weights,parcov_inv, act_obs_names,act_par_names);
+                      par_diff,Am,obs_resid,obs_diff,upgrade_1,obs_err,local_weights,parcov_inv, act_obs_names,act_par_names,reg_factor);
     pe_upgrade.add_2_cols_ip(act_par_names, upgrade_1);
 
 
@@ -1049,7 +1049,7 @@ void EnsembleSolver::solve(int num_threads, double cur_lam, bool use_glm_form, P
 	Localizer::LocTyp loctyp = localizer.get_loctyp();
 	bool use_cov_loc = true;
 	if (loctyp == Localizer::LocTyp::COVARIANCE) {
-        throw runtime_error("EnsembleSolver::solve(): 'covariacne' localization is deprecated");
+        throw runtime_error("EnsembleSolver::solve(): 'covariance' localization is deprecated");
     }
 	//LocalAnalysisUpgradeThread worker(performance_log, par_resid_map, par_diff_map, obs_resid_map, obs_diff_map,obs_err_map,
 	//	localizer, parcov_inv_map, weight_map, pe_upgrade, loc_map, Am_map, _how);
@@ -1057,7 +1057,7 @@ void EnsembleSolver::solve(int num_threads, double cur_lam, bool use_glm_form, P
     ut_ptr = new LocalAnalysisUpgradeThread(performance_log, par_resid_map, par_diff_map, obs_resid_map,
                                             obs_diff_map, obs_err_map,
                                             localizer, parcov_inv_map, weight_map, pe_upgrade, loc_map, Am_map,
-                                            _how);
+                                            _how, reg_factor);
     performance_log->log_event("using local analysis upgrade thread");
 
 	if ((num_threads < 1) || (loc_map.size() == 1))
@@ -1172,11 +1172,11 @@ UpgradeThread::UpgradeThread(PerformanceLog* _performance_log, unordered_map<str
                              Localizer& _localizer, unordered_map<string, double>& _parcov_inv_map,
                              unordered_map<string, double>& _weight_map, ParameterEnsemble& _pe_upgrade,
                              unordered_map<string, pair<vector<string>, vector<string>>>& _cases,
-                             unordered_map<string, Eigen::VectorXd>& _Am_map, Localizer::How& _how):
+                             unordered_map<string, Eigen::VectorXd>& _Am_map, Localizer::How& _how, double _reg_factor):
 	par_resid_map(_par_resid_map),par_diff_map(_par_diff_map), obs_resid_map(_obs_resid_map), 
 	obs_diff_map(_obs_diff_map), obs_err_map(_obs_err_map), localizer(_localizer),
     pe_upgrade(_pe_upgrade), cases(_cases), parcov_inv_map(_parcov_inv_map), 
-	weight_map(_weight_map), Am_map(_Am_map)
+	weight_map(_weight_map), Am_map(_Am_map), reg_factor(_reg_factor)
 	{
 		performance_log = _performance_log;
 		how = _how;
@@ -1196,7 +1196,7 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
                               const Eigen::MatrixXd& Am, Eigen::MatrixXd& obs_resid,Eigen::MatrixXd& obs_diff, Eigen::MatrixXd& upgrade_1,
                               Eigen::MatrixXd& obs_err, const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights,
                               const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& parcov_inv,
-                              const vector<string>& act_obs_names,const vector<string>& act_par_names)
+                              const vector<string>& act_obs_names,const vector<string>& act_par_names,double _reg_factor)
 {
     class local_utils
     {
@@ -1435,8 +1435,14 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
                 upgrade_2 = -1.0 * (par_diff * x7);
             }
             //x7.resize(0, 0);
+            if (_reg_factor > 0)
+            {
+                upgrade_1 = upgrade_1 + (_reg_factor * upgrade_2.transpose());
+            }
+            else {
+                upgrade_1 = upgrade_1 + upgrade_2.transpose();
+            }
 
-            upgrade_1 = upgrade_1 + upgrade_2.transpose();
             local_utils::save_mat(verbose_level, thread_id, iter, t_count, "upgrade_2", upgrade_2);
             //upgrade_2.resize(0, 0);
 
@@ -1654,7 +1660,7 @@ void MmUpgradeThread::work(int thread_id, int iter, double cur_lam, bool use_glm
         //Eigen::MatrixXd upgrade_1;
         vector<string> empty_obs_names,empty_par_names;
         UpgradeThread::ensemble_solution(iter,verbose_level,maxsing,thread_id,t_count, use_prior_scaling,use_approx,use_glm_form,cur_lam,eigthresh,par_resid,par_diff,Am,obs_resid,
-                          obs_diff,upgrade_1,obs_err,weights,parcov_inv,empty_obs_names,empty_par_names);
+                          obs_diff,upgrade_1,obs_err,weights,parcov_inv,empty_obs_names,empty_par_names,reg_factor);
 
 
         //assuming that the fist row is the realization we are after...
@@ -1680,11 +1686,12 @@ MmUpgradeThread::MmUpgradeThread(PerformanceLog* _performance_log, unordered_map
                                  unordered_map<string, Eigen::VectorXd>& _obs_resid_map, unordered_map<string, Eigen::VectorXd>& _obs_diff_map,
                                  unordered_map<string, Eigen::VectorXd>& _obs_err_map,
                                  unordered_map<string, Eigen::VectorXd>& _weight_map, ParameterEnsemble& _pe_upgrade,
-                                 unordered_map<string, pair<vector<string>, vector<string>>>& _cases):
+                                 unordered_map<string, pair<vector<string>, vector<string>>>& _cases, double _reg_factor):
         par_resid_map(_par_resid_map),par_diff_map(_par_diff_map), obs_resid_map(_obs_resid_map),
         obs_diff_map(_obs_diff_map), obs_err_map(_obs_err_map),
         pe_upgrade(_pe_upgrade), cases(_cases),
-        weight_map(_weight_map)
+        weight_map(_weight_map),
+        reg_factor(_reg_factor)
 {
     performance_log = _performance_log;
     count = 0;
@@ -1965,7 +1972,7 @@ void LocalAnalysisUpgradeThread::work(int thread_id, int iter, double cur_lam, b
                                       Am, obs_resid,obs_diff, upgrade_1,
                                       obs_err, weights,
                                       parcov_inv,
-                                      obs_names,par_names);
+                                      obs_names,par_names,reg_factor);
 
 		
 		while (true)
@@ -4275,8 +4282,8 @@ void EnsembleMethod::sanity_checks()
         ss << "ies_num_reals < " << warn_min_reals << ", this is prob too few";
         warnings.push_back(ss.str());
     }
-    if (ppo->get_ies_reg_factor() < 0.0)
-        errors.push_back("ies_reg_factor < 0.0 - WRONG!");
+    //if (ppo->get_ies_reg_factor() < 0.0)
+    //    errors.push_back("ies_reg_factor < 0.0 - WRONG!");
     //if (ppo->get_ies_reg_factor() > 1.0)
     //	errors.push_back("ies_reg_factor > 1.0 - nope");
     if ((par_csv.size() == 0) && (ppo->get_ies_subset_size() < 10000000) && (ppo->get_ies_num_reals() < ppo->get_ies_subset_size() * 2))
@@ -5048,8 +5055,22 @@ void EnsembleMethod::initialize(int cycle, bool run, bool use_existing)
 	initialize_obscov();
 
 	int subset_size = pest_scenario.get_pestpp_options().get_ies_subset_size();
-	reg_factor = pest_scenario.get_pestpp_options().get_ies_reg_factor();
-	message(1, "using reg_factor: ", reg_factor);
+
+    reg_factor = pest_scenario.get_pestpp_options().get_ies_reg_factor();
+    if (reg_factor < 0)
+    {
+        reg_factor *= -1.0;
+        message(1, "using reg_factor in upgrade calculations with full solution: ", reg_factor);
+        //reset the passed reg factor to 0.0 so that the phi handler wont try to use it
+        pest_scenario.get_pestpp_options_ptr()->set_ies_reg_factor(0.0);
+
+        if (!pest_scenario.get_pestpp_options().get_ies_use_approx())
+        {
+            message(1, "WARNING: negative reg_factor passed, implying a full solution, resetting 'ies_use_approx' to true ");
+            pest_scenario.get_pestpp_options_ptr()->set_ies_use_approx(true);
+        }
+    }
+
 	double bad_phi = pest_scenario.get_pestpp_options().get_ies_bad_phi();
 	if (bad_phi < std::numeric_limits<double>::max())
 		message(1, "using bad_phi: ", bad_phi);
@@ -7080,7 +7101,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
 	pe_upgrade.set_trans_status(pe.get_trans_status());
 	ObservationEnsemble oe_upgrade(oe.get_pest_scenario_ptr(), &rand_gen, oe.get_eigen(vector<string>(), act_obs_names, false), oe.get_real_names(), act_obs_names);
     EnsembleSolver es(performance_log, file_manager, pest_scenario, pe, oe_upgrade, oe_base, weights, localizer, parcov, Am, ph,
-		use_localizer, iter, act_par_names, act_obs_names);
+		use_localizer, iter, act_par_names, act_obs_names, reg_factor);
     double mm_alpha = pest_scenario.get_pestpp_options().get_ies_multimodal_alpha();
     if (mm_alpha != 1.0)
     {
