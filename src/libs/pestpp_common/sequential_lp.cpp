@@ -232,20 +232,6 @@ pair<double,double> sequentialLP::postsolve_decision_var_report(Parameters &upgr
 	return pair<double,double>(cur_obj,new_obj);
 }
 
-pair<sequentialLP::ConstraintSense,string> sequentialLP::get_sense_from_group_name(const string &name)
-{
-
-	if ((name.compare(0, 2, "L_") == 0) || (name.compare(0, 4, "LESS")==0))
-		return pair<ConstraintSense,string>(ConstraintSense::less_than,"less_than");
-	else if ((name.compare(0, 2, "G_") == 0) || (name.compare(0, 7, "GREATER")==0))
-		return pair<ConstraintSense, string>(ConstraintSense::greater_than,"greater_than");
-	else if ((name.compare(0, 2, "N_") == 0) || (name.compare(0, 2, "E_") == 0) || (name.compare(0, 5, "EQUAL")==0))
-		return pair<ConstraintSense,string>(ConstraintSense::equal_to,"equal_to");
-	else
-		return pair<ConstraintSense,string>(ConstraintSense::undefined,"undefined");
-}
-
-
 void sequentialLP::initialize_and_check()
 {
 	ofstream &f_rec = file_mgr_ptr->rec_ofstream();
