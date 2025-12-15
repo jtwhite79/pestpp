@@ -354,33 +354,33 @@ int main(int argc, char* argv[])
 
 		base_svd.set_svd_package(pest_scenario.get_pestpp_options().get_svd_pack());
 		//Build Super-Parameter problem
-		Jacobian *super_jacobian_ptr = new Jacobian(file_manager);
-		ParamTransformSeq trans_svda;
-		// method must be involked as pointer as the transformation sequence it is added to will
-		// take responsibility for destroying it
-		TranSVD *tran_svd = new TranSVD(pest_scenario.get_pestpp_options().get_max_n_super(),
-			pest_scenario.get_pestpp_options().get_super_eigthres(), "SVD Super Parameter Transformation");
+		// Jacobian *super_jacobian_ptr = new Jacobian(file_manager);
+		// ParamTransformSeq trans_svda;
+		// // method must be involked as pointer as the transformation sequence it is added to will
+		// // take responsibility for destroying it
+		// TranSVD *tran_svd = new TranSVD(pest_scenario.get_pestpp_options().get_max_n_super(),
+		// 	pest_scenario.get_pestpp_options().get_super_eigthres(), "SVD Super Parameter Transformation");
 
-		if (pest_scenario.get_pestpp_options().get_svd_pack() != PestppOptions::SVD_PACK::REDSVD)
-		{
-			tran_svd->set_SVD_pack();
-		}
-		tran_svd->set_performance_log(&performance_log);
-
-		TranFixed *tr_svda_fixed = new TranFixed("SVDA Fixed Parameter Transformation");
-		trans_svda = base_trans_seq;
-		trans_svda.push_back_ctl2active_ctl(tr_svda_fixed);
-		trans_svda.add_custom_tran_seq(string("svda_derv2basenumeric"), trans_svda.get_ctl2active_ctl_tranformations());
-		trans_svda.push_back_active_ctl2numeric(tran_svd);
+		// if (pest_scenario.get_pestpp_options().get_svd_pack() != PestppOptions::SVD_PACK::REDSVD)
+		// {
+		// 	tran_svd->set_SVD_pack();
+		// }
+		// tran_svd->set_performance_log(&performance_log);
+		//
+		// TranFixed *tr_svda_fixed = new TranFixed("SVDA Fixed Parameter Transformation");
+		// trans_svda = base_trans_seq;
+		// trans_svda.push_back_ctl2active_ctl(tr_svda_fixed);
+		// trans_svda.add_custom_tran_seq(string("svda_derv2basenumeric"), trans_svda.get_ctl2active_ctl_tranformations());
+		// trans_svda.push_back_active_ctl2numeric(tran_svd);
 
 		ControlInfo svd_control_info = pest_scenario.get_control_info();
 		svd_control_info.relparmax = pest_scenario.get_pestpp_options().get_super_relparmax();
 		// Start Solution iterations
 		cout << endl << endl;
-		int n_base_iter = pest_scenario.get_pestpp_options().get_n_iter_base();
-		int n_super_iter = pest_scenario.get_pestpp_options().get_n_iter_super();
-		int max_n_super = pest_scenario.get_pestpp_options().get_max_n_super();
-		double super_eigthres = pest_scenario.get_pestpp_options().get_super_eigthres();
+		// int n_base_iter = pest_scenario.get_pestpp_options().get_n_iter_base();
+		// int n_super_iter = pest_scenario.get_pestpp_options().get_n_iter_super();
+		// int max_n_super = pest_scenario.get_pestpp_options().get_max_n_super();
+		// double super_eigthres = pest_scenario.get_pestpp_options().get_super_eigthres();
 
 		Parameters cur_ctl_parameters = pest_scenario.get_ctl_parameters();
 		//Allocates Space for Run Manager.  This initializes the model parameter names and observations names.
@@ -454,21 +454,6 @@ int main(int argc, char* argv[])
 		if (pest_scenario.get_pestpp_options().get_global_opt() ==  PestppOptions::OPT_DE)
 		{
 		    throw runtime_error("DE-based global optimization is deprecated in pestpp-glm. please use pestpp-mou");
-			/*int rand_seed = 1;
-			int np = pest_scenario.get_pestpp_options().get_de_npopulation();
-			int max_gen = pest_scenario.get_pestpp_options().get_de_max_gen();
-			double f = pest_scenario.get_pestpp_options().get_de_f();
-			double cr = pest_scenario.get_pestpp_options().get_de_cr();
-			bool dither_f = pest_scenario.get_pestpp_options().get_de_dither_f();
-			ModelRun init_run(&obj_func, pest_scenario.get_ctl_observations());
-			Parameters cur_ctl_parameters = pest_scenario.get_ctl_parameters();
-			run_manager_ptr->reinitialize();
-			DifferentialEvolution de_solver(pest_scenario, file_manager, &obj_func,
-				base_trans_seq, output_file_writer, &performance_log, rand_seed);
-			de_solver.initialize_population(*run_manager_ptr, np);
-			de_solver.solve(*run_manager_ptr, restart_ctl, max_gen, f, cr, dither_f, init_run);
-			run_manager_ptr->free_memory();
-			exit(0);*/
 		}
 
 
@@ -489,7 +474,7 @@ int main(int argc, char* argv[])
 		{
 			fout_rec << "   -----    Starting pestpp-glm Iterations    ----    " << endl << endl;
 		}
-
+		int noptmax = pest_scenario.get_control_info().noptmax;
 		while (!termination_ctl.terminate())
 		{
             int q = pest_utils::quit_file_found();
@@ -501,59 +486,59 @@ int main(int argc, char* argv[])
 			//base parameter iterations
 			try
 			{
-				if (restart_ctl.get_restart_option() != RestartController::RestartOption::NONE  &&
-					restart_ctl.get_iteration_type() == RestartController::IterationType::SUPER)
-				{
-					try
-					{
-						string filename = pest_scenario.get_pestpp_options().get_basejac_filename();
-						filename = ((filename.empty()) ? file_manager.build_filename("jcb") : filename);
-						base_svd.iteration_reuse_jac(*run_manager_ptr, termination_ctl, cur_run, false, filename);
-					}
-					catch (exception &e)
-					{
-						cout << "error restarting super parameter process: " << e.what() << endl;
-						throw runtime_error(e.what());
-					}
-				}
-				else if (restart_ctl.get_restart_option() == RestartController::RestartOption::REUSE_JACOBIAN && n_base_iter < 0)
-				{
-					try
-					{
-						string filename = pest_scenario.get_pestpp_options().get_basejac_filename();
-						string res_filename = pest_scenario.get_pestpp_options().get_hotstart_resfile();
-						filename = ((filename.empty()) ? file_manager.build_filename("jco") : filename);
-						cur_run = base_svd.iteration_reuse_jac(*run_manager_ptr, termination_ctl, cur_run, true, filename, res_filename);
-					}
-					catch (exception &e)
-					{
-						cout << "error restarting with existing jco and n_iter_base < 0: " << e.what() << endl;
-						throw runtime_error(e.what());
-					}
-				}
-				else if (n_base_iter < 0)
-				{
-					bool restart_runs = (restart_ctl.get_restart_option() == RestartController::RestartOption::REUSE_JACOBIAN);
-					try
-					{
-						cur_run = base_svd.compute_jacobian(*run_manager_ptr, termination_ctl, cur_run, restart_runs);
-						if (pest_scenario.get_control_info().noptmax < 0)
-						{
-							optimum_run = cur_run;
-							output_file_writer.write_rei(file_manager.open_ofile_ext("rei"), -1, pest_scenario.get_ctl_observations(),
-								cur_run.get_obs(), *cur_run.get_obj_func_ptr(), pest_scenario.get_ctl_parameters());
-							termination_ctl.set_terminate(true);
-							termination_ctl.set_reason("NOPTMAX criterion met");
-							//bool success = run_manager_ptr->get_observations_vec(0, init_sim);
-						}
-					}
-					catch (exception &e)
-					{
-						cout << "error initializing with n_iter_base < 0: " << e.what() << endl;
-						throw runtime_error(e.what());
-					}
-				}
-				else if (pest_scenario.get_control_info().noptmax < 0)
+				// if (restart_ctl.get_restart_option() != RestartController::RestartOption::NONE  &&
+				// 	restart_ctl.get_iteration_type() == RestartController::IterationType::SUPER)
+				// {
+				// 	try
+				// 	{
+				// 		string filename = pest_scenario.get_pestpp_options().get_basejac_filename();
+				// 		filename = ((filename.empty()) ? file_manager.build_filename("jcb") : filename);
+				// 		base_svd.iteration_reuse_jac(*run_manager_ptr, termination_ctl, cur_run, false, filename);
+				// 	}
+				// 	catch (exception &e)
+				// 	{
+				// 		cout << "error restarting super parameter process: " << e.what() << endl;
+				// 		throw runtime_error(e.what());
+				// 	}
+				// }
+				// else if (restart_ctl.get_restart_option() == RestartController::RestartOption::REUSE_JACOBIAN && n_base_iter < 0)
+				// {
+				// 	try
+				// 	{
+				// 		string filename = pest_scenario.get_pestpp_options().get_basejac_filename();
+				// 		string res_filename = pest_scenario.get_pestpp_options().get_hotstart_resfile();
+				// 		filename = ((filename.empty()) ? file_manager.build_filename("jco") : filename);
+				// 		cur_run = base_svd.iteration_reuse_jac(*run_manager_ptr, termination_ctl, cur_run, true, filename, res_filename);
+				// 	}
+				// 	catch (exception &e)
+				// 	{
+				// 		cout << "error restarting with existing jco and n_iter_base < 0: " << e.what() << endl;
+				// 		throw runtime_error(e.what());
+				// 	}
+				// }
+				// if (n_base_iter < 0)
+				// {
+				// 	bool restart_runs = (restart_ctl.get_restart_option() == RestartController::RestartOption::REUSE_JACOBIAN);
+				// 	try
+				// 	{
+				// 		cur_run = base_svd.compute_jacobian(*run_manager_ptr, termination_ctl, cur_run, restart_runs);
+				// 		if (pest_scenario.get_control_info().noptmax < 0)
+				// 		{
+				// 			optimum_run = cur_run;
+				// 			output_file_writer.write_rei(file_manager.open_ofile_ext("rei"), -1, pest_scenario.get_ctl_observations(),
+				// 				cur_run.get_obs(), *cur_run.get_obj_func_ptr(), pest_scenario.get_ctl_parameters());
+				// 			termination_ctl.set_terminate(true);
+				// 			termination_ctl.set_reason("NOPTMAX criterion met");
+				// 			//bool success = run_manager_ptr->get_observations_vec(0, init_sim);
+				// 		}
+				// 	}
+				// 	catch (exception &e)
+				// 	{
+				// 		cout << "error initializing with n_iter_base < 0: " << e.what() << endl;
+				// 		throw runtime_error(e.what());
+				// 	}
+				// }
+				if (pest_scenario.get_control_info().noptmax < 0)
 				{
 					if (restart_ctl.get_restart_option() == RestartController::RestartOption::REUSE_JACOBIAN)
 					{
@@ -565,7 +550,7 @@ int main(int argc, char* argv[])
 
 							cur_run = base_svd.iteration_reuse_jac(*run_manager_ptr, termination_ctl, cur_run, true, jco_filename, res_filename);
 							if (!cur_run.obs_valid())
-								cur_run = base_svd.solve(*run_manager_ptr, termination_ctl, n_base_iter, cur_run, optimum_run, restart_ctl, false);
+								cur_run = base_svd.solve(*run_manager_ptr, termination_ctl, noptmax, cur_run, optimum_run, restart_ctl, false);
 						}
 						catch (exception &e)
 						{
@@ -608,12 +593,12 @@ int main(int argc, char* argv[])
 
 						cur_run = base_svd.iteration_reuse_jac(*run_manager_ptr, termination_ctl, cur_run, true, jco_filename, res_filename);
 						// Run the model once with the current parameters to compute the observations
-						cur_run = base_svd.solve(*run_manager_ptr, termination_ctl, n_base_iter, cur_run, optimum_run, restart_ctl, calc_first_jacobian);
+						cur_run = base_svd.solve(*run_manager_ptr, termination_ctl, noptmax, cur_run, optimum_run, restart_ctl, calc_first_jacobian);
 						termination_ctl.check_last_iteration();
 					}
 					catch (exception &e)
 					{
-						cout << "error in base parameter iteration process with existing Jacobian: " << e.what() << endl;
+						cout << "error in iteration process with existing Jacobian: " << e.what() << endl;
 						throw runtime_error(e.what());
 					}
 				}
@@ -626,12 +611,12 @@ int main(int argc, char* argv[])
 							base_svd.iteration_reuse_jac(*run_manager_ptr, termination_ctl, cur_run, false, file_manager.build_filename("jcb"));
 						}
 						bool calc_first_jacobian = true;
-						cur_run = base_svd.solve(*run_manager_ptr, termination_ctl, n_base_iter, cur_run, optimum_run, restart_ctl, calc_first_jacobian);
+						cur_run = base_svd.solve(*run_manager_ptr, termination_ctl, noptmax, cur_run, optimum_run, restart_ctl, calc_first_jacobian);
 						termination_ctl.check_last_iteration();
 					}
 					catch (exception &e)
 					{
-						cout << "error in base parameter iteration process: " << e.what() << endl;
+						cout << "error in iteration process: " << e.what() << endl;
 						throw runtime_error(e.what());
 					}
 
@@ -651,93 +636,93 @@ int main(int argc, char* argv[])
 				fout_rec << "Error encountered, cannot continue" << endl;
 				exit(1);
 			}
-			// Build Super Parameter or SVDA problem
-			try
-			{
-				const vector<string> &nonregul_obs = pest_scenario.get_nonregul_obs();
-				Parameters base_numeric_pars = base_trans_seq.ctl2numeric_cp(cur_ctl_parameters);
-				const vector<string> &pars = base_numeric_pars.get_keys();
-				QSqrtMatrix Q_sqrt(&(pest_scenario.get_ctl_observation_info()), &pest_scenario.get_prior_info());
-				
-				if (restart_ctl.get_restart_option() == RestartController::RestartOption::RESUME_JACOBIAN_RUNS)
-				{
-					//read previously computed super parameter transformation
-					ifstream &fin_rst = file_manager.open_ifile_ext("rtj", ios_base::in | ios_base::binary);
-					(*tran_svd).read(fin_rst);
-					file_manager.close_file("rtj");
-				}
-				else
-				{
-					cout << "...forming super parameter transformation, requires forming and factoring JTQJ..." << endl;
-					fout_rec << "...forming super parameter transformation, requires forming and factoring JTQJ..." << endl;
-					Eigen::SparseMatrix<double> parcov_inv;
-					ParamTransformSeq par_transform = pest_scenario.get_base_par_tran_seq();
-					map<string, double> dss = pest_scenario.calc_par_dss(*base_jacobian_ptr,par_transform);
-					if (pest_scenario.get_pestpp_options().get_glm_normal_form() == PestppOptions::GLMNormalForm::PRIOR)
-					{
-						
-						parcov_inv = *parcov.get(base_jacobian_ptr->get_base_numeric_par_names()).inv().e_ptr();
-					}
-					performance_log.log_event("updating super parameter transformation, requires formation and SVD of JtQJ");
-					
-					(*tran_svd).update_reset_frozen_pars(*base_jacobian_ptr, Q_sqrt, base_numeric_pars, max_n_super, super_eigthres, 
-						pars, nonregul_obs, parcov_inv, dss, cur_run.get_frozen_ctl_pars());
-					(*tr_svda_fixed).reset((*tran_svd).get_frozen_derivative_pars());
-				}
-				SVDASolver super_svd(pest_scenario, file_manager, &obj_func,
-					trans_svda, *super_jacobian_ptr,
-					output_file_writer, &performance_log,parcov,&rand_gen,
-					base_svd.get_phiredswh_flag(), base_svd.get_splitswh_flag());
-				super_svd.set_svd_package(pest_scenario.get_pestpp_options().get_svd_pack());
-				//use base jacobian to compute first super jacobian if there was not a super upgrade
-				bool calc_first_jacobian = true;
-				if (n_base_iter == -1)
-				{
-					//transform base jacobian to super jacobian
-					super_svd.get_jacobian() = base_svd.get_jacobian();
-					super_svd.get_jacobian().transform(base_trans_seq, &ParamTransformSeq::jac_numeric2active_ctl_ip);
-					super_svd.get_jacobian().transform(trans_svda, &ParamTransformSeq::jac_active_ctl_ip2numeric_ip);
-					//rerun base run to account for round off error in super parameters
-					if ((cur_run.obs_valid()) && (!pest_scenario.get_pestpp_options().get_glm_rebase_super()))
-					{
-						fout_rec << "...glm_rebase_super is false, using existing residuals as super-par-truncated base residuals..." << endl;
-						cout << "...glm_rebase_super is false, using existing residuals as super-par-truncated base residuals..." << endl;
-					}
-					else
-					{
-						cout << "...running super-par-truncated base parameter values once to account for roundoff in super par transformation" << endl;
-						fout_rec << "...running super-par-truncated base parameter values once to account for roundoff in super par transformation" << endl;
-						cur_run = super_svd.update_run(*run_manager_ptr, cur_run);
-					}
-					calc_first_jacobian = false;
-					//bool success = run_manager_ptr->get_observations_vec(0, init_sim);
-				}
-				cur_run = super_svd.solve(*run_manager_ptr, termination_ctl, n_super_iter, cur_run, optimum_run, restart_ctl, calc_first_jacobian);
-				cur_ctl_parameters = cur_run.get_ctl_pars();
-				base_svd.set_phiredswh_flag(super_svd.get_phiredswh_flag());
-				base_svd.set_splitswh_flag(super_svd.get_splitswh_flag());
-				if (super_svd.local_iteration_terminatated() && n_base_iter == -1)
-				{
-					n_base_iter = 1;
-				}
-			}
-			catch (exception &e)
-			{
-				cout << e.what() << endl;
-				fout_rec << e.what() << endl;
-				cout << "WARNING: super parameter process failed.  Switching to base parameters" << endl << endl;
-				fout_rec << "WARNING: super parameter process failed.  Switching to base parameters" << endl << endl;
-				ofstream &fout_restart = file_manager.get_ofstream("rst");
-				RestartController::write_start_failed_super(fout_restart);
-				restart_ctl.get_restart_option() = RestartController::RestartOption::NONE;
-				if (pest_scenario.get_pestpp_options().get_n_iter_base() == -1)
-				{
-					cout << "resetting n_iter_base to 1 since super parameter process failed" << endl;
-					fout_rec << "resetting n_iter_base to 1 since super parameter process failed" << endl;
-					pest_scenario.get_pestpp_options_ptr()->set_n_iter_base(1);
-					n_base_iter = -1;
-				}	
-			}
+			// // Build Super Parameter or SVDA problem
+			// try
+			// {
+			// 	const vector<string> &nonregul_obs = pest_scenario.get_nonregul_obs();
+			// 	Parameters base_numeric_pars = base_trans_seq.ctl2numeric_cp(cur_ctl_parameters);
+			// 	const vector<string> &pars = base_numeric_pars.get_keys();
+			// 	QSqrtMatrix Q_sqrt(&(pest_scenario.get_ctl_observation_info()), &pest_scenario.get_prior_info());
+			//
+			// 	if (restart_ctl.get_restart_option() == RestartController::RestartOption::RESUME_JACOBIAN_RUNS)
+			// 	{
+			// 		//read previously computed super parameter transformation
+			// 		ifstream &fin_rst = file_manager.open_ifile_ext("rtj", ios_base::in | ios_base::binary);
+			// 		(*tran_svd).read(fin_rst);
+			// 		file_manager.close_file("rtj");
+			// 	}
+			// 	else
+			// 	{
+			// 		cout << "...forming super parameter transformation, requires forming and factoring JTQJ..." << endl;
+			// 		fout_rec << "...forming super parameter transformation, requires forming and factoring JTQJ..." << endl;
+			// 		Eigen::SparseMatrix<double> parcov_inv;
+			// 		ParamTransformSeq par_transform = pest_scenario.get_base_par_tran_seq();
+			// 		map<string, double> dss = pest_scenario.calc_par_dss(*base_jacobian_ptr,par_transform);
+			// 		if (pest_scenario.get_pestpp_options().get_glm_normal_form() == PestppOptions::GLMNormalForm::PRIOR)
+			// 		{
+			//
+			// 			parcov_inv = *parcov.get(base_jacobian_ptr->get_base_numeric_par_names()).inv().e_ptr();
+			// 		}
+			// 		performance_log.log_event("updating super parameter transformation, requires formation and SVD of JtQJ");
+			//
+			// 		(*tran_svd).update_reset_frozen_pars(*base_jacobian_ptr, Q_sqrt, base_numeric_pars, max_n_super, super_eigthres,
+			// 			pars, nonregul_obs, parcov_inv, dss, cur_run.get_frozen_ctl_pars());
+			// 		(*tr_svda_fixed).reset((*tran_svd).get_frozen_derivative_pars());
+			// 	}
+			// 	SVDASolver super_svd(pest_scenario, file_manager, &obj_func,
+			// 		trans_svda, *super_jacobian_ptr,
+			// 		output_file_writer, &performance_log,parcov,&rand_gen,
+			// 		base_svd.get_phiredswh_flag(), base_svd.get_splitswh_flag());
+			// 	super_svd.set_svd_package(pest_scenario.get_pestpp_options().get_svd_pack());
+			// 	//use base jacobian to compute first super jacobian if there was not a super upgrade
+			// 	bool calc_first_jacobian = true;
+			// 	if (n_base_iter == -1)
+			// 	{
+			// 		//transform base jacobian to super jacobian
+			// 		super_svd.get_jacobian() = base_svd.get_jacobian();
+			// 		super_svd.get_jacobian().transform(base_trans_seq, &ParamTransformSeq::jac_numeric2active_ctl_ip);
+			// 		super_svd.get_jacobian().transform(trans_svda, &ParamTransformSeq::jac_active_ctl_ip2numeric_ip);
+			// 		//rerun base run to account for round off error in super parameters
+			// 		if ((cur_run.obs_valid()) && (!pest_scenario.get_pestpp_options().get_glm_rebase_super()))
+			// 		{
+			// 			fout_rec << "...glm_rebase_super is false, using existing residuals as super-par-truncated base residuals..." << endl;
+			// 			cout << "...glm_rebase_super is false, using existing residuals as super-par-truncated base residuals..." << endl;
+			// 		}
+			// 		else
+			// 		{
+			// 			cout << "...running super-par-truncated base parameter values once to account for roundoff in super par transformation" << endl;
+			// 			fout_rec << "...running super-par-truncated base parameter values once to account for roundoff in super par transformation" << endl;
+			// 			cur_run = super_svd.update_run(*run_manager_ptr, cur_run);
+			// 		}
+			// 		calc_first_jacobian = false;
+			// 		//bool success = run_manager_ptr->get_observations_vec(0, init_sim);
+			// 	}
+			// 	cur_run = super_svd.solve(*run_manager_ptr, termination_ctl, n_super_iter, cur_run, optimum_run, restart_ctl, calc_first_jacobian);
+			// 	cur_ctl_parameters = cur_run.get_ctl_pars();
+			// 	base_svd.set_phiredswh_flag(super_svd.get_phiredswh_flag());
+			// 	base_svd.set_splitswh_flag(super_svd.get_splitswh_flag());
+			// 	if (super_svd.local_iteration_terminatated() && n_base_iter == -1)
+			// 	{
+			// 		n_base_iter = 1;
+			// 	}
+			// }
+			// catch (exception &e)
+			// {
+			// 	cout << e.what() << endl;
+			// 	fout_rec << e.what() << endl;
+			// 	cout << "WARNING: super parameter process failed.  Switching to base parameters" << endl << endl;
+			// 	fout_rec << "WARNING: super parameter process failed.  Switching to base parameters" << endl << endl;
+			// 	ofstream &fout_restart = file_manager.get_ofstream("rst");
+			// 	RestartController::write_start_failed_super(fout_restart);
+			// 	restart_ctl.get_restart_option() = RestartController::RestartOption::NONE;
+			// 	if (pest_scenario.get_pestpp_options().get_n_iter_base() == -1)
+			// 	{
+			// 		cout << "resetting n_iter_base to 1 since super parameter process failed" << endl;
+			// 		fout_rec << "resetting n_iter_base to 1 since super parameter process failed" << endl;
+			// 		pest_scenario.get_pestpp_options_ptr()->set_n_iter_base(1);
+			// 		n_base_iter = -1;
+			// 	}
+			// }
 		}
 		cout << endl;
 		termination_ctl.termination_summary(cout);
@@ -873,7 +858,7 @@ int main(int argc, char* argv[])
 		// clean up
 		//fout_rec.close();
 		delete base_jacobian_ptr;
-		delete super_jacobian_ptr;
+		//delete super_jacobian_ptr;
 		delete run_manager_ptr;
 
 		string case_name = file_manager.get_base_filename();
