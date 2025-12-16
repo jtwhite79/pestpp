@@ -30,7 +30,7 @@
 #include "utilities.h"
 #include "pest_error.h"
 #include "ModelRunPP.h"
-#include "SVDASolver.h"
+#include "SVDSolver.h"
 #include  "QSqrtMatrix.h"
 #include "FileManager.h"
 #include "TerminationController.h"
@@ -59,34 +59,32 @@ using namespace pest_utils;
 
 //using namespace pest_utils;
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
 #ifndef _DEBUG
-	try
-	{
+	try {
 #endif
 		string version = PESTPP_VERSION;
 		cout << endl << endl;
 		cout << "             pestpp-glm: a tool for GLM parameter estimation and FOSM uncertainty analysis" << endl << endl;
 		cout << "                                   by The PEST++ Development Team" << endl;
 		cout << endl;
-        auto start = chrono::steady_clock::now();
+		auto start = chrono::steady_clock::now();
 
-        string start_string = get_time_string();
+		string start_string = get_time_string();
 		CmdLine cmdline(argc, argv);
 
-        if (quit_file_found())
-        {
-            cerr << "'pest.stp' found, please remove this file " << endl;
-            return 1;
-        }
-		
+		if (quit_file_found())
+		{
+			cerr << "'pest.stp' found, please remove this file " << endl;
+			return 1;
+		}
+
 		FileManager file_manager;
 		string filename = cmdline.ctl_file_name;
 		string pathname = ".";
 		file_manager.initialize_path(get_filename_without_ext(filename), pathname);
 
-	
+
 		if (cmdline.runmanagertype == CmdLine::RunManagerType::PANTHER_WORKER)
 		{
 			try
@@ -99,16 +97,16 @@ int main(int argc, char* argv[])
 
 				PANTHERAgent yam_agent(frec);
 				string ctl_file = "";
-				try 
-				{	
+				try
+				{
 					// process traditional PEST control file
 					ctl_file = file_manager.build_filename("pst");
 					yam_agent.process_ctl_file(ctl_file);
 				}
 				catch (exception &e)
 				{
-                    frec << "Error processing control file: " << ctl_file << endl << endl;
-                    frec << e.what() << endl << endl;
+					frec << "Error processing control file: " << ctl_file << endl << endl;
+					frec << e.what() << endl << endl;
 					cerr << "Error prococessing control file: " << ctl_file << endl << endl;
 					cerr << e.what() << endl << endl;
 					throw(e);
@@ -130,7 +128,7 @@ int main(int argc, char* argv[])
 			cerr << "Genie run manager ('/g') no longer supported, please use PANTHER instead" << endl;
 			exit(1);
 		}
-		
+
 		RestartController restart_ctl;
 		bool restart_flag = false;
 		bool save_restart_rec_header = true;
@@ -146,9 +144,9 @@ int main(int argc, char* argv[])
 		{
 			ifstream &fin_rst = file_manager.open_ifile_ext("rst");
 			if (fin_rst.bad())
-            {
-			    throw runtime_error("restart error: error opening rst file '"+file_manager.get_base_filename()+".rst'");
-            }
+			{
+				throw runtime_error("restart error: error opening rst file '"+file_manager.get_base_filename()+".rst'");
+			}
 			restart_ctl.process_rst_file(fin_rst);
 			file_manager.close_file("rst");
 			restart_flag = true;
@@ -187,7 +185,7 @@ int main(int argc, char* argv[])
 
 		// create pest run and process control file to initialize it
 		Pest pest_scenario;
-        pest_scenario.set_default_dynreg();
+		pest_scenario.set_default_dynreg();
 #ifndef _NDEBUG
 		try {
 #endif
@@ -199,18 +197,18 @@ int main(int argc, char* argv[])
 		}
 		catch (exception &e)
 		{
-            fout_rec << "Error processing control file: " << filename << endl << endl;
-            fout_rec << e.what() << endl << endl;
+			fout_rec << "Error processing control file: " << filename << endl << endl;
+			fout_rec << e.what() << endl << endl;
 			cerr << "Error processing control file: " << filename << endl << endl;
 			cerr << e.what() << endl << endl;
 			throw(e);
-	 	}
+		}
 #endif
 
 		pest_scenario.check_inputs(fout_rec, false, false);
 		// reset this here because we want to draw from the FOSM posterior as a whole matrix
 		pest_scenario.get_pestpp_options_ptr()->set_ies_group_draws(false);
-		
+
 		if (pest_scenario.get_pestpp_options().get_glm_normal_form() == PestppOptions::GLMNormalForm::PRIOR)
 		{
 			if (pest_scenario.get_control_info().pestmode == ControlInfo::PestMode::REGUL)
@@ -220,21 +218,21 @@ int main(int argc, char* argv[])
 		}
 
 		if (pest_scenario.get_control_info().pestmode == ControlInfo::PestMode::REGUL)
-        {
-		    if (pest_scenario.get_prior_info().get_nnz_pi() == 0)
-            {
-		        throw runtime_error("regularization mode requires at least one non-zero weighted prior info equation");
-            }
-		    if ((pest_scenario.get_pestpp_options().get_glm_iter_mc()) &&
-		    (pest_scenario.get_pestpp_options().get_glm_accept_mc_phi()))
-            {
-		        stringstream ss;
-		        ss << endl << "WARNING 'regularization' mode is not conceptually compatible with 'glm_accept_mc_phi'" << endl;
-		        cout << ss.str();
-		        fout_rec << ss.str();
-            }
+		{
+			if (pest_scenario.get_prior_info().get_nnz_pi() == 0)
+			{
+				throw runtime_error("regularization mode requires at least one non-zero weighted prior info equation");
+			}
+			if ((pest_scenario.get_pestpp_options().get_glm_iter_mc()) &&
+			(pest_scenario.get_pestpp_options().get_glm_accept_mc_phi()))
+			{
+				stringstream ss;
+				ss << endl << "WARNING 'regularization' mode is not conceptually compatible with 'glm_accept_mc_phi'" << endl;
+				cout << ss.str();
+				fout_rec << ss.str();
+			}
 
-        }
+		}
 
 		//Initialize OutputFileWriter to handle IO of supplementary files (.par, .par, .svd)
 		//bool save_eign = pest_scenario.get_svd_info().eigwrite > 0;
@@ -261,6 +259,15 @@ int main(int argc, char* argv[])
 		{
 			output_file_writer.write_par_iter(0, pest_scenario.get_ctl_parameters());
 		}
+
+		if ((pest_scenario.get_pestpp_options().get_n_iter_super() != 0) ||
+			(pest_scenario.get_pestpp_options().get_n_iter_base() < 1000000) ||
+			(pest_scenario.get_pestpp_options().get_max_n_super() < 1000000)){
+			cout << "automatic SVD-Assist within pestpp-glm has been deprecated." << endl;
+			fout_rec << "automatic SVD-Assist within pestpp-glm has been deprecated." << endl;
+			throw runtime_error("SVD-Assist detected");
+		}
+
 		RunManagerAbstract *run_manager_ptr;
 		if (cmdline.runmanagertype == CmdLine::RunManagerType::PANTHER_MASTER)
 		{

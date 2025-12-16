@@ -738,17 +738,17 @@ const TranLog10 *ParamTransformSeq::get_log10_ptr() const
 }
 
 
-TranSVD *ParamTransformSeq::get_svda_ptr()const
-{
-	Transformation* ptr=0;
-	auto iter = find_in_active_ctl2numeric(string("SVD Super Parameter Transformation"));
-	if (iter != tranSeq_active_ctl2numeric.end())
-	{
-		ptr = (*iter);
-	}
-	return dynamic_cast<TranSVD*>(ptr);
-
-}
+// TranSVD *ParamTransformSeq::get_svda_ptr()const
+// {
+// 	Transformation* ptr=0;
+// 	auto iter = find_in_active_ctl2numeric(string("SVD Super Parameter Transformation"));
+// 	if (iter != tranSeq_active_ctl2numeric.end())
+// 	{
+// 		ptr = (*iter);
+// 	}
+// 	return dynamic_cast<TranSVD*>(ptr);
+//
+// }
 
 TranFixed *ParamTransformSeq::get_svda_fixed_ptr()const
 {
