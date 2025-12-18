@@ -2129,7 +2129,8 @@ def parse_pst_test():
 
 if __name__ == "__main__":
     #parse_pst_test()
-    basic_test()
+    #basic_test()
+    mf6_v5_glm_test()
     #nonascii_path_test()
 
     #mf6_v5_ies_nonpersistent_test()
