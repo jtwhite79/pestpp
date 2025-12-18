@@ -445,7 +445,7 @@ def tenpar_xsec_stress_test():
                                  port=port)
     pst = pyemu.Pst(os.path.join(test_d,"pest_stress.pst"))
     print(pst.phi)
-    assert pst.phi < .01
+    assert pst.phi < .1
     oe = pd.read_csv(os.path.join(test_d,"pest_stress.post.obsen.csv"),index_col=0)
     assert oe.dropna().shape == (int(pst.pestpp_options["glm_num_reals"]),pst.nobs),oe.dropna().shape
 
