@@ -298,7 +298,7 @@ bool Jacobian::build_runs(Parameters &ctl_pars, Observations &ctl_obs, vector<st
 		debug_print(ipar_name);
 		del_numeric_par_vec.clear();
 		// need to optimize already computing model pars in get_derivative_parameters.  should not need to compute them again
-		bool success = get_derivative_parameters(ipar_name, numeric_pars, par_transform, group_info, ctl_par_info, del_numeric_par_vec, phiredswh_flag, out_of_bound_par);
+		bool success = fill_derivative_parameters(ipar_name, numeric_pars, par_transform, group_info, ctl_par_info, del_numeric_par_vec, phiredswh_flag, out_of_bound_par);
 		debug_print(out_of_bound_par);
 		if (success && !del_numeric_par_vec.empty())
 		{
@@ -448,7 +448,7 @@ bool Jacobian::process_runs(ParamTransformSeq &par_transform,
 	return true;
 }
 
-bool Jacobian::get_derivative_parameters(const string &par_name, Parameters &numeric_pars, ParamTransformSeq &par_transform, 
+bool Jacobian::fill_derivative_parameters(const string &par_name, Parameters &numeric_pars, ParamTransformSeq &par_transform,
 	const ParameterGroupInfo &group_info, const ParameterInfo &ctl_par_info,
 		vector<double> &delta_numeric_par_vec, bool phiredswh_flag, set<string> &out_of_bound_par)
 {

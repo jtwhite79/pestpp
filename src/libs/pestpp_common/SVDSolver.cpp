@@ -703,16 +703,14 @@ void SVDSolver::test_upgrade_to_find_freeze_pars(double i_lambda, Parameters &pr
 		RestartController::write_start_iteration(fout_restart, this->get_solver_type(), -9999, -9999);
 
 		//write current parameters so we have a backup for restarting
-		RestartController::write_start_parameters_updated(fout_restart, file_manager.build_filename("parb", false));
-		output_file_writer.write_par(file_manager.open_ofile_ext("parb"), best_upgrade_run.get_ctl_pars(), *(par_transform.get_offset_ptr()),
+		RestartController::write_start_parameters_updated(fout_restart, file_manager.build_filename("par", false));
+		output_file_writer.write_par(file_manager.open_ofile_ext("par"), best_upgrade_run.get_ctl_pars(), *(par_transform.get_offset_ptr()),
 			*(par_transform.get_scale_ptr()));
-		file_manager.close_file("parb");
-		RestartController::write_finish_parameters_updated(fout_restart, file_manager.build_filename("parb", false));
+		file_manager.close_file("par");
+		RestartController::write_finish_parameters_updated(fout_restart, file_manager.build_filename("par", false));
 
 		cout << "COMPUTING JACOBIAN:" << endl << endl;
 		os << "COMPUTING JACOBIAN:" << endl << endl;
-		cout << "  Iteration type: " << get_description() << endl;
-		os << "    Iteration type: " << get_description() << endl;
 		os << "    Model calls so far : " << run_manager.get_total_runs() << endl << endl << endl;
 		iteration_jac(run_manager, termination_ctl, best_upgrade_run, false, restart_runs);
 
