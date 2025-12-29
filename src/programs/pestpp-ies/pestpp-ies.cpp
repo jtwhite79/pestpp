@@ -28,7 +28,7 @@
 #include "logger.h"
 #include "Ensemble.h"
 #include "EnsembleSmoother.h"
-#include "../../libs/run_managers/external/RunManagerExternal.h"
+#include "RunManagerExternal.h"
 
 using namespace std;
 using namespace pest_utils;

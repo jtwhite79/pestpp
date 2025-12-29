@@ -240,9 +240,13 @@ void EnsembleSolver::update_multimodal_components(const double mm_alpha) {
     mm_q_vec_map.clear();
     mm_real_name_map.clear();
     stringstream ss;
+	Eigen::MatrixXd wmat = weights.get_eigen(vector<string>(),act_obs_names);
+	if (mm_alpha >= 1.0) {
+
+	}
     int num_threads = pest_scenario.get_pestpp_options().get_ies_num_threads();
     Eigen::SparseMatrix<double> parcov_inv = parcov.inv().get_matrix();
-    Eigen::MatrixXd wmat = weights.get_eigen(vector<string>(),act_obs_names);
+
     performance_log->log_event("getting phi vectors for all weights");
     map<string,map<string,double>> weight_phi_map = ph.get_meas_phi_weight_ensemble(oe,weights);
     //int verbose_level = pest_scenario.get_pestpp_options().get_ies_verbose_level();
@@ -1591,7 +1595,7 @@ void MmUpgradeThread::work(int thread_id, int iter, double cur_lam, bool use_glm
                 pair<vector<string>,vector<string>> p = cases.at(key);
                 pe_real_names = p.first;
                 oe_real_names = p.second;
-                if ((count % 100 == 0) && (count > 0))
+                if ((count % 10 == 0) && (count > 0))
                 {
                     ss.str("");
                     ss << "upgrade thread progress: " << count << " of " << total << " parts done";
@@ -4343,14 +4347,14 @@ void EnsembleMethod::sanity_checks()
             warnings.push_back("weight ensemble used with internal weight adjustment is even more experimental!");
         }
     }
-    if (ppo->get_ies_multimodal_alpha() > 1.0)
-    {
-        errors.push_back("multimodal alpha > 1.0");
-    }
-    if (ppo->get_ies_multimodal_alpha() < 0.001)
-    {
-        errors.push_back("multimodal alpha < 0.001");
-    }
+    // if (ppo->get_ies_multimodal_alpha() > 1.0)
+    // {
+    //     errors.push_back("multimodal alpha > 1.0");
+    // }
+    // if (ppo->get_ies_multimodal_alpha() < 0.001)
+    // {
+    //     errors.push_back("multimodal alpha < 0.001");
+    // }
 
     for (auto& fac : ppo->get_ies_reinflate_factor())
     {
@@ -7166,7 +7170,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
     EnsembleSolver es(performance_log, file_manager, pest_scenario, pe, oe_upgrade, oe_base, weights, localizer, parcov, Am, ph,
 		use_localizer, iter, act_par_names, act_obs_names, reg_factor);
     double mm_alpha = pest_scenario.get_pestpp_options().get_ies_multimodal_alpha();
-    if (mm_alpha != 1.0)
+    if (mm_alpha > 0.0)
     {
         es.update_multimodal_components(mm_alpha);
     }
@@ -7186,7 +7190,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
         pe_upgrade.set_zeros();
 		pe_upgrade.set_trans_status(pe.get_trans_status());
 
-		if (mm_alpha != 1.0)
+		if (mm_alpha > 0.0)
         {
             message(1,"multimodal solve for inflation factor ",cur_lam);
             es.solve_multimodal(num_threads, cur_lam, !use_mda, pe_upgrade, loc_map, mm_alpha);

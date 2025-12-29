@@ -4948,9 +4948,42 @@ def tenpar_fixed_transform_test():
     assert diff.sum() < 1e-6
     
     
+def large_invest():
+    t_d = os.path.join("temp","template")
+    if os.path.exists(t_d):
+        shutil.rmtree(t_d)
+    os.makedirs(t_d)
+    npar = 30000
+    nobs = 60000
+    pnames = ["ppppppppppppppppppppppppppppppppppp{0:07d}".format(i) for i in range(npar)]
+
+    onames = ["ooooooooooooooooooooooooooooooooooo{0:07d}".format(i) for i in range(nobs)]
+    pst = pyemu.Pst.from_par_obs_names(pnames,onames)
+    obs = pst.observation_data
+    obs["obsval"] = np.random.normal(0,1,nobs)
+    par = pst.parameter_data
+    par["parval1"] = 1.0
+    par["parubnd"] = 1.1
+    par["parlbnd"] = 0.9
+    
+    pst.pestpp_options["check_tplins"] = False
+    pst.pestpp_options["ies_num_reals"] = 600
+    pst.pestpp_options["ies_multimodal_alpha"] = 0.75
+    pst.pestpp_options["save_dense"] = True
+    pst.pestpp_options["ies_num_threads"] = 10
+    pst.model_command = "ls"
+    pst.control_data.noptmax = 1
+    pst.write(os.path.join(t_d,"pest.pst"),version=2)
+
+    pyemu.os_utils.run("{0} pest.pst /e".format(exe_path),cwd=t_d)
+
+
+
+
 
 if __name__ == "__main__":
-    tenpar_fixed_transform_test()
+    large_invest()
+    #tenpar_fixed_transform_test()
 
     #tenpar_ext_run_mgr_test()
     #freyberg_pdc_test()
