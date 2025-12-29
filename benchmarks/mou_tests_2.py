@@ -2716,7 +2716,7 @@ def mou_bound_handling_test():
 
 if __name__ == "__main__":
     #mou_bound_handling_test()
-    #basic_pso_test()
+    basic_pso_test()
     #test_restart_all()
     #chance_consistency_test()
     #zdt1_chance_schedule_test()
@@ -2729,7 +2729,7 @@ if __name__ == "__main__":
     #plot_hosaki(m_d=os.path.join("mou_tests","hosaki_empcov_master_risk"))
     #basic_pso_test()
     #zdt1_fixedtied_stack_test()
-    zdt1_fixed_scaleoffset_test()
+    #zdt1_fixed_scaleoffset_test()
     #shutil.copy2(os.path.join("..","exe","windows","x64","Debug","pestpp-mou.exe"),os.path.join("..","bin","pestpp-mou.exe"))
     #invest()
     #plot()
