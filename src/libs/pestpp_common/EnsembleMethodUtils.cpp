@@ -7209,7 +7209,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
         pe_upgrade.set_zeros();
 		pe_upgrade.set_trans_status(pe.get_trans_status());
 
-		if (mm_alpha != 1.0)
+		if (mm_alpha > 0.0)
         {
             message(1,"multimodal solve for inflation factor ",cur_lam);
             es.solve_multimodal(num_threads, cur_lam, !use_mda, pe_upgrade, loc_map, mm_alpha);
