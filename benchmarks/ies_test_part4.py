@@ -4982,7 +4982,7 @@ def large_invest():
 
 
 if __name__ == "__main__":
-    large_invest()
+    #large_invest()
     #tenpar_fixed_transform_test()
 
     #tenpar_ext_run_mgr_test()
@@ -5002,7 +5002,7 @@ if __name__ == "__main__":
     #tenpar_reg_factor_test()
     #tenpar_high_phi_test()
     #tenpar_iqr_bad_phi_sigma_test()
-    #multimodal_test()
+    multimodal_test()
     #plot_mm1_sweep_results()
     #plot_mm1_results()
     #plot_mm1_results_seq()

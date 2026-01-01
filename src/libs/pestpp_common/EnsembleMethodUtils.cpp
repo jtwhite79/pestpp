@@ -243,6 +243,49 @@ void EnsembleSolver::update_multimodal_components(const double mm_alpha) {
     int num_threads = pest_scenario.get_pestpp_options().get_ies_num_threads();
     Eigen::SparseMatrix<double> parcov_inv = parcov.inv().get_matrix();
     Eigen::MatrixXd wmat = weights.get_eigen(vector<string>(),act_obs_names);
+	map<string, int> real_map = pe.get_real_map();
+	oe.update_var_map();
+	map<string, int> ovar_map = oe.get_var_map();
+	vector<string> pe_real_names_case,oe_real_names_case;
+	vector<string> real_names = pe.get_real_names(), oreal_names = oe.get_real_names(),preal_names;
+	string real_name, oreal_name;
+	vector<int> real_idxs;
+	Eigen::VectorXd q_vec;
+	oreal_names = oe.get_real_names();
+	preal_names = pe.get_real_names();
+
+	if (mm_alpha >= 1.0) {
+		file_manager.rec_ofstream() << "...mm_alpha >= 1.0, using all reals for gradient calculations" << endl;
+		//all reals map to each other so just fill the containers
+		for (int i = 0; i < pe.shape().first; i++) {
+			real_name = real_names[i];
+			q_vec = wmat.row(i);
+			oreal_name = oreal_names[i];
+
+			real_idxs.clear();
+			oe_real_names_case.clear();
+			pe_real_names_case.clear();
+			real_idxs.push_back(real_map.at(real_name));
+			pe_real_names_case.push_back(real_name);
+			oe_real_names_case.push_back(oreal_name);
+
+			for (int ii; ii<pe.shape().first;ii++) {
+				if (ii == i)
+					continue;
+				real_idxs.push_back(ii);
+				pe_real_names_case.push_back(preal_names[ii]);
+				oe_real_names_case.push_back(oreal_names[ii]);
+			}
+			mm_real_idx_map[real_name] = real_idxs;
+			mm_q_vec_map[real_name] = q_vec;
+			mm_real_name_map[real_name] = make_pair(pe_real_names_case,oe_real_names_case);
+		}
+		return;
+
+	}
+	if (mm_alpha <= 0.0) {
+		throw runtime_error("multimodal solve error: alpha <= 0.0");
+	}
     performance_log->log_event("getting phi vectors for all weights");
     map<string,map<string,double>> weight_phi_map = ph.get_meas_phi_weight_ensemble(oe,weights);
     //int verbose_level = pest_scenario.get_pestpp_options().get_ies_verbose_level();
@@ -367,20 +410,9 @@ void EnsembleSolver::update_multimodal_components(const double mm_alpha) {
     ss.str("");
     ss << "calculating multimodal neighborhoods with " << subset_size << " realizations";
     performance_log->log_event(ss.str());
-
-    vector<string> real_names = pe.get_real_names(), oreal_names = oe.get_real_names(),preal_names;
-    string real_name, oreal_name;
-
     map<string, double> euclid_par_dist;
     Eigen::VectorXd real, diff;
-
     double edist;
-    map<string, int> real_map = pe.get_real_map();
-    oe.update_var_map();
-    map<string, int> ovar_map = oe.get_var_map();
-
-    vector<int> real_idxs;
-    vector<string> pe_real_names_case,oe_real_names_case;
     //Eigen::MatrixXd* real_ptr = pe_upgrade.get_eigen_ptr_4_mod();
 
     ofstream csv;
@@ -397,9 +429,6 @@ void EnsembleSolver::update_multimodal_components(const double mm_alpha) {
     }
 
     string prname, orname;
-
-
-    Eigen::VectorXd q_vec;
     map<string, double> phi_map;
     for (int i = 0; i < pe.shape().first; i++) {
         real_name = real_names[i];
@@ -413,7 +442,6 @@ void EnsembleSolver::update_multimodal_components(const double mm_alpha) {
         oreal_name = oreal_names[i];
         performance_log->log_event("...getting weights");
         q_vec = wmat.row(i);
-        oreal_name = oreal_names[i];
         phi_map = weight_phi_map.at(oreal_name);
         double mx = -1.0e+300;
         for (auto &p : phi_map) {
@@ -425,8 +453,7 @@ void EnsembleSolver::update_multimodal_components(const double mm_alpha) {
         }
         //flip to map to par realization names
         map<string, double> par_phi_map;
-        oreal_names = oe.get_real_names();
-        preal_names = pe.get_real_names();
+
         for (int ii = 0; ii < oreal_names.size(); ii++) {
             par_phi_map[preal_names[ii]] = phi_map.at(oreal_names[ii]);
         }
@@ -7162,7 +7189,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
     EnsembleSolver es(performance_log, file_manager, pest_scenario, pe, oe_upgrade, oe_base, weights, localizer, parcov, Am, ph,
 		use_localizer, iter, act_par_names, act_obs_names, reg_factor);
     double mm_alpha = pest_scenario.get_pestpp_options().get_ies_multimodal_alpha();
-    if (mm_alpha != 1.0)
+    if (mm_alpha != 0.0)
     {
         es.update_multimodal_components(mm_alpha);
     }
