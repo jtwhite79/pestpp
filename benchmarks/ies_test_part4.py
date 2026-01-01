@@ -1152,7 +1152,7 @@ def multimodal_test():
     assert phidf.iteration.max() == pst.control_data.noptmax
     assert phidf.loc[phidf.index[-1],"min"] < 0.1
 
-    pst.pestpp_options["ies_multimodal_alpha"] = 1.0
+    pst.pestpp_options["ies_multimodal_alpha"] = 0.0
     pst.write(os.path.join(test_d, "mm1.pst"))
     m_d = os.path.join(model_d, "master_base_{0}".format(func))
     #pyemu.os_utils.start_workers(test_d, exe_path, "mm1.pst", worker_root=model_d, num_workers=35, master_dir=m_d)
@@ -1160,10 +1160,23 @@ def multimodal_test():
         shutil.rmtree(m_d)
     shutil.copytree(test_d,m_d)
     pyemu.os_utils.run("{0} mm1.pst".format(exe_path),cwd=m_d)
-    
+
+
     phidf = pd.read_csv(os.path.join(m_d,"mm1.phi.actual.csv"))
     assert phidf.iteration.max() == pst.control_data.noptmax
     
+
+    pst.pestpp_options["ies_multimodal_alpha"] = 1.0
+    pst.write(os.path.join(test_d, "mm1.pst"))
+    m_d = os.path.join(model_d, "master_allreals_{0}".format(func))
+    #pyemu.os_utils.start_workers(test_d, exe_path, "mm1.pst", worker_root=model_d, num_workers=35, master_dir=m_d)
+    if os.path.exists(m_d):
+        shutil.rmtree(m_d)
+    shutil.copytree(test_d,m_d)
+    pyemu.os_utils.run("{0} mm1.pst".format(exe_path),cwd=m_d)
+
+    phidf = pd.read_csv(os.path.join(m_d,"mm1.phi.actual.csv"))
+    assert phidf.iteration.max() == pst.control_data.noptmax
     pst.pestpp_options["ies_multimodal_alpha"] = 0.1
     pst.pestpp_options["ies_num_threads"] = 4
     pst.pestpp_options["ies_include_base"] = True
@@ -4988,7 +5001,7 @@ if __name__ == "__main__":
     #tenpar_ext_run_mgr_test()
     #freyberg_pdc_test()
     #tenpar_mean_iter_test()
-    tenpar_reinflate_num_reals_test()
+    #tenpar_reinflate_num_reals_test()
     #freyberg_reinflate_num_reals_invest()
     #compared_freyberg_inflate_runs()
     #tenpar_mean_iter_test_sched()

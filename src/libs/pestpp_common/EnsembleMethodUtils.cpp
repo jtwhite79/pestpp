@@ -269,7 +269,7 @@ void EnsembleSolver::update_multimodal_components(const double mm_alpha) {
 			pe_real_names_case.push_back(real_name);
 			oe_real_names_case.push_back(oreal_name);
 
-			for (int ii; ii<pe.shape().first;ii++) {
+			for (int ii=0; ii<pe.shape().first;ii++) {
 				if (ii == i)
 					continue;
 				real_idxs.push_back(ii);
