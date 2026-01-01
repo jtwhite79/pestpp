@@ -2130,7 +2130,7 @@ def parse_pst_test():
 if __name__ == "__main__":
     #parse_pst_test()
     #basic_test()
-    mf6_v5_glm_test()
+    #mf6_v5_glm_test()
     #nonascii_path_test()
 
     #mf6_v5_ies_nonpersistent_test()
@@ -2188,7 +2188,7 @@ if __name__ == "__main__":
     #shutil.copy2(os.path.join("..","exe","windows","x64","Debug","pestpp-ies.exe"),os.path.join("..","bin","win","pestpp-ies.exe"))
     #tplins1_test()
     
-    #fr_timeout_test()
+    fr_timeout_test()
     #mf6_v5_ies_test()
     #mf6_v5_sen_test()
 

@@ -7189,7 +7189,7 @@ bool EnsembleMethod::solve(bool use_mda, vector<double> inflation_factors, vecto
     EnsembleSolver es(performance_log, file_manager, pest_scenario, pe, oe_upgrade, oe_base, weights, localizer, parcov, Am, ph,
 		use_localizer, iter, act_par_names, act_obs_names, reg_factor);
     double mm_alpha = pest_scenario.get_pestpp_options().get_ies_multimodal_alpha();
-    if (mm_alpha != 0.0)
+    if (mm_alpha > 0.0)
     {
         es.update_multimodal_components(mm_alpha);
     }

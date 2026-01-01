@@ -4984,11 +4984,11 @@ def large_invest():
 if __name__ == "__main__":
     #large_invest()
     #tenpar_fixed_transform_test()
-
+    #tenpar_reg_factor_test()
     #tenpar_ext_run_mgr_test()
     #freyberg_pdc_test()
     #tenpar_mean_iter_test()
-    #tenpar_reinflate_num_reals_2_test()
+    tenpar_reinflate_num_reals_test()
     #freyberg_reinflate_num_reals_invest()
     #compared_freyberg_inflate_runs()
     #tenpar_mean_iter_test_sched()
