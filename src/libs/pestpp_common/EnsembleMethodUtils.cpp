@@ -4370,10 +4370,10 @@ void EnsembleMethod::sanity_checks()
     {
         errors.push_back("multimodal alpha > 1.0");
     }
-    if (ppo->get_ies_multimodal_alpha() < 0.001)
-    {
-        errors.push_back("multimodal alpha < 0.001");
-    }
+    // if (ppo->get_ies_multimodal_alpha() < 0.001)
+    // {
+    //     errors.push_back("multimodal alpha < 0.001");
+    // }
 
     for (auto& fac : ppo->get_ies_reinflate_factor())
     {
