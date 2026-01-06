@@ -1175,8 +1175,24 @@ def multimodal_test():
     shutil.copytree(test_d,m_d)
     pyemu.os_utils.run("{0} mm1.pst".format(exe_path),cwd=m_d)
 
-    phidf = pd.read_csv(os.path.join(m_d,"mm1.phi.actual.csv"))
-    assert phidf.iteration.max() == pst.control_data.noptmax
+    phidf1 = pd.read_csv(os.path.join(m_d,"mm1.phi.actual.csv"))
+    assert phidf1.iteration.max() == pst.control_data.noptmax
+    
+    pst.pestpp_options["ies_multimodal_alpha"] = 0.99
+    pst.write(os.path.join(test_d, "mm1.pst"))
+    m_d = os.path.join(model_d, "master_almostallreals_{0}".format(func))
+    #pyemu.os_utils.start_workers(test_d, exe_path, "mm1.pst", worker_root=model_d, num_workers=35, master_dir=m_d)
+    if os.path.exists(m_d):
+        shutil.rmtree(m_d)
+    shutil.copytree(test_d,m_d)
+    pyemu.os_utils.run("{0} mm1.pst".format(exe_path),cwd=m_d)
+    phidf2 = pd.read_csv(os.path.join(m_d,"mm1.phi.actual.csv"))
+    assert phidf2.iteration.max() == pst.control_data.noptmax
+
+    diff = np.abs(phidf1["mean"].iloc[-1] - phidf2["mean"].iloc[-1])
+    print(diff)
+    assert diff < 1e-6
+
     pst.pestpp_options["ies_multimodal_alpha"] = 0.1
     pst.pestpp_options["ies_num_threads"] = 4
     pst.pestpp_options["ies_include_base"] = True
