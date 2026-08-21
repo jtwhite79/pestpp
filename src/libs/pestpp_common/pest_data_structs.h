@@ -214,7 +214,7 @@ public:
 	enum SVD_PACK { EIGEN, PROPACK, REDSVD };
 	enum MAT_INV { Q12J, JTQJ };
 	enum GLOBAL_OPT { NONE, OPT_DE, OPT_MOEA};
-	enum GLMNormalForm { IDENT,DIAG, PRIOR };
+	enum GLMNormalForm { IDENT,DIAG, PRIOR, HP };
 	enum ARG_STATUS {ARG_ACCEPTED, ARG_DUPLICATE, ARG_NOTFOUND, ARG_INVALID};
 	PestppOptions() { use_da_args=false; }
 
@@ -300,7 +300,11 @@ public:
     void set_glm_iter_mc(bool _flag) { glm_iter_mc = _flag; }
     bool get_glm_debug_high_2nd_iter_phi() const {return glm_debug_high_2nd_iter_phi;}
     void set_glm_debug_high_2nd_iter_phi(bool _flag) {glm_debug_high_2nd_iter_phi = _flag;}
-
+	bool get_glm_hp_lambdas() const {return glm_hp_lambdas;}
+	void set_glm_hp_lambdas(bool _flag) {glm_hp_lambdas = _flag;}
+	bool get_glm_panther_lambdas() const {return glm_panther_lambdas;}
+	void set_glm_panther_lambdas(bool _flag) {glm_panther_lambdas = _flag;}
+	
 
 
 
@@ -378,6 +382,8 @@ public:
 	string get_sqp_search_method()const { return sqp_search_method; }
 	void set_sqp_solve_method(string _how) { sqp_solve_method = _how; }
 	string get_sqp_solve_method()const { return sqp_solve_method; }
+	void set_sqp_cma_bound_handling(string _how) { sqp_cma_bound_handling = _how; }
+	string get_sqp_cma_bound_handling()const { return sqp_cma_bound_handling; }
 	void set_sqp_search_method(string _how) { sqp_search_method = _how; }
 	int get_sqp_num_reals()const { return sqp_num_reals; }
 	void set_sqp_num_refined_search_pts(int _num_pts) { sqp_num_refined_search_pts = _num_pts; }
@@ -441,6 +447,8 @@ public:
 	void set_sqp_debug_cma(bool _flag) { sqp_debug_cma = _flag; }
 	bool get_sqp_debug_stosag_grad()const { return sqp_debug_stosag_grad; }
 	void set_sqp_debug_stosag_grad(bool _flag) { sqp_debug_stosag_grad = _flag; }
+	bool get_sqp_use_ies_infeas()const { return sqp_use_ies_infeas; }
+	void set_sqp_use_ies_infeas(bool _flag) { sqp_use_ies_infeas = _flag; }
 	
 	string get_mou_generator() const { return mou_generator; }
 	void set_mou_generator(string name) { mou_generator = name; }
@@ -564,6 +572,8 @@ public:
 	void set_par_sigma_range(double _par_sigma_range) { par_sigma_range = _par_sigma_range; }
 	bool get_save_binary() const { return save_binary; }
 	void set_save_binary(bool _ies_save_binary) { save_binary = _ies_save_binary; }
+	bool get_save_all_runs() const { return save_all_runs; }
+	void set_save_all_runs(bool _save_all_runs) { save_all_runs = _save_all_runs; }
 	string get_ies_localizer() const { return ies_localizer; }
 	void set_ies_localizer(string _ies_localizer) { ies_localizer = _ies_localizer; }
 	double get_ies_accept_phi_fac() const { return ies_accept_phi_fac; }
@@ -785,9 +795,12 @@ private:
 	bool glm_rebase_super;
 	bool glm_iter_mc;
 	bool glm_debug_high_2nd_iter_phi;
+	bool glm_hp_lambdas;
+	bool glm_panther_lambdas;
 
 	vector<double> base_lambda_vec;
 	vector<double> lambda_scale_vec;
+	
 	bool iter_summary_flag;
 	bool der_forgive;
 	bool uncert;
@@ -856,6 +869,7 @@ private:
 	string sqp_obs_restart_en;
 	string sqp_search_method;
 	string sqp_solve_method;
+	string sqp_cma_bound_handling;
 	int sqp_num_reals;
 	int sqp_subset_size;
 	bool sqp_update_hessian;
@@ -889,6 +903,7 @@ private:
 	bool sqp_debug_hessian;
 	bool sqp_debug_cma;
 	bool sqp_debug_stosag_grad;
+	bool sqp_use_ies_infeas;
 	
 
 	int mou_population_size;
@@ -954,6 +969,7 @@ private:
 	double par_sigma_range;
 	bool save_binary;
     bool save_dense;
+	bool save_all_runs;
 	string ies_localizer;
 	double ies_accept_phi_fac;
 	double ies_lambda_inc_fac;
