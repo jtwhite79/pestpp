@@ -1189,8 +1189,10 @@ void EnsembleSolver::nonlocalized_solve(double cur_lam,bool use_glm_form, Parame
         }
         mm_weight_sum = mm_real_weight_map.at(center_on).sum();
     }
+    last_X3.resize(0,0);
     UpgradeThread::ensemble_solution(iter,verbose_level,maxsing,0,0,use_prior_scaling,use_approx,use_glm_form,cur_lam,eigthresh,par_resid,
-                      par_diff,Am,obs_resid,obs_diff,upgrade_1,obs_err,local_weights,parcov_inv, act_obs_names,act_par_names,reg_factor,mm_weight_sum);
+                      par_diff,Am,obs_resid,obs_diff,upgrade_1,obs_err,local_weights,parcov_inv, act_obs_names,act_par_names,reg_factor,mm_weight_sum,
+                      &last_X3);
     pe_upgrade.add_2_cols_ip(act_par_names, upgrade_1);
 
 
@@ -1363,7 +1365,7 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
                               Eigen::MatrixXd& obs_err, const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights,
                               const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& parcov_inv,
                               const vector<string>& act_obs_names,const vector<string>& act_par_names,double _reg_factor,
-                              double mm_weight_sum)
+                              double mm_weight_sum, Eigen::MatrixXd* X3_out)
 {
     class local_utils
     {
@@ -1454,6 +1456,11 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
             Eigen::MatrixXd X3 = X1 * X2;
 
             X3 = obs_diff.transpose() * X3;
+            //hand back the realization-space coefficients - upgrade_1 is just par_diff times
+            //these, so the same product against the obs anomalies gives the linearized obs move.
+            //note this branch doesnt apply the 1/sqrt(nreal-1) scaling the glm branch does
+            if (X3_out != nullptr)
+                *X3_out = X3;
             upgrade_1 = -1 * par_diff * X3;
             local_utils::save_mat(verbose_level, thread_id, iter, t_count, "upgrade_1", upgrade_1);
             upgrade_1.transposeInPlace();
@@ -1568,6 +1575,11 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
         Eigen::MatrixXd X3 = V * s.asDiagonal() * X2;
         //X2.resize(0, 0);
         local_utils::save_mat(verbose_level, thread_id, iter, t_count, "X3", X3);
+        //hand back the realization-space coefficients. upgrade_1 is par_diff times these, and
+        //par_diff carries the 1/sqrt(nreal-1) scaling, so a caller wanting the obs-space move
+        //has to apply that same scale to its raw obs anomalies
+        if (X3_out != nullptr)
+            *X3_out = X3;
         upgrade_1 = -1.0 * par_diff * X3;
 
         if (use_prior_scaling) {

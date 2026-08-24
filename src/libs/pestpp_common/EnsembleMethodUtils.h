@@ -366,8 +366,12 @@ public:
     void solve_multimodal(int num_threads, double cur_lam, bool use_glm_form, ParameterEnsemble& pe_upgrade, unordered_map<string,pair<vector<string>, vector<string>>>& loc_map, double mm_alpha);
     void update_multimodal_components(const double mm_alpha);
 
+    //realization-space coefficients from the most recent non-localized solve. empty for the
+    //localized and multimodal paths, which solve in pieces and have no single set of these.
+    const Eigen::MatrixXd& get_last_X3() const { return last_X3; }
 
 private:
+    Eigen::MatrixXd last_X3;
 	PerformanceLog* performance_log;
 	FileManager& file_manager;
 	int iter, verbose_level;
@@ -467,7 +471,7 @@ public:
                            Eigen::MatrixXd& obs_err, const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights,
                            const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& parcov_inv,
                            const vector<string>& act_obs_names,const vector<string>& act_par_names, double _reg_factor,
-                           double mm_weight_sum = -1.0);
+                           double mm_weight_sum = -1.0, Eigen::MatrixXd* X3_out = nullptr);
 protected:
 	PerformanceLog* performance_log;
 	Localizer::How how;
