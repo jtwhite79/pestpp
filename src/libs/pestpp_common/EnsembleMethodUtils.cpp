@@ -1193,11 +1193,32 @@ void EnsembleSolver::nonlocalized_solve(double cur_lam,bool use_glm_form, Parame
         }
         mm_weight_sum = mm_real_weight_map.at(center_on).sum();
     }
+    //the obs anomalies get scaled and weighted in place below, so keep the raw ones while the
+    //projection can still use them. prior scaling puts parcov_inv on the parameter rows, which
+    //breaks the pairing the projection rests on, so dont offer one in that case
+    bool want_proj = full_solve && (!use_prior_scaling);
+    Eigen::MatrixXd raw_obs_diff;
+    if (want_proj)
+        raw_obs_diff = obs_diff;
+
     last_X3.resize(0,0);
+    double solve_scale = 1.0;
     UpgradeThread::ensemble_solution(iter,verbose_level,maxsing,0,0,use_prior_scaling,use_approx,use_glm_form,cur_lam,eigthresh,par_resid,
                       par_diff,Am,obs_resid,obs_diff,upgrade_1,obs_err,local_weights,parcov_inv, act_obs_names,act_par_names,reg_factor,mm_weight_sum,
-                      full_solve ? &last_X3 : nullptr);
+                      full_solve ? &last_X3 : nullptr, &solve_scale);
     pe_upgrade.add_2_cols_ip(act_par_names, upgrade_1);
+
+    //the parameter upgrade is the raw par anomalies times -scale*X3. the obs anomalies belong
+    //to the same realizations, so the same product against them is where the simulated values
+    //move to if the model is linear across the ensemble - no runs needed
+    last_proj_obs.resize(0,0);
+    last_proj_real_names.clear();
+    if (want_proj && (last_X3.size() > 0))
+    {
+        Eigen::MatrixXd d_obs = (-solve_scale) * raw_obs_diff * last_X3;
+        last_proj_obs = oe.get_eigen(oe_real_names, act_obs_names) + d_obs.transpose();
+        last_proj_real_names = oe_real_names;
+    }
 
 
 }
@@ -1369,7 +1390,7 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
                               Eigen::MatrixXd& obs_err, const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights,
                               const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& parcov_inv,
                               const vector<string>& act_obs_names,const vector<string>& act_par_names,double _reg_factor,
-                              double mm_weight_sum, Eigen::MatrixXd* X3_out)
+                              double mm_weight_sum, Eigen::MatrixXd* X3_out, double* scale_out)
 {
     class local_utils
     {
@@ -1465,6 +1486,8 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
             //note this branch doesnt apply the 1/sqrt(nreal-1) scaling the glm branch does
             if (X3_out != nullptr)
                 *X3_out = X3;
+            if (scale_out != nullptr)
+                *scale_out = 1.0;
             upgrade_1 = -1 * par_diff * X3;
             local_utils::save_mat(verbose_level, thread_id, iter, t_count, "upgrade_1", upgrade_1);
             upgrade_1.transposeInPlace();
@@ -1531,6 +1554,9 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
             scale = (1.0 / (sqrt(mm_weight_sum - 1.0)));
         else
             scale = (1.0 / (sqrt(double(num_reals - 1))));
+        //hand it out rather than make the caller re-derive the same rule
+        if (scale_out != nullptr)
+            *scale_out = scale;
         local_utils::save_mat(verbose_level, thread_id, iter, t_count, "obs_diff", obs_diff);
         obs_diff = scale * (weights * obs_diff);
         local_utils::save_mat(verbose_level, thread_id, iter, t_count, "scaled_obs_diff", obs_diff);
@@ -7634,6 +7660,42 @@ void EnsembleMethod::get_glm_factors(vector<double>& inflation_factors, vector<d
 	backtrack_factors = pest_scenario.get_pestpp_options().get_lambda_scale_vec();
 }
 
+ObservationEnsemble EnsembleMethod::get_projected_oe()
+{
+	ObservationEnsemble proj(&pest_scenario, &rand_gen);
+	if (last_proj_obs.size() == 0)
+		return proj;
+	//start from the current values so every observation is present and named - the projection
+	//only covers the non-zero-weighted ones, and the phi handler wants a full width ensemble
+	Eigen::MatrixXd full = oe.get_eigen(last_proj_real_names, vector<string>());
+	map<string, int> vmap = oe.get_var_map();
+	for (int j = 0; j < act_obs_names.size(); j++)
+		full.col(vmap.at(act_obs_names[j])) = last_proj_obs.col(j);
+	proj.reserve(last_proj_real_names, oe.get_var_names());
+	proj.set_eigen(full);
+	return proj;
+}
+
+map<string, double> EnsembleMethod::get_projected_phi(L2PhiHandler::phiType pt)
+{
+	map<string, double> empty;
+	if (last_proj_obs.size() == 0)
+		return empty;
+	performance_log->log_event("building projected obs ensemble");
+	ObservationEnsemble proj = get_projected_oe();
+	ParameterEnsemble pe_sub = pe;
+	pe_sub.keep_rows(last_proj_real_names);
+	performance_log->log_event("built projected obs ensemble");
+	//a scratch handler on purpose: update() overwrites the phi maps that drive reporting and
+	//the bad-realization screen, so pushing a hypothetical through `ph` would clobber the run.
+	//no csv prep either - this must not leave files behind
+	L2PhiHandler scratch(&pest_scenario, &file_manager, &oe_base, &pe_base, &parcov, false);
+	performance_log->log_event("updating scratch phi handler for projection");
+	scratch.update(proj, pe_sub, weights);
+	performance_log->log_event("updated scratch phi handler for projection");
+	return scratch.get_phi_map(pt);
+}
+
 UpgradeStatus EnsembleMethod::solve_glm(int cycle)
 {
 	vector<double> lambdas, scale_facs;
@@ -7959,6 +8021,12 @@ void EnsembleMethod::generate_upgrades(UpgradeContext& ctx, bool use_mda,
 		//the solver is a local and dies with this function, so keep the coefficients where an
 		//api caller can still reach them. empty unless this was a whole-ensemble, unlocalized solve
 		last_X3 = es.get_last_X3();
+		last_proj_obs = es.get_last_projected_obs();
+		last_proj_real_names = es.get_last_projected_real_names();
+		//hardwired for now, inside the lambda loop, so every ci test that solves hits it: what
+		//the solve just done says phi would be if the model were linear across the ensemble.
+		//no model runs. a no-op whenever there is nothing to project
+		report_projected_phi(cur_lam);
 
 		map<string, double> norm_map;
 		for (auto sf : backtrack_factors)
@@ -8018,6 +8086,30 @@ void EnsembleMethod::generate_upgrades(UpgradeContext& ctx, bool use_mda,
 		message(1, "finished calcs for:", cur_lam);
 
 	}
+}
+
+void EnsembleMethod::report_projected_phi(double cur_lam)
+{
+	//guard before the timer so the log only ever shows real work
+	if (last_proj_obs.size() == 0)
+		return;
+	performance_log->log_event("starting linearized phi projection");
+	map<string, double> proj = get_projected_phi();
+	performance_log->log_event("finished linearized phi projection");
+	if (proj.size() == 0)
+		return;
+	double mean = 0.0, mn = 1.0e+300, mx = -1.0e+300;
+	for (auto& kv : proj)
+	{
+		mean += kv.second;
+		mn = min(mn, kv.second);
+		mx = max(mx, kv.second);
+	}
+	mean /= (double)proj.size();
+	stringstream ss;
+	ss << "linearized phi projection for lambda " << cur_lam << ": mean " << mean
+	   << ", min " << mn << ", max " << mx << " (over " << proj.size() << " realizations)";
+	message(2, ss.str());
 }
 
 /**

@@ -370,8 +370,14 @@ public:
     //localized and multimodal paths, which solve in pieces and have no single set of these.
     const Eigen::MatrixXd& get_last_X3() const { return last_X3; }
 
+    //linearized simulated values from the last solve, a row per realization and a column per
+    //act_obs_names entry. empty whenever get_last_X3() is, and also under prior scaling
+    const Eigen::MatrixXd& get_last_projected_obs() const { return last_proj_obs; }
+    const vector<string>& get_last_projected_real_names() const { return last_proj_real_names; }
+
 private:
-    Eigen::MatrixXd last_X3;
+    Eigen::MatrixXd last_X3, last_proj_obs;
+    vector<string> last_proj_real_names;
 	PerformanceLog* performance_log;
 	FileManager& file_manager;
 	int iter, verbose_level;
@@ -471,7 +477,8 @@ public:
                            Eigen::MatrixXd& obs_err, const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights,
                            const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& parcov_inv,
                            const vector<string>& act_obs_names,const vector<string>& act_par_names, double _reg_factor,
-                           double mm_weight_sum = -1.0, Eigen::MatrixXd* X3_out = nullptr);
+                           double mm_weight_sum = -1.0, Eigen::MatrixXd* X3_out = nullptr,
+                           double* scale_out = nullptr);
 protected:
 	PerformanceLog* performance_log;
 	Localizer::How how;
@@ -683,6 +690,16 @@ public:
 	/// the last solve was whole-ensemble and unlocalized - the localized and multimodal paths
 	/// solve in pieces and have no single set.
 	const Eigen::MatrixXd& get_last_X3() const { return last_X3; }
+	/// The simulated values the last solve implies, if the model is linear across the ensemble
+	/// - the upgrade without running it. Empty ensemble when there is nothing to project.
+	ObservationEnsemble get_projected_oe();
+	/// phi for those projected values, realization name -> phi, computed by a scratch
+	/// L2PhiHandler so it is defined exactly like the phi that gets reported. Empty map when
+	/// there is nothing to project.
+	map<string, double> get_projected_phi(L2PhiHandler::phiType pt = L2PhiHandler::phiType::MEAS);
+	/// Log the projected phi summary. Called unconditionally at the end of each solve so the
+	/// projection path gets exercised - a no-op whenever there is nothing to project.
+	void report_projected_phi(double cur_lam);
 	/// The PRIOR parameter ensemble. Reinflation draws its realizations from here, so this is
 	/// also the hard ceiling on how many realizations a reinflation can produce - a caller
 	/// needs to be able to see that number before asking for one.
@@ -869,7 +886,8 @@ protected:
 	set<string> abandoned_real_names;
 	ParameterEnsemble pe, pe_base;
 	ObservationEnsemble oe, oe_base, weights, weights_base;
-	Eigen::MatrixXd last_X3;
+	Eigen::MatrixXd last_X3, last_proj_obs;
+	vector<string> last_proj_real_names;
 	Eigen::DiagonalMatrix<double, Eigen::Dynamic> obscov_inv_sqrt, parcov_inv_sqrt;
 	bool oe_drawn, pe_drawn;
     ObservationInfo org_obs_info;

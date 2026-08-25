@@ -2348,6 +2348,28 @@ static void test_solver_x3_coefficients()
                                      parcov_inv, no_names, no_names, 0.0, -1.0, &X3_big);
     CHK(X3_big.cwiseAbs().maxCoeff() < X3.cwiseAbs().maxCoeff(),
         "a bigger lambda gives smaller coefficients");
+
+    // the projection claim, end to end. if the model really is obs = G * par across the
+    // ensemble, then the obs anomalies ARE G times the par anomalies, and the projected obs
+    // move has to equal the parameter upgrade pushed through G. this is where a wrong scale or
+    // a wrong sign would hide - the shapes work either way
+    Eigen::MatrixXd G(nobs, npar);
+    fill(G, 7.5);
+    Eigen::MatrixXd od_lin = G * par_diff;
+    Eigen::MatrixXd pd4 = par_diff, pr4 = par_resid, od4 = od_lin, orr4 = obs_resid,
+                    oe4 = obs_err, upgrade_4, X3_lin;
+    double scale4 = -1.0;
+    UpgradeThread::ensemble_solution(1, 0, 10, 0, 0, false, true, true, 0.1, 1.0e-7,
+                                     pr4, pd4, Am, orr4, od4, upgrade_4, oe4, weights,
+                                     parcov_inv, no_names, no_names, 0.0, -1.0, &X3_lin,
+                                     &scale4);
+    CHK(abs(scale4 - (1.0 / sqrt((double)(nreal - 1)))) < 1.0e-12,
+        "the solver reports the scale it folded into the anomalies");
+    Eigen::MatrixXd proj_move = (-scale4) * od_lin * X3_lin;
+    Eigen::MatrixXd through_G = G * upgrade_4.transpose();
+    CHK((proj_move - through_G).cwiseAbs().maxCoeff() < 1.0e-10,
+        "the projected obs move equals the upgrade pushed through the model");
+    CHK(proj_move.cwiseAbs().maxCoeff() > 0.0, "the projected move isnt trivially zero");
 }
 
 static void test_violation_single_run_matches_ensemble()
