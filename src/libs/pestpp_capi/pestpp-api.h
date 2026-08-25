@@ -513,6 +513,27 @@ PESTPP_API pestpp_status pestpp_get_phi_residuals(pestpp_handle h, int phi_type,
                                                   int* nrow, int* ncol,
                                                   char* row_names, char* col_names);
 
+/* The realization-space coefficients from the most recent ies/da solve ("X3" in the solver).
+   The parameter upgrade is the parameter anomalies times these, so the same product against
+   the OBSERVATION anomalies is the linearized move in observation space - which is what a
+   caller predicting simulated equivalents without running the model needs.
+
+   Square: both axes are realizations, in the same order as
+   pestpp_get_ensemble_row_names(PESTPP_PAR_EN). Column-major like the other matrix views:
+   element (i,j) is data[i + j*(*nrow)].
+
+   Pass data=NULL to learn the shape and touch nothing.
+
+   *nrow and *ncol come back 0 when there is nothing to hand over: before the first solve, and
+   after any localized or multimodal solve, which work in pieces and have no single set of
+   coefficients. That is PESTPP_OK and not an error - check the shape before reading.
+
+   The anomalies carry a 1/sqrt(nreal-1) scaling in the glm path that these coefficients do
+   not, so a caller reconstructing an upgrade has to apply it. ies and da only. */
+PESTPP_API pestpp_status pestpp_get_last_x3(pestpp_handle h, double* data,
+                                            int max_nrow, int max_ncol,
+                                            int* nrow, int* ncol);
+
 /* The observation group each observation belongs to, in the same order as
    pestpp_get_ensemble_col_names(PESTPP_OBS_EN). Packed PESTPP_NAME_LEN wide. */
 PESTPP_API pestpp_status pestpp_get_obs_groups(pestpp_handle h, char* buf, int buf_len,

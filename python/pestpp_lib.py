@@ -1561,6 +1561,25 @@ class PestppLib:
         arr = np.ctypeslib.as_array(data, shape=(nr * nc,)).reshape((nr, nc), order="F").copy()
         return arr, self._unpack_names(rows.raw, nr), self._unpack_names(cols.raw, nc)
 
+    def get_last_x3(self) -> np.ndarray:
+        """Realization-space coefficients from the last ies/da solve, or an empty array.
+
+        The parameter upgrade is the parameter anomalies times these, so the same product
+        against the observation anomalies is the linearized move in observation space. Empty
+        before the first solve and after any localized or multimodal solve - those work in
+        pieces and have no single set of coefficients.
+        """
+        nrow, ncol = c_int(), c_int()
+        self._check(self.lib.pestpp_get_last_x3(
+            self.handle, None, 0, 0, byref(nrow), byref(ncol)), "pestpp_get_last_x3")
+        nr, nc = nrow.value, ncol.value
+        if nr == 0 or nc == 0:
+            return np.empty((0, 0))
+        data = (c_double * (nr * nc))()
+        self._check(self.lib.pestpp_get_last_x3(
+            self.handle, data, nr, nc, byref(nrow), byref(ncol)), "pestpp_get_last_x3")
+        return np.ctypeslib.as_array(data, shape=(nr * nc,)).reshape((nr, nc), order="F").copy()
+
     def get_obs_groups(self) -> list:
         """The group each observation belongs to, aligned with the obs ensemble columns."""
         n = c_int()

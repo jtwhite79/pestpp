@@ -678,6 +678,11 @@ public:
 	/// not want for a large ensemble.
 	ObservationEnsemble* get_noise_oe_ptr() { return &oe_base; }
 	ObservationEnsemble* get_weights_ptr() { return &weights; }
+	/// Realization-space coefficients from the last solve: upgrade = par_diff * -scale * X3,
+	/// so the same product against the obs anomalies is the linearized obs move. Empty unless
+	/// the last solve was whole-ensemble and unlocalized - the localized and multimodal paths
+	/// solve in pieces and have no single set.
+	const Eigen::MatrixXd& get_last_X3() const { return last_X3; }
 	/// The PRIOR parameter ensemble. Reinflation draws its realizations from here, so this is
 	/// also the hard ceiling on how many realizations a reinflation can produce - a caller
 	/// needs to be able to see that number before asking for one.
@@ -864,6 +869,7 @@ protected:
 	set<string> abandoned_real_names;
 	ParameterEnsemble pe, pe_base;
 	ObservationEnsemble oe, oe_base, weights, weights_base;
+	Eigen::MatrixXd last_X3;
 	Eigen::DiagonalMatrix<double, Eigen::Dynamic> obscov_inv_sqrt, parcov_inv_sqrt;
 	bool oe_drawn, pe_drawn;
     ObservationInfo org_obs_info;

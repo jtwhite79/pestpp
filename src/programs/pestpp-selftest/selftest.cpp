@@ -2285,6 +2285,71 @@ static void test_external_values_are_results()
  * Also asserts the partial-read property the whole scheme rests on: judging only the
  * observations that have been read, never the sentinel sitting in the ones that have not.
  */
+// the coefficients handed back by ensemble_solution are only useful if they really are the
+// thing the upgrade is built from - upgrade_1 == -par_diff * X3. that identity is what lets a
+// caller push the same X3 through the OBSERVATION anomalies to get the linearized obs move
+// without running the model, so it is worth pinning rather than assuming.
+static void test_solver_x3_coefficients()
+{
+    cout << "[ies solver: X3 comes back and rebuilds the upgrade]" << endl;
+    const int nreal = 5, nobs = 4, npar = 3;
+
+    // deterministic, non-degenerate inputs. shapes match what nonlocalized_solve hands over
+    // AFTER its transposeInPlace calls: pars/obs down the rows, realizations across
+    auto fill = [](Eigen::MatrixXd& m, double seed) {
+        for (int i = 0; i < m.rows(); i++)
+            for (int j = 0; j < m.cols(); j++)
+                m(i, j) = sin(seed + (1.7 * i) + (0.3 * j)) + (0.11 * (i + 1));
+    };
+    Eigen::MatrixXd par_diff(npar, nreal), par_resid(npar, nreal);
+    Eigen::MatrixXd obs_diff(nobs, nreal), obs_resid(nobs, nreal), obs_err(nobs, nreal);
+    fill(par_diff, 0.5); fill(par_resid, 1.5);
+    fill(obs_diff, 2.5); fill(obs_resid, 3.5); fill(obs_err, 4.5);
+
+    Eigen::VectorXd wvec = Eigen::VectorXd::Constant(nobs, 2.0);
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> weights(wvec);
+    Eigen::VectorXd pcvec = Eigen::VectorXd::Ones(npar);
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> parcov_inv(pcvec);
+    Eigen::MatrixXd Am;
+    vector<string> no_names;
+
+    // copies, because ensemble_solution scales its inputs in place
+    Eigen::MatrixXd pd = par_diff, pr = par_resid, od = obs_diff, orr = obs_resid, oe = obs_err;
+    Eigen::MatrixXd upgrade_1, X3;
+    UpgradeThread::ensemble_solution(1, 0, 10, 0, 0, false, true, true, 0.1, 1.0e-7,
+                                     pr, pd, Am, orr, od, upgrade_1, oe, weights, parcov_inv,
+                                     no_names, no_names, 0.0, -1.0, &X3);
+
+    CHK(X3.rows() == nreal, "X3 has a row per realization");
+    CHK(X3.cols() == nreal, "X3 has a column per realization");
+    CHK(upgrade_1.rows() == nreal, "upgrade_1 comes back a row per realization");
+    CHK(upgrade_1.cols() == npar, "upgrade_1 comes back a column per parameter");
+
+    // pd now holds the SCALED par anomalies the upgrade was actually built from
+    Eigen::MatrixXd rebuilt = (-1.0 * pd * X3).transpose();
+    double gap = (upgrade_1 - rebuilt).cwiseAbs().maxCoeff();
+    CHK(gap < 1.0e-12, "upgrade_1 is exactly -par_diff * X3");
+    CHK(X3.cwiseAbs().maxCoeff() > 0.0, "X3 is not all zeros");
+
+    // the out-param is optional and must not change what the solver produces
+    Eigen::MatrixXd pd2 = par_diff, pr2 = par_resid, od2 = obs_diff, orr2 = obs_resid,
+                    oe2 = obs_err, upgrade_2;
+    UpgradeThread::ensemble_solution(1, 0, 10, 0, 0, false, true, true, 0.1, 1.0e-7,
+                                     pr2, pd2, Am, orr2, od2, upgrade_2, oe2, weights,
+                                     parcov_inv, no_names, no_names, 0.0, -1.0, nullptr);
+    CHK((upgrade_1 - upgrade_2).cwiseAbs().maxCoeff() == 0.0,
+        "asking for X3 doesnt change the upgrade");
+
+    // a bigger lambda damps harder, so the coefficients shrink
+    Eigen::MatrixXd pd3 = par_diff, pr3 = par_resid, od3 = obs_diff, orr3 = obs_resid,
+                    oe3 = obs_err, upgrade_3, X3_big;
+    UpgradeThread::ensemble_solution(1, 0, 10, 0, 0, false, true, true, 1000.0, 1.0e-7,
+                                     pr3, pd3, Am, orr3, od3, upgrade_3, oe3, weights,
+                                     parcov_inv, no_names, no_names, 0.0, -1.0, &X3_big);
+    CHK(X3_big.cwiseAbs().maxCoeff() < X3.cwiseAbs().maxCoeff(),
+        "a bigger lambda gives smaller coefficients");
+}
+
 static void test_violation_single_run_matches_ensemble()
 {
     cout << "[drop_violations: the single-run test agrees with the ensemble test]" << endl;
@@ -2398,6 +2463,7 @@ int main()
     test_external_values_are_results();
     test_partial_read_refuses_stale_outputs();
     test_violation_single_run_matches_ensemble();
+    test_solver_x3_coefficients();
     cout << "\npestpp-selftest: " << (g_fail == 0 ? "PASS" : "FAIL")
          << " (" << (g_total - g_fail) << "/" << g_total << " checks)" << endl;
     return g_fail == 0 ? 0 : 1;

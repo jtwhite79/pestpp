@@ -2447,6 +2447,30 @@ pestpp_status pestpp_get_phi_residuals(pestpp_handle h, int phi_type,
     CAPI_END()
 }
 
+pestpp_status pestpp_get_last_x3(pestpp_handle h, double* data, int max_nrow, int max_ncol,
+                                 int* nrow, int* ncol)
+{
+    CAPI_BEGIN(h)
+        EnsembleMethod* em = s->adapter->ensemble_method();
+        if (em == nullptr)
+            bad_arg("solver coefficients are only available for ies and da");
+        const Eigen::MatrixXd& X3 = em->get_last_X3();
+        int nr = (int)X3.rows(), nc = (int)X3.cols();
+        if (nrow != nullptr) *nrow = nr;
+        if (ncol != nullptr) *ncol = nc;
+        // empty is a real answer, not a failure: no solve yet, or a localized/multimodal one
+        if (data == nullptr)
+            return PESTPP_OK;
+        if ((max_nrow < nr) || (max_ncol < nc))
+            too_small("x3 buffer too small; call with data NULL to size it first");
+        // stride is the CALLER's row count, not ours - see pestpp_get_phi_residuals
+        for (int j = 0; j < nc; j++)
+            for (int i = 0; i < nr; i++)
+                data[i + ((size_t)j * max_nrow)] = X3(i, j);
+        return PESTPP_OK;
+    CAPI_END()
+}
+
 pestpp_status pestpp_get_obs_groups(pestpp_handle h, char* buf, int buf_len, int* count)
 {
     CAPI_BEGIN(h)

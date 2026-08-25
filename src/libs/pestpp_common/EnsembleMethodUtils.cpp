@@ -1083,6 +1083,10 @@ void EnsembleSolver::nonlocalized_solve(double cur_lam,bool use_glm_form, Parame
                         string center_on, vector<int> real_idxs,Eigen::VectorXd q_vec)
 {
     pe_upgrade.set_zeros();
+    //the multimodal loop calls this once per realization with an explicit subset. only the
+    //whole-ensemble call has coefficients worth handing back - keeping the per-realization
+    //ones would just leave whichever realization happened to go last
+    bool full_solve = (real_idxs.size() == 0);
     if (real_idxs.size() == 0)
     {
         for (int i = 0;i<pe_upgrade.shape().first;i++)
@@ -1192,7 +1196,7 @@ void EnsembleSolver::nonlocalized_solve(double cur_lam,bool use_glm_form, Parame
     last_X3.resize(0,0);
     UpgradeThread::ensemble_solution(iter,verbose_level,maxsing,0,0,use_prior_scaling,use_approx,use_glm_form,cur_lam,eigthresh,par_resid,
                       par_diff,Am,obs_resid,obs_diff,upgrade_1,obs_err,local_weights,parcov_inv, act_obs_names,act_par_names,reg_factor,mm_weight_sum,
-                      &last_X3);
+                      full_solve ? &last_X3 : nullptr);
     pe_upgrade.add_2_cols_ip(act_par_names, upgrade_1);
 
 
@@ -7952,6 +7956,9 @@ void EnsembleMethod::generate_upgrades(UpgradeContext& ctx, bool use_mda,
 		else{
             es.solve(get_num_threads(), cur_lam, !use_mda, pe_upgrade, ctx.loc_map);
 		}
+		//the solver is a local and dies with this function, so keep the coefficients where an
+		//api caller can still reach them. empty unless this was a whole-ensemble, unlocalized solve
+		last_X3 = es.get_last_X3();
 
 		map<string, double> norm_map;
 		for (auto sf : backtrack_factors)

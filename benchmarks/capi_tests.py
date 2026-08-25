@@ -378,6 +378,54 @@ def capi_error_reporting_test():
             assert "already queued" in str(e), str(e)
 
 
+def capi_last_x3_test():
+    """The solver coefficients come back through the API, and say so honestly when absent."""
+    import ctypes
+    from pestpp_lib import PESTPP_BUFFER_TOO_SMALL
+
+    wd = _setup("capi_last_x3", noptmax=1, num_reals=6)
+    with PestppLib(_find_library(), TOOL_IES, "pest.pst", wd) as ies:
+        ies.initialize()
+
+        # nothing solved yet, so there is nothing to hand over - empty, not an error
+        assert ies.get_last_x3().shape == (0, 0), "x3 should be empty before the first solve"
+
+        ies.solve_iteration()
+        x3 = ies.get_last_x3()
+        nreal = len(ies.get_ensemble_row_names(PAR_EN))
+        assert x3.shape == (nreal, nreal), (x3.shape, nreal)
+        assert np.isfinite(x3).all(), "x3 has non-finite entries"
+        assert np.abs(x3).max() > 0.0, "x3 came back all zeros"
+
+        # the size-only call must not touch the buffer, and an undersized one must refuse
+        h, raw = ies.handle, ies.lib
+        nr, nc = ctypes.c_int(), ctypes.c_int()
+        assert raw.pestpp_get_last_x3(h, None, 0, 0, ctypes.byref(nr),
+                                      ctypes.byref(nc)) == PESTPP_OK
+        assert (nr.value, nc.value) == (nreal, nreal), (nr.value, nc.value)
+        short = (ctypes.c_double * (nreal * nreal))()
+        st = raw.pestpp_get_last_x3(h, short, nreal - 1, nreal, ctypes.byref(nr),
+                                    ctypes.byref(nc))
+        assert st == PESTPP_BUFFER_TOO_SMALL, ("undersized x3 buffer", st)
+        ies.finalize()
+
+    # localization solves in pieces, so there is no single set of coefficients to report.
+    # empty here is the honest answer, and a caller has to be able to tell
+    wd = _setup("capi_last_x3_loc", noptmax=1, num_reals=6)
+    pst = pyemu.Pst(os.path.join(wd, "pest.pst"))
+    loc = pyemu.Matrix.from_names(pst.nnz_obs_names, pst.adj_par_names).to_dataframe()
+    loc.loc[:, :] = 1.0
+    pyemu.Matrix.from_dataframe(loc).to_ascii(os.path.join(wd, "loc.mat"))
+    pst.pestpp_options["ies_localizer"] = "loc.mat"
+    pst.write(os.path.join(wd, "pest.pst"), version=2)
+    with PestppLib(_find_library(), TOOL_IES, "pest.pst", wd) as ies:
+        ies.initialize()
+        ies.solve_iteration()
+        assert ies.get_last_x3().shape == (0, 0), \
+            "a localized solve has no single x3 and must report empty"
+        ies.finalize()
+
+
 def capi_caller_owned_initial_batch_test():
     """The caller owns the prior-ensemble evaluation - and can replace it before it runs.
 
@@ -2182,4 +2230,5 @@ if __name__ == "__main__":
     capi_stp_file_commands_test()
     capi_service_runs_yourself_test()
     capi_service_runs_failure_test()
+    capi_last_x3_test()
     print("all capi tests passed")
