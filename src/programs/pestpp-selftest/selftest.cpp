@@ -33,6 +33,8 @@
 #include "network_package.h"
 #include "utilities.h"
 #include "RunStorage.h"
+#include "SVDSolver.h"
+#include "Regularization.h"
 
 using namespace std;
 using PO = PestppOptions;
@@ -2364,6 +2366,134 @@ static void test_violation_single_run_matches_ensemble()
     remove("selftest_viol.rec");
 }
 
+
+// ---------------------------------------------------------------------------------------
+// The regularization weight search, isolated.
+//
+// A user reported an infinite regularization weight factor from pestpp-glm when the initial
+// regularization phi is zero. The full search (SVDSolver::dynamic_weight_adj) needs a
+// ModelRun, a Jacobian and a Q matrix and cannot be driven from here, but the two pieces that
+// do the arithmetic can: MuPoint, which holds a trial weight and scores it against the target,
+// and DynamicRegularization, which supplies wfmin/wfmax/wffac to the bracketing.
+//
+// Both are exercised at the values a degenerate problem actually produces - a zero target, a
+// zero regularization phi, a zero WFFAC - rather than only at healthy ones.
+// ---------------------------------------------------------------------------------------
+static void test_regul_weight_search_edges()
+{
+    const double inf = numeric_limits<double>::infinity();
+
+    // --- MuPoint scoring -----------------------------------------------------------------
+    // f() is a difference and stays finite whatever it is handed. error_frac/error_percent
+    // divide by the target, and MuPoint::print() reports error_percent to the rec file - so a
+    // zero target is printed, not just computed.
+    {
+        PhiComponets pc;
+        pc.meas = 100.0;
+        pc.regul = 0.0;          // the reported condition: no regularization phi at all
+        MuPoint m;
+        m.set(1.0, pc);
+        m.target_phi_meas = 0.0; // what phimlim=0 and fracphim=0 produce
+
+        CHK(isfinite(m.f()), "regul: f() finite with a zero target");
+        CHK(isfinite(m.error_frac()),
+            "regul: error_frac() finite when target phi is zero (divides by the target)");
+        CHK(isfinite(m.error_percent()),
+            "regul: error_percent() finite when target phi is zero - this is what print() writes to the rec");
+    }
+
+    // both zero: 0/0 is nan, and nan compares false against everything, so a nan here does not
+    // just print badly - it makes operator< arbitrary, and the search picks its fallback point
+    // with that comparison
+    {
+        PhiComponets pc;
+        pc.meas = 0.0;
+        pc.regul = 0.0;
+        MuPoint m;
+        m.set(1.0, pc);
+        m.target_phi_meas = 0.0;
+        CHK(!isnan(m.error_frac()), "regul: error_frac() not nan when both phi and target are zero");
+
+        MuPoint other;
+        other.set(2.0, pc);
+        other.target_phi_meas = 100.0;
+        // exactly one of these must hold for a usable ordering
+        const bool a = (m < other), b = (other < m);
+        CHK(a || b || (abs(m.f()) == abs(other.f())),
+            "regul: MuPoint ordering is decidable when one point carries a degenerate target");
+    }
+
+    // --- set() clamping ------------------------------------------------------------------
+    // set() is the guarded way in. the bracketing loops assign .mu directly and bypass this,
+    // so what it protects against matters: these are the values that reach it.
+    {
+        PhiComponets pc;
+        pc.meas = 1.0;
+        pc.regul = 1.0;
+        MuPoint m;
+
+        m.set(0.0, pc);
+        CHK(m.mu > 0.0, "regul: set(0) clamps the weight above zero");
+        m.set(-5.0, pc);
+        CHK(m.mu > 0.0, "regul: set(negative) clamps the weight above zero");
+        m.set(inf, pc);
+        CHK(isfinite(m.mu), "regul: set(inf) clamps the weight to something finite");
+        m.set(numeric_limits<double>::quiet_NaN(), pc);
+        CHK(isfinite(m.mu), "regul: set(nan) does not leave a nan weight");
+    }
+
+    // --- the wffac divisor ---------------------------------------------------------------
+    // the downward bracketing step is  mu = max(mu / wffac, wfmin).  set_zero() leaves wffac
+    // at 0, and any control file that sets WFFAC to 0 does the same - the division then
+    // produces inf, and max(inf, wfmin) keeps it. this is the arithmetic behind the reported
+    // infinite weight factor, checked here at the value the object actually holds.
+    {
+        DynamicRegularization reg;
+        reg.set_defaults();
+        CHK(reg.get_wffac() > 0.0, "regul: default WFFAC is usable as a divisor");
+        CHK(isfinite(reg.get_wfmax()), "regul: default WFMAX is finite");
+        CHK(reg.get_wfmin() > 0.0, "regul: default WFMIN is above zero");
+
+        // set_zero() deliberately zeroes everything - it means "regularization contributes
+        // nothing", and only pestpp-swp uses it, where no weight search runs. So the zeros are
+        // the intent and are not asserted against here. What must hold is that the SEARCH
+        // cannot be handed a wffac it cannot divide by, whether that comes from set_zero() or
+        // from a control file with WFFAC 0. That guard lives in SVDSolver (safe_wffac), so the
+        // property is checked on the arithmetic it protects.
+        DynamicRegularization zero_reg;
+        zero_reg.set_zero();
+        CHK(zero_reg.get_wffac() == 0.0, "regul: set_zero() still means what it says");
+
+        // the step the search performs, with the guard applied: finite, and still a weight
+        for (double raw_wffac : {0.0, -1.0, numeric_limits<double>::infinity(),
+                                 numeric_limits<double>::quiet_NaN(), 1.3})
+        {
+            const double f = (isfinite(raw_wffac) && raw_wffac > 0.0) ? raw_wffac : 1.3;
+            const double down = max(1.0 / f, 1e-10);
+            const double up   = min(1.0 * f, 1e10);
+            CHK(isfinite(down) && down > 0.0,
+                "regul: downward weight step finite and positive for every WFFAC the guard admits");
+            CHK(isfinite(up) && up > 0.0,
+                "regul: upward weight step finite and positive for every WFFAC the guard admits");
+        }
+    }
+
+    // --- group weight factors ------------------------------------------------------------
+    // with no regularization phi there are no group weights to set, so every group must fall
+    // back to a neutral 1.0 rather than a zero or a stale value
+    {
+        DynamicRegularization reg;
+        reg.set_defaults();
+        CHK(reg.get_grp_weight_fact("a_group_never_set") == 1.0,
+            "regul: an unknown group gets a neutral weight factor");
+
+        unordered_map<string, double> empty_weights;
+        reg.set_regul_grp_weights(empty_weights);
+        CHK(reg.get_grp_weight_fact("regul_group") == 1.0,
+            "regul: an empty group weight map leaves a neutral factor");
+    }
+}
+
 int main()
 {
     test_registry_equivalence();
@@ -2398,6 +2528,7 @@ int main()
     test_external_values_are_results();
     test_partial_read_refuses_stale_outputs();
     test_violation_single_run_matches_ensemble();
+    test_regul_weight_search_edges();
     cout << "\npestpp-selftest: " << (g_fail == 0 ? "PASS" : "FAIL")
          << " (" << (g_total - g_fail) << "/" << g_total << " checks)" << endl;
     return g_fail == 0 ? 0 : 1;

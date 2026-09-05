@@ -86,7 +86,7 @@ double MuPoint::f() const
  */
 double MuPoint::error_frac()
 {
-	return abs((phi_comp.meas - target_phi_meas) / target_phi_meas);
+	return abs(error_percent());
 }
 
 /**
@@ -96,7 +96,27 @@ double MuPoint::error_frac()
  */
 double MuPoint::error_percent()
 {
-	return (phi_comp.meas - target_phi_meas) / target_phi_meas;
+	// the target can legitimately be zero - a phimlim of 0 together with a fracphim of 0, or a
+	// problem whose measurement phi is already zero - and dividing by it gave inf, or nan when
+	// the measured phi was zero too.
+	//
+	// this is not only cosmetic. error_frac() is the convergence test in dynamic_weight_adj
+	// ("error_frac() <= wftol"), and it is printed to the rec file by MuPoint::print(). inf
+	// never satisfies the test, which at least fails loudly; nan compares false against
+	// everything, so it never converges AND makes MuPoint::operator< - which is abs(f()) <
+	// abs(rhs.f()) - meaningless, leaving the search to pick its fallback weight arbitrarily.
+	//
+	// a zero target with a zero phi is exact agreement, so 0. a zero target with any phi at all
+	// is infinitely far off in relative terms, so the largest finite value: it keeps the sign,
+	// never satisfies the tolerance, and every comparison downstream stays well ordered.
+	const double diff = phi_comp.meas - target_phi_meas;
+	if (target_phi_meas == 0.0)
+	{
+		if (diff == 0.0)
+			return 0.0;
+		return (diff > 0.0) ? numeric_limits<double>::max() : -numeric_limits<double>::max();
+	}
+	return diff / target_phi_meas;
 }
 
 /**
@@ -2412,6 +2432,28 @@ PhiComponets SVDSolver::phi_estimate(const ModelRun &base_run, const Jacobian &j
 
 
 
+/** WFFAC, made safe to divide by.
+ *
+ * The weight search steps by multiplying and DIVIDING by wffac. wffac comes from the control
+ * file, and DynamicRegularization::set_zero() leaves it at 0, so "mu / wffac" is a division by
+ * zero - it returns inf, and the max(inf, wfmin) that follows keeps it. That is how an infinite
+ * regularization weight factor reaches the rec file.
+ *
+ * Only values that cannot step the search are replaced: zero, negative, and non-finite. A wffac
+ * between 0 and 1 is left alone - it makes for a slow or reversed search but it is arithmetic
+ * the user asked for, and it produces a finite answer.
+ */
+static double safe_wffac(double wffac, ostream& os)
+{
+	if (isfinite(wffac) && (wffac > 0.0))
+		return wffac;
+	const double fallback = 1.3;   // the documented default
+	os << "    WARNING: WFFAC is " << wffac << ", which cannot be used to step the weight search"
+	   << endl << "             (dividing by it yields an infinite weight factor). Using "
+	   << fallback << " for this iteration." << endl;
+	return fallback;
+}
+
 void SVDSolver::dynamic_weight_adj(const ModelRun &base_run, const Jacobian &jacobian, QSqrtMatrix &Q_sqrt,
 	const Eigen::VectorXd &residuals_vec, const vector<string> &obs_names_vec,
 	const Parameters &base_run_active_ctl_par, const Parameters &freeze_active_ctl_pars)
@@ -2422,7 +2464,7 @@ void SVDSolver::dynamic_weight_adj(const ModelRun &base_run, const Jacobian &jac
 	double fracphim = regul_scheme_ptr->get_fracphim();
 	double wfmin = regul_scheme_ptr->get_wfmin();
 	double wfmax = regul_scheme_ptr->get_wfmax();
-	double wffac = regul_scheme_ptr->get_wffac();
+	double wffac = safe_wffac(regul_scheme_ptr->get_wffac(), file_manager.rec_ofstream());
 	// read here, at point of use, so ++reg_use_achievable_target is live per iteration
 	const bool use_achievable_target = pest_scenario.get_pestpp_options().get_reg_use_achievable_target();
 	double mu_cur = regul_scheme_ptr->get_weight();
