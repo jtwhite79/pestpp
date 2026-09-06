@@ -11,6 +11,12 @@ ninja = "*"
 # test python dependencies
 flopy = "*"
 pyemu = "*"
+# pandas is not used directly here - it arrives through flopy and pyemu - but it has to be named
+# to be constrained. pandas 3.0 broke the benchmark harness (delim_whitespace removed from
+# read_csv, fillna('') on a numeric column now raising, copy-on-write returning read-only
+# frames), and `pixi run test` runs basic_tests.py, which trips the first of those. matches the
+# pin in etc/environment.yml - lift both together.
+pandas = "<3"
 
 [tasks]
 # install
