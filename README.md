@@ -12,9 +12,9 @@ PEST++ is a software suite aimed at supporting complex numerical models in the d
 
 <br>
 
-Master branch:  [![master branch](https://github.com/usgs/pestpp/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/usgs/pestpp/actions/workflows/ci.yml/badge.svg?branch=master)
+Master branch:  [![master branch](https://github.com/pestpp/pestpp/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/pestpp/pestpp/actions/workflows/ci.yml/badge.svg?branch=master)
 
-Develop branch:  [![develop](https://github.com/usgs/pestpp/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/usgs/pestpp/actions/workflows/ci.yml/badge.svg?branch=develop)
+Develop branch:  [![develop](https://github.com/pestpp/pestpp/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/pestpp/pestpp/actions/workflows/ci.yml/badge.svg?branch=develop)
 
 <br>
 
@@ -33,7 +33,7 @@ White, J.T., Hunt, R.J., Fienen, M.N., and Doherty, J.E., 2020, Approaches to Hi
 
 ## User's Manual
 
-The latest PEST++ users manual is available [here](documentation/pestpp_users_manual.md) or as a [word document](https://github.com/usgs/pestpp/tree/develop/documentation).
+The latest PEST++ users manual is available [here](documentation/pestpp_users_manual.md) or as a [word document](https://github.com/pestpp/pestpp/tree/develop/documentation).
 
 <br>
 
@@ -41,7 +41,7 @@ The latest PEST++ users manual is available [here](documentation/pestpp_users_ma
 
 As of version 4.3.11, PEST++ pre-compiled binaries for windows and linux are available as a github release:  
 
-[https://github.com/usgs/pestpp/releases](https://github.com/usgs/pestpp/releases)
+[https://github.com/pestpp/pestpp/releases](https://github.com/pestpp/pestpp/releases)
 
 <br>
 
@@ -104,7 +104,7 @@ Welter, D.E., Doherty, J.E., Hunt, R.J., Muffels, C.T., Tonkin, M.J., and Schre√
 
 The ``benchmarks`` folder contains a simple worked example and basic testing routines that are used for basic CI testing.  Many full-worked test problems of varying sizes are now located in separate repos:
 
-* [pestpp-glm benchmarks](https://github.com/usgs/pestpp-glm_benchmarks)
+* [pestpp-glm benchmarks](https://github.com/pestpp/pestpp-glm_benchmarks)
 * [pestpp-ies benchmarks](https://github.com/pestpp/pestpp-ies_benchmarks)
 * [pestpp-opt benchmarks](https://github.com/pestpp/pestpp-opt_benchmarks)
 * [pestpp-mou benchmarks](https://github.com/pestpp/pestpp-mou_benchmarks)
