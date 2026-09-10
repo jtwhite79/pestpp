@@ -684,6 +684,20 @@ public:
 	void set_ies_upgrades_in_memory(bool _flag) { ies_upgrades_in_memory = _flag; }
 	bool get_ies_ordered_binary() const { return ies_ordered_binary; }
 	void set_ies_ordered_binary(bool _flag) { ies_ordered_binary = _flag; }
+    bool get_ies_use_enif() const { return ies_use_enif; }
+    void set_ies_use_enif(bool _flag) { ies_use_enif = _flag; }
+    double get_ies_enif_ridge() const { return ies_enif_ridge; }
+    void set_ies_enif_ridge(double _flag) { ies_enif_ridge = _flag; }
+    bool get_ies_enif_resid_inflate() const { return ies_enif_resid_inflate; }
+    void set_ies_enif_resid_inflate(bool _flag) { ies_enif_resid_inflate = _flag; }
+    string get_ies_enif_graph() const { return ies_enif_graph; }
+    void set_ies_enif_graph(string _s) { ies_enif_graph = _s; }
+    double get_ies_enif_h_lasso() const { return ies_enif_h_lasso; }
+    void set_ies_enif_h_lasso(double _f) { ies_enif_h_lasso = _f; }
+    double get_ies_enif_shrink() const { return ies_enif_shrink; }
+    void set_ies_enif_shrink(double _f) { ies_enif_shrink = _f; }
+    bool get_ies_enif_save_h() const { return ies_enif_save_h; }
+    void set_ies_enif_save_h(bool _f) { ies_enif_save_h = _f; }
     double get_ies_multimodal_alpha() const { return ies_multimodal_alpha; }
     void set_ies_multimodal_alpha(double _flag) { ies_multimodal_alpha = _flag; }
     double get_ies_multimodal_weight_exponent() const { return ies_multimodal_weight_exponent; }
@@ -1068,6 +1082,13 @@ private:
 	string ies_loc_type;
 	bool ies_upgrades_in_memory;
 	bool ies_ordered_binary;
+	bool ies_use_enif;
+	double ies_enif_ridge;
+	bool ies_enif_resid_inflate;
+	string ies_enif_graph;
+	double ies_enif_h_lasso;
+	double ies_enif_shrink;
+	bool ies_enif_save_h;
 	double ies_multimodal_alpha;
 	double ies_multimodal_weight_exponent;
 	double ies_multimodal_phi_weight;

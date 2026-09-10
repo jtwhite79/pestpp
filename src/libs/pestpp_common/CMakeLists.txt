@@ -7,6 +7,7 @@ add_library(pestpp_com
   eigen_tools.cpp
   Ensemble.cpp
   EnsembleMethodUtils.cpp
+  EnifGraph.cpp
   EnsembleSmoother.cpp
   FileManager.cpp
   GLM.cpp

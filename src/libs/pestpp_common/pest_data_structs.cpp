@@ -1172,6 +1172,43 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
 	ies_ordered_binary = pest_utils::parse_string_arg_to_bool(value);
 	return true;
 	}
+    else if (key == "IES_USE_ENIF")
+    {
+        ies_use_enif = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
+    else if (key == "IES_ENIF_RIDGE")
+    {
+        convert_ip(value,ies_enif_ridge);
+        return true;
+    }
+    else if (key == "IES_ENIF_RESID_INFLATE")
+    {
+        ies_enif_resid_inflate = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
+    else if (key == "IES_ENIF_GRAPH")
+    {
+        //org_value, not value: filenames are case sensitive and `value` has
+        //already been upper-cased
+        ies_enif_graph = org_value;
+        return true;
+    }
+    else if (key == "IES_ENIF_H_LASSO")
+    {
+        convert_ip(value,ies_enif_h_lasso);
+        return true;
+    }
+    else if (key == "IES_ENIF_SHRINK")
+    {
+        convert_ip(value,ies_enif_shrink);
+        return true;
+    }
+    else if (key == "IES_ENIF_SAVE_H")
+    {
+        ies_enif_save_h = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
     else if (key == "IES_MULTIMODAL_ALPHA")
     {
         convert_ip(value,ies_multimodal_alpha);
@@ -2271,6 +2308,13 @@ os << endl << "...pestpp-swp options:" << endl;
 	os << "ies_localization_type: " << ies_loc_type << endl;
 	os << "ies_upgrades_in_memory: " << ies_upgrades_in_memory << endl;
 	os << "ies_ordered_binary: " << ies_ordered_binary << endl;
+	os << "ies_use_enif: " << ies_use_enif << endl;
+	os << "ies_enif_ridge: " << ies_enif_ridge << endl;
+	os << "ies_enif_resid_inflate: " << ies_enif_resid_inflate << endl;
+	os << "ies_enif_graph: " << ies_enif_graph << endl;
+	os << "ies_enif_h_lasso: " << ies_enif_h_lasso << endl;
+	os << "ies_enif_shrink: " << ies_enif_shrink << endl;
+	os << "ies_enif_save_h: " << ies_enif_save_h << endl;
 	os << "ies_multimodal_alpha: " << ies_multimodal_alpha << endl;
 	os << "ies_multimodal_weight_exponent: " << ies_multimodal_weight_exponent << endl;
 	os << "ies_multimodal_phi_weight: " << ies_multimodal_phi_weight << endl;
@@ -2516,6 +2560,13 @@ void PestppOptions::set_defaults_legacy()
 	set_ies_loc_type("LOCAL");
 	set_ies_upgrades_in_memory(true);
 	set_ies_ordered_binary(true);
+    set_ies_use_enif(false);
+    set_ies_enif_ridge(1.0e-6);
+    set_ies_enif_resid_inflate(true);
+    set_ies_enif_graph("");
+    set_ies_enif_h_lasso(0.0);
+    set_ies_enif_shrink(1.0e-3);
+    set_ies_enif_save_h(false);
     set_ies_multimodal_alpha(0.0);
     set_ies_multimodal_weight_exponent(0.0);
     set_ies_multimodal_phi_weight(0.5);

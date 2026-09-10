@@ -5516,8 +5516,70 @@ def plot_mm_weight_beta_experiment(csv_name=None, model_d="mm_beta_exp", noptmax
     print("saved plots:", ", ".join(saved))
 
 
+def synth2d_enif_test(nrow=25, ncol=25, num_reals=50, noptmax=3, plot=True):
+    """2-D synthetic high-dimensional test: pestpp-ies vs the ensemble
+    information filter, on a problem where a real geostatistical prior
+    covariance is available.
+
+    hk and sy are parameterised at grid scale AND pilot points, so the parameter
+    count scales with nrow/ncol - that is the dial for problem dimension.  both
+    methods get the same prior ensemble and the same seed, so what is being
+    compared is the upgrade itself.
+
+    enif needs the prior COVARIANCE, not just an ensemble drawn from it, which is
+    why this problem writes both.
+    """
+    import synth2d_setup
+    import synth2d_viz
+
+    model_d = "synth2d"
+    template_d = os.path.join(model_d, "template")
+    truth_d = os.path.join(model_d, "template_org")
+    if not os.path.exists(os.path.join(template_d, "synth2d.pst")):
+        os.makedirs(model_d, exist_ok=True)
+        synth2d_setup.setup(new_d=template_d, nrow=nrow, ncol=ncol)
+
+    master_dirs = {}
+    for tag, extra in (("ies", {}), ("enif", {"ies_use_enif": "true"})):
+        t_d = scratch_template(template_d, suffix="_" + tag)
+        m_d = os.path.join(model_d, "master_" + tag)
+        pst = pyemu.Pst(os.path.join(t_d, "synth2d.pst"))
+        pst.pestpp_options = {
+            "ies_par_en": "prior_pe.jcb",
+            "parcov_filename": "prior_cov.jcb",
+            "ies_num_reals": num_reals,
+            "ies_include_base": "false",
+            "random_seed": 112358,
+            "save_binary": "true",
+        }
+        pst.pestpp_options.update(extra)
+        pst.control_data.noptmax = noptmax
+        pst.write(os.path.join(t_d, "synth2d.pst"), version=2)
+        pyemu.os_utils.start_workers(t_d, exe_path, "synth2d.pst",
+                                     num_workers=10, worker_root=model_d,
+                                     master_dir=m_d)
+        shutil.rmtree(t_d, ignore_errors=True)
+        master_dirs[tag] = m_d
+
+    phis = {}
+    for tag, m_d in master_dirs.items():
+        df = pd.read_csv(os.path.join(m_d, "synth2d.phi.actual.csv"))
+        phis[tag] = df["mean"].values
+        print(tag, "mean phi by iteration:", np.round(df["mean"].values, 2))
+
+    for tag, v in phis.items():
+        assert v[-1] < v[0], "{0}: phi did not improve ({1:.1f} -> {2:.1f})".format(
+            tag, v[0], v[-1])
+
+    if plot:
+        synth2d_viz.plot_all(master_dirs, template_d, truth_d,
+                             out_d=os.path.join(model_d, "figs"))
+    return master_dirs, phis
+
+
 if __name__ == "__main__":
 
+    #synth2d_enif_test()
     #chenoliver_test()
     #multimodal_test()
     #mm_weight_beta_experiment()

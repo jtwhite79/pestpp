@@ -16,6 +16,7 @@
 #include "RunManagerAbstract.h"
 #include "ObjectiveFunc.h"
 #include "Localizer.h"
+#include "EnifGraph.h"
 #include "network_package.h"
 
 enum chancePoints { ALL, SINGLE };
@@ -363,6 +364,10 @@ public:
 		double _reg_factor);
 
 	void solve(int num_threads, double cur_lam, bool use_glm_form, ParameterEnsemble& pe_upgrade, unordered_map<string, pair<vector<string>, vector<string>>>& loc_map);
+    //ensemble information filter upgrade: builds the gain from the supplied prior
+    //covariance and an ensemble-regressed observation operator, instead of from
+    //sample cross-covariances.  cur_lam damps the PRIOR precision.
+    void solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade);
     void solve_multimodal(int num_threads, double cur_lam, bool use_glm_form, ParameterEnsemble& pe_upgrade, unordered_map<string,pair<vector<string>, vector<string>>>& loc_map, double mm_alpha);
     void update_multimodal_components(const double mm_alpha);
 
@@ -378,6 +383,9 @@ private:
 	ObservationEnsemble& oe, base_oe, weights;
 	Localizer& localizer;
 	Covariance& parcov;
+	//conditional-independence graph and the sparse prior precision estimated on
+	//it; empty unless ies_enif_graph is supplied
+	EnifGraph enif_graph;
 	Eigen::MatrixXd& Am;
 	L2PhiHandler& ph;
 	unordered_map<string, Eigen::VectorXd> par_resid_map, obs_resid_map, Am_map;
