@@ -125,7 +125,7 @@ void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shri
 	//(symmetric) graph sparsity.
 	vector<Eigen::Triplet<double>> ltrips;
 	ltrips.reserve(adj.nonZeros());
-	int n_shrunk = 0, max_pred = 0;
+	int n_shrunk = 0, max_pred = 0, n_floored = 0;
 
 	for (int i = 0; i < p; i++)
 	{
@@ -136,10 +136,16 @@ void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shri
 			if (j < i)
 				pred.push_back(j);
 		}
-		//never ask for more predecessors than the ensemble can support
-		if ((int)pred.size() > nreal - 2)
+		//A neighbourhood anywhere near the ensemble size overfits: the regression
+		//interpolates in-sample, the residual variance collapses, and since
+		//Lam_ii = 1/d_i the prior precision explodes.  An exploded prior precision
+		//is not a loud failure - it is infinite prior confidence, so the update
+		//silently goes to zero and the ensemble never moves.  Cap the
+		//neighbourhood at half the ensemble to keep the regression honest.
+		int max_allowed = max(1, (nreal - 1) / 2);
+		if ((int)pred.size() > max_allowed)
 		{
-			pred.resize(max(0, nreal - 2));
+			pred.resize(max_allowed);
 			n_shrunk++;
 		}
 		max_pred = max(max_pred, (int)pred.size());
@@ -154,20 +160,29 @@ void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shri
 			for (size_t k = 0; k < pred.size(); k++)
 				Ap.row(k) = anomalies.row(pred[k]);
 			Eigen::MatrixXd G = Ap * Ap.transpose();
-			//stein-type pull toward the diagonal: needed when a neighbourhood
-			//approaches the ensemble size, where the local gram is ill-conditioned
+			//stein-type pull toward the diagonal, strengthened as the
+			//neighbourhood grows relative to the ensemble.  a fixed shrinkage is
+			//not enough: what matters is k/N, and the penalty has to bite hardest
+			//exactly where the local gram is worst conditioned.
+			double kfrac = (double)pred.size() / (double)max(1, nreal - 1);
+			double eff_shrink = max(shrink, kfrac * kfrac);
 			double tr = G.trace() / (double)pred.size();
-			G.diagonal().array() += max(shrink * tr, 1.0e-12 * max(tr, 1.0));
+			G.diagonal().array() += max(eff_shrink * tr, 1.0e-12 * max(tr, 1.0));
 			Eigen::VectorXd rhs = Ap * anomalies.row(i).transpose();
 			b = G.ldlt().solve(rhs);
 			d_i = (anomalies.row(i).transpose() - Ap.transpose() * b).squaredNorm();
 		}
 
-		//a degenerate residual means this node is fully explained by its
-		//neighbours in-sample; floor it rather than divide by ~zero
-		double floor_d = 1.0e-10 * max(var_i, 1.0);
+		//floor the residual variance against the node's OWN variance, not an
+		//absolute constant: this bounds Lam_ii at RESID_FLOOR^-1 times the
+		//diagonal precision, so no node can claim near-infinite certainty
+		const double RESID_FLOOR = 1.0e-3;
+		double floor_d = RESID_FLOOR * max(var_i, 1.0e-30);
 		if (!(d_i > floor_d))
+		{
 			d_i = floor_d;
+			n_floored++;
+		}
 
 		double s = 1.0 / sqrt(d_i);
 		ltrips.push_back(Eigen::Triplet<double>(i, i, s));
@@ -194,8 +209,13 @@ void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shri
 		<< " realizations" << endl;
 	if (n_shrunk > 0)
 		frec << "...WARNING: " << n_shrunk << " nodes had more neighbours than the "
-		<< "ensemble can support and were truncated - consider a sparser graph "
-		<< "or more realizations" << endl;
+		<< "ensemble can support and were truncated to " << ((nreal - 1) / 2)
+		<< " - consider a sparser graph or more realizations" << endl;
+	if (n_floored > 0)
+		frec << "...WARNING: " << n_floored << " nodes hit the residual-variance "
+		<< "floor, meaning their neighbours explain them almost perfectly in "
+		<< "sample.  the prior precision there is capped; a sparser graph would "
+		<< "be a better description of this ensemble" << endl;
 }
 
 

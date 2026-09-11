@@ -1300,7 +1300,10 @@ void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
             stringstream hs;
             hs << file_manager.get_base_filename() << "." << iter << ".enif_H.jcb";
             Mat hmat(act_obs_names, act_par_names, Hs);
-            hmat.to_binary(hs.str());
+            //extended jcb, not to_binary(): the classic layout cuts parameter names
+            //to 12 chars and obs names to 20, which turns every pstfrom longname into
+            //the same prefix and makes H useless for looking things up by name
+            hmat.to_binary_new(hs.str());
             frec << "...saved enif H to " << hs.str() << endl;
         }
 

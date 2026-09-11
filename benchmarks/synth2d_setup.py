@@ -78,6 +78,10 @@ def setup(new_d="synth2d_template", nrow=40, ncol=40, noise_frac=0.01, seed=9988
                  ("sy", 0.5, 2.0, "grid"), ("sy", 0.5, 2.0, "pilotpoints")]
     elif parameterization == "hk_pp":
         specs = [("hk", 0.2, 5.0, "pilotpoints")]
+    elif parameterization == "hk_gr":
+        specs = [("hk", 0.2, 5.0, "grid")]
+    elif parameterization == "hksy_gr":
+        specs = [("hk", 0.2, 5.0, "grid"), ("sy", 0.5, 2.0, "grid")]
     else:
         raise ValueError(f"unknown parameterization '{parameterization}'")
 

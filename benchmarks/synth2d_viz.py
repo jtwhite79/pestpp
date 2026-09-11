@@ -490,3 +490,159 @@ def plot_par_moments(master_dirs, template_d, case="synth2d", figsize=None):
     fig.suptitle(_variant_label(pst, template_d), y=1.005, fontsize=11)
     plt.tight_layout()
     return fig
+
+
+# --- multi-variant reporting ---------------------------------------------
+# every view puts ALL variants on one page, and the whole report is a single
+# multipage pdf.  comparing variants means seeing them together; one file per
+# variant makes that impossible.
+
+def plot_obs_vs_sim_multi(master_dirs, template_d, case="synth2d", figsize=None):
+    """rows = observation sites, columns = variants, so a row is directly
+    comparable across methods"""
+    pst = pyemu.Pst(os.path.join(template_d, f"{case}.pst"))
+    obs = pst.observation_data
+    nz = obs.loc[obs.weight > 0]
+    sites = []
+    for g in sorted(nz.obgnme.unique()):
+        sub = nz.loc[nz.obgnme == g]
+        for uc in sorted(sub["usecol"].astype(str).unique()):
+            sites.append((uc, sub.loc[sub["usecol"].astype(str) == uc]))
+
+    items = [(m, d) for m, d in master_dirs.items() if os.path.exists(d)]
+    fig, axes = plt.subplots(len(sites), len(items),
+                             figsize=figsize or (4.6 * len(items), 2.9 * len(sites)),
+                             squeeze=False, sharex="row")
+
+    for c, (meth, mdir) in enumerate(items):
+        its = sorted({int(f.split(".")[-3]) for f in os.listdir(mdir)
+                      if f.startswith(case + ".")
+                      and (f.endswith(".obs.csv") or f.endswith(".obs.jcb"))
+                      and f.split(".")[-3].isdigit()})
+
+        def load(i):
+            for ext in ("jcb", "csv"):
+                f = os.path.join(mdir, f"{case}.{i}.obs.{ext}")
+                if os.path.exists(f):
+                    return (pyemu.ObservationEnsemble.from_binary(pst=pst, filename=f)._df
+                            if ext == "jcb" else pd.read_csv(f, index_col=0))
+            return None
+
+        oe0, oeN = load(its[0]), load(its[-1])
+        nf = os.path.join(mdir, f"{case}.obs+noise.jcb")
+        noise = (pyemu.ObservationEnsemble.from_binary(pst=pst, filename=nf)._df
+                 if os.path.exists(nf) else None)
+
+        for r, (uc, sub) in enumerate(sites):
+            ax = axes[r, c]
+            s = sub.copy()
+            s["t"] = s["time"].astype(float)
+            s = s.sort_values("t")
+            names, t = list(s.index), s["t"].values
+            for oe, col in ((oe0, C_PRIOR), (oeN, C_POST)):
+                if oe is not None:
+                    ax.plot(t, oe.loc[:, names].values.T, color=col, lw=0.6, alpha=0.30)
+            if noise is not None:
+                ax.plot(t, noise.loc[:, names].values.T, color=C_METHOD["ies"],
+                        lw=0, marker=".", ms=2.0, alpha=0.30)
+            ax.plot(t, s.obsval.values, "-", color=C_METHOD["ies"], lw=1.3, alpha=0.9)
+            ax.grid(alpha=0.3)
+            if r == 0:
+                ax.set_title(f"{LBL_METHOD.get(meth, meth)}\n(iter {its[0]} -> {its[-1]})",
+                             fontsize=10)
+            if c == 0:
+                ax.set_ylabel(uc, fontsize=9)
+            if r == len(sites) - 1:
+                ax.set_xlabel("time (d)")
+    axes[0, 0].plot([], [], color=C_PRIOR, lw=2, label="prior")
+    axes[0, 0].plot([], [], color=C_POST, lw=2, label="posterior")
+    axes[0, 0].plot([], [], color=C_METHOD["ies"], lw=0, marker=".", ms=8,
+                    label="obs + noise")
+    axes[0, 0].legend(frameon=False, fontsize=8)
+    fig.suptitle("simulated traces vs the data, every realization drawn",
+                 y=1.005, fontsize=11)
+    plt.tight_layout()
+    return fig
+
+
+def plot_property_maps_multi(master_dirs, template_d, truth_d, case="synth2d",
+                             figsize=None):
+    """rows = variants, columns = prior mean / posterior mean / error, with the
+    truth shown once at the top"""
+    pst = pyemu.Pst(os.path.join(template_d, f"{case}.pst"))
+    grps = set(pst.parameter_data.loc[pst.adj_par_names, "pargp"].astype(str))
+    props = [p for p in ("hk", "sy") if any(g.startswith(p) for g in grps)]
+    items = [(m, d) for m, d in master_dirs.items() if os.path.exists(d)]
+
+    figs = []
+    for prop in props:
+        truth = np.loadtxt(os.path.join(truth_d, f"truth_{prop}.dat"))
+        nrow = len(items)
+        fig, axes = plt.subplots(nrow, 4, squeeze=False,
+                                 figsize=figsize or (13.0, 3.0 * nrow))
+        for r, (meth, mdir) in enumerate(items):
+            its = sorted({int(f.split(".")[-3]) for f in os.listdir(mdir)
+                          if f.startswith(case + ".") and f.endswith(".par.jcb")
+                          and f.split(".")[-3].isdigit()})
+
+            def load_pe(i):
+                return pyemu.ParameterEnsemble.from_binary(
+                    pst=pst, filename=os.path.join(mdir, f"{case}.{i}.par.jcb"))._df
+
+            pri = realize_arrays(template_d, load_pe(its[0]).mean())
+            post = realize_arrays(template_d, load_pe(its[-1]).mean())
+            k = 0 if prop == "hk" else 1
+            vmin = min(truth.min(), post[k].min())
+            vmax = max(truth.max(), post[k].max())
+            for c, (arr, lab) in enumerate(((truth, "truth"),
+                                            (pri[k], "prior mean"),
+                                            (post[k], "posterior mean"))):
+                im = axes[r, c].imshow(arr, cmap=CMAP_PROP, vmin=vmin, vmax=vmax,
+                                       interpolation="nearest")
+                axes[r, c].set_title(f"{lab}", fontsize=9)
+                plt.colorbar(im, ax=axes[r, c], fraction=0.046)
+            err = post[k] - truth
+            v = float(np.abs(err).max())
+            if v <= 0.0:
+                v = 1.0
+            im = axes[r, 3].imshow(err, cmap=CMAP_ANOM,
+                                   norm=TwoSlopeNorm(vmin=-v, vcenter=0.0, vmax=v),
+                                   interpolation="nearest")
+            axes[r, 3].set_title("posterior - truth", fontsize=9)
+            plt.colorbar(im, ax=axes[r, 3], fraction=0.046)
+            axes[r, 0].set_ylabel(LBL_METHOD.get(meth, meth), fontsize=10)
+        for a in axes.ravel():
+            a.set_xticks([])
+            a.set_yticks([])
+        fig.suptitle(f"{prop}: {_variant_label(pst, template_d)}", y=1.01, fontsize=11)
+        plt.tight_layout()
+        figs.append(fig)
+    return figs
+
+
+def report_pdf(master_dirs, template_d, truth_d, out_pdf, case="synth2d",
+               model_ws=None):
+    """the whole comparison as one multipage pdf, every page showing all variants"""
+    from matplotlib.backends.backend_pdf import PdfPages
+    matplotlib.use("Agg")
+    os.makedirs(os.path.dirname(os.path.abspath(out_pdf)) or ".", exist_ok=True)
+
+    with PdfPages(out_pdf) as pdf:
+        if model_ws and os.path.exists(model_ws):
+            f = plot_model_map(model_ws, truth_d=truth_d, case=case)
+            pdf.savefig(f, bbox_inches="tight")
+            plt.close(f)
+        f = plot_phi(master_dirs, case=case)
+        pdf.savefig(f, bbox_inches="tight")
+        plt.close(f)
+        f = plot_obs_vs_sim_multi(master_dirs, template_d, case=case)
+        pdf.savefig(f, bbox_inches="tight")
+        plt.close(f)
+        f = plot_par_moments(master_dirs, template_d, case=case)
+        pdf.savefig(f, bbox_inches="tight")
+        plt.close(f)
+        for f in plot_property_maps_multi(master_dirs, template_d, truth_d, case=case):
+            pdf.savefig(f, bbox_inches="tight")
+            plt.close(f)
+    print(f"wrote {out_pdf}")
+    return out_pdf
