@@ -17,7 +17,9 @@ import flopy
 
 import synth2d_model as m2d
 
-MF6 = os.path.expanduser("~/bin/mf6")
+# mf6 from the path first - ci puts test_bin/<plat> there (mf6.exe on windows) -
+# then the usual local install
+MF6 = shutil.which("mf6") or os.path.expanduser("~/bin/mf6")
 PP_SPACE = 5          # pilot point every N cells
 V_RANGE_FAC = 8.0     # variogram range as a multiple of cell size
 NUM_REALS = 200       # prior ensemble size (one extra is drawn to be the truth)
@@ -143,7 +145,7 @@ def setup(new_d="synth2d_template", nrow=40, ncol=40, noise_frac=0.01, seed=9988
 
     pst.control_data.noptmax = 0
     pst.write(os.path.join(new_d, "synth2d.pst"), version=2)
-    shutil.copy2(MF6, os.path.join(new_d, "mf6"))
+    shutil.copy2(MF6, os.path.join(new_d, os.path.basename(MF6)))
     print(f"\nsynth2d: {nrow}x{ncol} grid, {pst.npar_adj} adjustable parameters, "
           f"{pst.nnz_obs} non-zero-weight observations")
     return pst
