@@ -2494,6 +2494,152 @@ static void test_regul_weight_search_edges()
     }
 }
 
+/* ies prior scaling must not change the answer.
+ *
+ * chen and oliver (2013) eq 5 makes the parameter deviations dimensionless with
+ * C_sc^-1/2, and eq 15 pre-multiplies the update by C_sc^1/2.  since
+ * C_sc^1/2 * delta_m IS the raw deviation, the two cancel: prior scaling is a
+ * conditioning device for the svd, not a change to the update.  the scaling
+ * matrix is diagonal and holds prior variances, so with a non-unit parcov the
+ * upgrade computed with ies_use_prior_scaling must equal the one computed
+ * without it.
+ *
+ * it did not.  the back-transform in ensemble_solution was commented out, so
+ * every parameter's update came out divided by its prior standard deviation -
+ * dimensionally wrong, and silently so, because nothing compared the two paths.
+ */
+static void test_ies_prior_scaling_is_neutral()
+{
+    cout << "[ies prior scaling: C_sc cancels, so it cannot change the upgrade]" << endl;
+
+    const int npar = 4, nobs = 3, nreal = 5;
+    // fixed, arbitrary, nothing special about the values beyond being non-degenerate
+    Eigen::MatrixXd par_diff0(npar, nreal), obs_diff0(nobs, nreal), obs_resid0(nobs, nreal);
+    for (int i = 0; i < npar; i++)
+        for (int j = 0; j < nreal; j++)
+            par_diff0(i, j) = 0.3 * (i + 1) - 0.11 * (j + 1) + 0.05 * (i * j);
+    for (int i = 0; i < nobs; i++)
+        for (int j = 0; j < nreal; j++)
+        {
+            obs_diff0(i, j) = 0.7 * (i + 1) + 0.13 * (j + 1) - 0.04 * (i * j);
+            obs_resid0(i, j) = 0.2 * (i + 1) - 0.09 * (j + 1);
+        }
+    Eigen::MatrixXd par_resid0 = 0.5 * par_diff0;
+    Eigen::MatrixXd obs_err0 = 0.1 * obs_diff0;
+    Eigen::MatrixXd Am(npar, 1);
+    Am.setZero();
+
+    Eigen::VectorXd wvec(nobs);
+    wvec << 1.0, 2.0, 0.5;
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> weights(wvec);
+
+    // prior variances deliberately far from 1 and from each other - if the
+    // scaling leaks into the answer this is what makes it visible
+    Eigen::VectorXd pvar(npar);
+    pvar << 0.01, 1.0, 100.0, 4.0;
+    Eigen::VectorXd pinv_vec = pvar.cwiseSqrt().cwiseInverse();   // C_sc^-1/2
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> parcov_inv(pinv_vec);
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> parcov_identity(
+        Eigen::VectorXd::Ones(npar));
+
+    vector<string> onames{"o1", "o2", "o3"}, pnames{"p1", "p2", "p3", "p4"};
+
+    auto solve = [&](bool use_prior_scaling,
+                     const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& pcinv)
+    {
+        // ensemble_solution mutates what it is handed, so every call gets copies
+        Eigen::MatrixXd par_resid = par_resid0, par_diff = par_diff0;
+        Eigen::MatrixXd obs_resid = obs_resid0, obs_diff = obs_diff0, obs_err = obs_err0;
+        Eigen::MatrixXd upgrade;
+        // use_approx = true and iter = 1 keep this to the data term, which is
+        // where the cancellation is exact and unconditional
+        UpgradeThread::ensemble_solution(1, 0, 1000, 0, 0, use_prior_scaling, true, true,
+                                         0.0, 1.0e-7, par_resid, par_diff, Am, obs_resid,
+                                         obs_diff, upgrade, obs_err, weights, pcinv,
+                                         onames, pnames, -1.0, 0.0);
+        return upgrade;
+    };
+
+    Eigen::MatrixXd off = solve(false, parcov_inv);
+    Eigen::MatrixXd on = solve(true, parcov_inv);
+
+    CHK(off.rows() == on.rows() && off.cols() == on.cols(),
+        "prior scaling on/off give the same shaped upgrade");
+    double dnorm = (off - on).norm();
+    double scale = max(1.0, off.norm());
+    bool same = (dnorm / scale) < 1.0e-8;
+    if (!same)
+        cout << "  scaled/unscaled upgrades differ: relative norm "
+             << (dnorm / scale) << " (off " << off.norm() << ", on " << on.norm() << ")"
+             << endl;
+    CHK(same, "ies_use_prior_scaling does not change the upgrade (C_sc cancels)");
+
+    // and the guard against a fix that merely makes the option inert: with a unit
+    // parcov the scaled path must still reproduce the unscaled one
+    Eigen::MatrixXd on_unit = solve(true, parcov_identity);
+    CHK(((off - on_unit).norm() / scale) < 1.0e-8,
+        "prior scaling with unit parcov matches the unscaled upgrade");
+
+    // the upgrade must actually be doing something, or the checks above are vacuous
+    CHK(off.norm() > 1.0e-8, "the unscaled upgrade is non-zero");
+}
+
+/* the scaling that puts prior anomalies into the space chen and oliver eq 5 works
+ * in: delta_m_pr = C_sc^-1/2 (m_pr - mbar) / sqrt(Ne-1).  C_sc is diagonal and
+ * holds prior variances, so this is a row scaling by 1/sqrt(var).
+ *
+ * get_Am() feeds the result to a tsvd, and the whole reason the paper scales
+ * before that svd is that the truncation then happens in scaled space - a
+ * different set of directions survives.  get_Am used to skip this entirely while
+ * the residual it multiplies WAS scaled, so the model-mismatch term straddled
+ * two spaces.
+ */
+static void test_prior_anomaly_scaling()
+{
+    cout << "[ies prior scaling: prior anomalies scaled into C_sc^-1/2 space]" << endl;
+
+    const int npar = 4, nreal = 6;
+    Eigen::MatrixXd anom(npar, nreal);
+    for (int i = 0; i < npar; i++)
+        for (int j = 0; j < nreal; j++)
+            anom(i, j) = 0.4 * (i + 1) - 0.17 * (j + 1) + 0.03 * (i * j);
+
+    // spread over four orders of magnitude: if a row is missed it shows up loudly
+    Eigen::VectorXd var(npar);
+    var << 0.01, 1.0, 100.0, 4.0;
+
+    Eigen::MatrixXd scaled = scale_prior_anomalies(anom, var);
+
+    bool rows_ok = true;
+    for (int i = 0; i < npar; i++)
+        rows_ok &= ((scaled.row(i) - anom.row(i) / sqrt(var[i])).norm() < 1.0e-12);
+    CHK(rows_ok, "each row divided by its own prior standard deviation");
+
+    CHK((scale_prior_anomalies(anom, Eigen::VectorXd::Ones(npar)) - anom).norm() < 1.0e-12,
+        "unit prior variance leaves the anomalies untouched");
+
+    // fixed/tied parameters can arrive with no variance; that must not become inf
+    Eigen::VectorXd degenerate(npar);
+    degenerate << 0.0, -1.0, 100.0, 4.0;
+    Eigen::MatrixXd sd = scale_prior_anomalies(anom, degenerate);
+    CHK(sd.allFinite(), "zero or negative prior variance does not produce inf or nan");
+    CHK((sd.row(0) - anom.row(0)).norm() < 1.0e-12,
+        "a zero-variance row passes through unscaled");
+
+    bool threw = false;
+    try { scale_prior_anomalies(anom, Eigen::VectorXd::Ones(npar + 1)); }
+    catch (const exception&) { threw = true; }
+    CHK(threw, "a prior variance vector of the wrong length is rejected");
+
+    // the point of scaling before the svd: the singular directions change.  if
+    // this ever stops holding, the scaling has become decorative
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd_raw(anom, Eigen::ComputeThinU);
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd_scaled(scaled, Eigen::ComputeThinU);
+    double lead_align = fabs(svd_raw.matrixU().col(0).dot(svd_scaled.matrixU().col(0)));
+    CHK(lead_align < 0.99,
+        "scaling changes the leading singular direction, so the tsvd truncates differently");
+}
+
 int main()
 {
     test_registry_equivalence();
@@ -2529,6 +2675,8 @@ int main()
     test_partial_read_refuses_stale_outputs();
     test_violation_single_run_matches_ensemble();
     test_regul_weight_search_edges();
+    test_ies_prior_scaling_is_neutral();
+    test_prior_anomaly_scaling();
     cout << "\npestpp-selftest: " << (g_fail == 0 ? "PASS" : "FAIL")
          << " (" << (g_total - g_fail) << "/" << g_total << " checks)" << endl;
     return g_fail == 0 ? 0 : 1;

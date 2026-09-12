@@ -391,7 +391,7 @@ const std::vector<OptionSpec>& PestppOptions::get_option_registry()
         [](const PestppOptions& o)->string{ return std::to_string(o.get_ies_verbose_level()); } },
     OptionSpec{ "IES_USE_PRIOR_SCALING", {}, OptType::BOOL, "ies", false,
         [](PestppOptions& o,const string& value,const string&)->PestppOptions::ARG_STATUS{ o.set_ies_use_prior_scaling(pest_utils::parse_string_arg_to_bool(value)); return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
-        [](PestppOptions& o){ o.set_ies_use_prior_scaling(false); },
+        [](PestppOptions& o){ o.set_ies_use_prior_scaling(true); },
         [](const PestppOptions& o)->string{ return std::to_string(o.get_ies_use_prior_scaling()?1:0); } },
     OptionSpec{ "IES_NUM_REALS", {}, OptType::INT, "ies", true,
         [](PestppOptions& o,const string& value,const string&)->PestppOptions::ARG_STATUS{ int x; convert_ip(value,x); o.set_ies_num_reals(x); return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },

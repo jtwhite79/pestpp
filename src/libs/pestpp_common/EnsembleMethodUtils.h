@@ -659,6 +659,19 @@ struct UpgradeContext
 	bool defer_candidate_release = false;
 };
 
+/* Put prior parameter anomalies into the space Chen and Oliver (2013) eq 5 works
+in: delta_m_pr = C_sc^-1/2 (m_pr - mean) / sqrt(Ne-1).  C_sc is diagonal and holds
+the prior variance of each parameter, so this is a row scaling by 1/sqrt(var).
+
+This matters because of what happens NEXT: get_Am() takes a truncated SVD of the
+result, and the truncation keeps different directions in scaled space than in raw
+space.  That is the whole reason the paper scales before the SVD.  A parameter
+with no prior variance - fixed or tied - passes through unscaled rather than
+becoming inf. */
+Eigen::MatrixXd scale_prior_anomalies(const Eigen::MatrixXd& anomalies,
+	const Eigen::VectorXd& prior_var);
+
+
 class EnsembleMethod
 {
 

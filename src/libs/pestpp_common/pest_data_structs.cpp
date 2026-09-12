@@ -2525,7 +2525,7 @@ void PestppOptions::set_defaults_legacy()
 	set_ies_subset_size(-10);
 	set_ies_reg_factor(0.0);
 	set_ies_verbose_level(1);
-	set_ies_use_prior_scaling(false);
+	set_ies_use_prior_scaling(true);
 	set_ies_num_reals(50);
 	set_ies_bad_phi(std::numeric_limits<double>::max());
 	set_ies_bad_phi_sigma(std::numeric_limits<double>::max());

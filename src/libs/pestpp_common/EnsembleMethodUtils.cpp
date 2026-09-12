@@ -1752,7 +1752,15 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
         upgrade_1 = -1.0 * par_diff * X3;
 
         if (use_prior_scaling) {
-            //upgrade_1 = parcov_inv * upgrade_1;
+            //undo the C_sc^-1/2 that was applied to par_diff above.  chen and
+            //oliver eq 15 pre-multiplies the update by C_sc^1/2, and
+            //C_sc^1/2 * delta_m IS the raw deviation, so the scaling cancels and
+            //the data term is the same with or without it.  this back-transform
+            //used to be commented out, which left every parameter's update
+            //divided by its prior standard deviation - dimensionally wrong, since
+            //par_diff carries parameter units and parcov_inv carries 1/parameter.
+            Eigen::VectorXd parcov_sqrt = parcov_inv.diagonal().cwiseInverse();
+            upgrade_1 = parcov_sqrt.asDiagonal() * upgrade_1;
         }
 
         upgrade_1.transposeInPlace();
@@ -1784,7 +1792,17 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
             //x6.resize(0, 0);
 
             if (use_prior_scaling) {
-                upgrade_2 = -1.0 * parcov_inv * par_diff * x7;
+                //the same C_sc^1/2 pre-factor as upgrade_1.  this used to apply
+                //parcov_inv, which scaled a SECOND time - par_diff was already
+                //scaled above - giving C_sc^-1 where eq 15 wants C_sc^+1/2.
+                //get_Am() now builds Am from the SCALED prior anomalies when this
+                //option is on, so the whole model-mismatch term matches eq 15:
+                //C_sc^1/2 dm [..]^-1 dm^T (dm_pr^-T dm_pr^-1) C_sc^-1/2 (m - m_pr).
+                //note this term CAN legitimately differ between the scaled and
+                //unscaled paths - the tsvd keeps different directions - which is
+                //why the selftest pins the data term only.
+                Eigen::VectorXd parcov_sqrt = parcov_inv.diagonal().cwiseInverse();
+                upgrade_2 = -1.0 * parcov_sqrt.asDiagonal() * par_diff * x7;
             } else {
                 upgrade_2 = -1.0 * (par_diff * x7);
             }
@@ -10438,6 +10456,25 @@ vector<string> EnsembleMethod::activate_obs(const map<string, double>& obs_to_ac
 	return activated;
 }
 
+Eigen::MatrixXd scale_prior_anomalies(const Eigen::MatrixXd& anomalies,
+	const Eigen::VectorXd& prior_var)
+{
+	if (anomalies.rows() != prior_var.size())
+		throw runtime_error("scale_prior_anomalies(): anomaly rows (" +
+			to_string(anomalies.rows()) + ") != prior variance count (" +
+			to_string(prior_var.size()) + ")");
+	Eigen::VectorXd s(prior_var.size());
+	for (int i = 0; i < prior_var.size(); i++)
+	{
+		//a zero or negative prior variance would give inf/nan and quietly poison
+		//the factorisation downstream.  fixed and tied parameters can land here,
+		//so leave those rows alone rather than throwing
+		s[i] = (prior_var[i] > 0.0) ? (1.0 / sqrt(prior_var[i])) : 1.0;
+	}
+	return s.asDiagonal() * anomalies;
+}
+
+
 Eigen::MatrixXd EnsembleMethod::get_Am(const vector<string>& real_names, const vector<string>& par_names)
 {
 
@@ -10449,6 +10486,18 @@ Eigen::MatrixXd EnsembleMethod::get_Am(const vector<string>& real_names, const v
 		cout << "prior_par_diff shape: " << par_diff.rows() << ',' << par_diff.cols() << endl;
 		if (get_verbose_level() > 2)
 			save_mat("prior_par_diff.dat", par_diff);
+	}
+
+	//with prior scaling on, this factor has to be built from the SCALED prior
+	//anomalies.  chen and oliver eq 15 uses delta_m_pr = C_sc^-1/2 * (prior
+	//anomalies), so Am Am^T is the pseudo-inverse of the SCALED prior covariance
+	//and the tsvd truncation happens in scaled space - which is the whole reason
+	//the paper scales before the svd.  building Am from raw anomalies while
+	//par_resid was scaled left the model-mismatch term straddling two spaces.
+	if (pest_scenario.get_pestpp_options().get_ies_use_prior_scaling())
+	{
+		Covariance pc = parcov.get(par_names);
+		par_diff = scale_prior_anomalies(par_diff, pc.get_matrix().diagonal());
 	}
 
 	Eigen::MatrixXd ivec, upgrade_1, s, V, U, st;
