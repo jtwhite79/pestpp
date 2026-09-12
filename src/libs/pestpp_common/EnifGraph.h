@@ -6,6 +6,7 @@
 #include <fstream>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <Eigen/OrderingMethods>
 #include "covariance.h"
 
 using namespace std;
@@ -47,7 +48,7 @@ public:
 	cover every adjustable parameter - a silently mis-aligned graph would be
 	worse than no graph at all. */
 	void from_file(const string& filename, const vector<string>& par_names,
-		ofstream& frec);
+		ofstream& frec, const string& order = "amd");
 
 	/* estimate the prior precision on the graph from ensemble anomalies
 	(p x N, already scaled by 1/sqrt(N-1)) by neighbourhood regression:
@@ -86,6 +87,17 @@ private:
 	bool prec_ready = false;
 	int nnz_offdiag;
 	vector<string> names;
+	/* the ordering the precision is estimated in, and the support of each row of
+	the cholesky-like factor.  solve_order lists the original node indices in the
+	order they are eliminated; pred_sets[i] holds the original indices node i is
+	regressed on, which is the fill-inclusive factor pattern, not just the direct
+	graph neighbours.  this is what graphite-maps does: it fits the pattern of the
+	cholesky factor of the PERMUTED graph, and the permutation is chosen to keep
+	that fill small. */
+	string order_method;
+	vector<int> solve_order;
+	vector<vector<int>> pred_sets;
+	int fill_edges = 0;
 	Eigen::SparseMatrix<double> adj;
 	Eigen::SparseMatrix<double> prec;
 	mutable Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;

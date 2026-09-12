@@ -1204,6 +1204,12 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
         convert_ip(value,ies_enif_shrink);
         return true;
     }
+    else if (key == "IES_ENIF_ORDER")
+    {
+        //'amd' or 'natural'; the graph code lower-cases whatever arrives here
+        ies_enif_order = value;
+        return true;
+    }
     else if (key == "IES_ENIF_SAVE_H")
     {
         ies_enif_save_h = pest_utils::parse_string_arg_to_bool(value);

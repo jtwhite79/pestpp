@@ -696,6 +696,8 @@ public:
     void set_ies_enif_h_lasso(double _f) { ies_enif_h_lasso = _f; }
     double get_ies_enif_shrink() const { return ies_enif_shrink; }
     void set_ies_enif_shrink(double _f) { ies_enif_shrink = _f; }
+    string get_ies_enif_order() const { return ies_enif_order; }
+    void set_ies_enif_order(string _s) { ies_enif_order = _s; }
     bool get_ies_enif_save_h() const { return ies_enif_save_h; }
     void set_ies_enif_save_h(bool _f) { ies_enif_save_h = _f; }
     double get_ies_multimodal_alpha() const { return ies_multimodal_alpha; }
@@ -1088,6 +1090,7 @@ private:
 	string ies_enif_graph;
 	double ies_enif_h_lasso;
 	double ies_enif_shrink;
+	string ies_enif_order;
 	bool ies_enif_save_h;
 	double ies_multimodal_alpha;
 	double ies_multimodal_weight_exponent;

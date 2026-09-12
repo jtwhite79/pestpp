@@ -1250,7 +1250,8 @@ void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
     {
         ofstream& frec = file_manager.rec_ofstream();
         performance_log->log_event("enif: reading conditional-independence graph");
-        enif_graph.from_file(gname, act_par_names, frec);
+        enif_graph.from_file(gname, act_par_names, frec,
+            pest_scenario.get_pestpp_options().get_ies_enif_order());
 
         Eigen::MatrixXd X = pe.get_eigen(pe_real_names, act_par_names);
         X.transposeInPlace();

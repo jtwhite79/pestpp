@@ -21,7 +21,18 @@ import synth2d_model as m2d
 # then the usual local install
 MF6 = shutil.which("mf6") or os.path.expanduser("~/bin/mf6")
 PP_SPACE = 5          # pilot point every N cells
-V_RANGE_FAC = 8.0     # variogram range as a multiple of cell size
+# variogram ranges, as multiples of cell size.  pyemu's ExpVario is exp(-d/a),
+# so a is the e-folding length and the practical range is nearer 3a.  the two
+# scales are meant to do different jobs: the pilot points carry the broad
+# structure and the grid multipliers the short-scale roughness, so the pilot
+# point range is an order of magnitude longer
+PP_RANGE_FAC = 60.0   # 6000 m, more than twice the domain: a broad trend
+GR_RANGE_FAC = 3.0    # 300 m, roughness over a few cells
+# the pilot point trend is stretched along a 45 degree bearing: the major axis
+# is PP_RANGE_FAC cells long, the minor axis PP_ANISO times shorter.  bearing is
+# degrees counter-clockwise from east, so 45 runs from lower left to upper right
+PP_ANISO = 5.0
+PP_BEARING = 45.0
 NUM_REALS = 200       # prior ensemble size (one extra is drawn to be the truth)
 
 
@@ -43,7 +54,7 @@ def run_realization(template_d, parval, work_d, case="synth2d"):
 
 
 def setup(new_d="synth2d_template", nrow=40, ncol=40, noise_frac=0.01, seed=99881,
-          parameterization="full"):
+          parameterization="full", truth_d=None):
     """build the model, parameterise it, draw the prior, and take the truth from
     that prior.  returns the pst.
 
@@ -51,6 +62,13 @@ def setup(new_d="synth2d_template", nrow=40, ncol=40, noise_frac=0.01, seed=9988
     independently generated field.  that guarantees the truth is reachable
     within the parameter bounds - otherwise no method can fit the data and the
     comparison measures the setup instead of the algorithms.
+
+    truth_d points at another problem's truth directory (the "_org" one, holding
+    head_obs.csv, riv_obs.csv, truth_hk.dat and truth_sy.dat).  when it is given,
+    those become the truth here instead of a fresh draw, so several
+    parameterisations can be fit to the SAME data.  the truth is then generally
+    not reachable by a reduced parameterisation - that is the point of doing it,
+    but it means phi cannot go to the noise floor for those problems.
     """
     org_d = new_d + "_org"
     base_d = org_d + "_base"
@@ -68,18 +86,28 @@ def setup(new_d="synth2d_template", nrow=40, ncol=40, noise_frac=0.01, seed=9988
                              zero_based=False, start_datetime="1-1-2020",
                              pp_solve_num_threads=1)
 
-    v = pyemu.geostats.ExpVario(contribution=1.0, a=V_RANGE_FAC * m2d.DELR)
-    gs = pyemu.geostats.GeoStruct(variograms=v, transform="log")
+    gs_pp = pyemu.geostats.GeoStruct(
+        variograms=pyemu.geostats.ExpVario(contribution=1.0, a=PP_RANGE_FAC * m2d.DELR,
+                                           anisotropy=PP_ANISO, bearing=PP_BEARING),
+        transform="log")
+    gs_gr = pyemu.geostats.GeoStruct(
+        variograms=pyemu.geostats.ExpVario(contribution=1.0, a=GR_RANGE_FAC * m2d.DELR),
+        transform="log")
 
     # which properties, and at which scales.  "full" is the highly-parameterised
     # arrangement; "hk_pp" is the deliberately small, well-posed variant with only
     # hk pilot points - there N can exceed the parameter count, so the H
     # regression is overdetermined instead of interpolating the ensemble.
     if parameterization == "full":
-        specs = [("hk", 0.2, 5.0, "grid"), ("hk", 0.2, 5.0, "pilotpoints"),
-                 ("sy", 0.5, 2.0, "grid"), ("sy", 0.5, 2.0, "pilotpoints")]
+        # the pilot points carry the broad trend, so they get a wider bound
+        # range than the grid multipliers, which only add local roughness
+        # sy is capped tighter than hk on purpose: base sy is 0.15 and the grid
+        # multiplier can reach 2, so a pp bound past ~5 puts specific yield over
+        # 1, which is not a real number for a granular aquifer
+        specs = [("hk", 0.2, 5.0, "grid"), ("hk", 0.01, 100.0, "pilotpoints"),
+                 ("sy", 0.5, 2.0, "grid"), ("sy", 0.2, 5.0, "pilotpoints")]
     elif parameterization == "hk_pp":
-        specs = [("hk", 0.2, 5.0, "pilotpoints")]
+        specs = [("hk", 0.01, 100.0, "pilotpoints")]
     elif parameterization == "hk_gr":
         specs = [("hk", 0.2, 5.0, "grid")]
     elif parameterization == "hksy_gr":
@@ -91,7 +119,8 @@ def setup(new_d="synth2d_template", nrow=40, ncol=40, noise_frac=0.01, seed=9988
         kw = dict(filenames=f"{tag}.dat", par_type=ptype,
                   par_name_base=f"{tag}_{'pp' if ptype=='pilotpoints' else 'gr'}",
                   pargp=f"{tag}_{'pp' if ptype=='pilotpoints' else 'gr'}",
-                  lower_bound=lb, upper_bound=ub, geostruct=gs, transform="log")
+                  lower_bound=lb, upper_bound=ub, transform="log",
+                  geostruct=gs_pp if ptype == "pilotpoints" else gs_gr)
         if ptype == "pilotpoints":
             # try_use_ppu=False keeps kriging in pyemu rather than the pypestutils
             # shared library, which is not always in step with its python bindings
@@ -129,14 +158,28 @@ def setup(new_d="synth2d_template", nrow=40, ncol=40, noise_frac=0.01, seed=9988
 
     truth_real = pe.index[0]
     os.makedirs(org_d, exist_ok=True)
-    head, riv, hk, sy = run_realization(new_d, pe.loc[truth_real, :], org_d + "_run")
-    for nme, arr in (("truth_hk.dat", hk), ("truth_sy.dat", sy)):
-        np.savetxt(os.path.join(org_d, nme), arr)
-    head.to_csv(os.path.join(org_d, "head_obs.csv"), index=False)
-    riv.to_csv(os.path.join(org_d, "riv_obs.csv"), index=False)
-    shutil.rmtree(org_d + "_run", ignore_errors=True)
-    print(f"  truth is prior realization '{truth_real}': "
-          f"hk {hk.min():.2f}-{hk.max():.2f}, sy {sy.min():.3f}-{sy.max():.3f}")
+    if truth_d is None:
+        head, riv, hk, sy = run_realization(new_d, pe.loc[truth_real, :], org_d + "_run")
+        for nme, arr in (("truth_hk.dat", hk), ("truth_sy.dat", sy)):
+            np.savetxt(os.path.join(org_d, nme), arr)
+        head.to_csv(os.path.join(org_d, "head_obs.csv"), index=False)
+        riv.to_csv(os.path.join(org_d, "riv_obs.csv"), index=False)
+        # the truth realization is dropped from the ensemble below, so keep its
+        # parameter values here - otherwise the truth cannot be pulled apart
+        # into its multipliers afterwards
+        pe.loc[truth_real, :].to_csv(os.path.join(org_d, "truth_par.csv"))
+        shutil.rmtree(org_d + "_run", ignore_errors=True)
+        print(f"  truth is prior realization '{truth_real}': "
+              f"hk {hk.min():.2f}-{hk.max():.2f}, sy {sy.min():.3f}-{sy.max():.3f}")
+    else:
+        # shared truth: same fields, same model output, same data for every
+        # parameterisation.  nothing is run here, the files are just carried over
+        for nme in ("head_obs.csv", "riv_obs.csv", "truth_hk.dat", "truth_sy.dat"):
+            shutil.copy2(os.path.join(truth_d, nme), os.path.join(org_d, nme))
+        hk = np.loadtxt(os.path.join(org_d, "truth_hk.dat"))
+        sy = np.loadtxt(os.path.join(org_d, "truth_sy.dat"))
+        print(f"  shared truth from {truth_d}: "
+              f"hk {hk.min():.2f}-{hk.max():.2f}, sy {sy.min():.3f}-{sy.max():.3f}")
 
     _set_obs_from_truth(pst, org_d, noise_frac, seed)
     pe = pe.loc[pe.index[1:], :]

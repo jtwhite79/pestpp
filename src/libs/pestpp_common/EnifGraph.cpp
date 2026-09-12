@@ -13,7 +13,7 @@ using namespace std;
 
 
 void EnifGraph::from_file(const string& filename, const vector<string>& par_names,
-	ofstream& frec)
+	ofstream& frec, const string& order)
 {
 	stringstream ss;
 	Mat m;
@@ -69,8 +69,87 @@ void EnifGraph::from_file(const string& filename, const vector<string>& par_name
 
 	names = par_names;
 	nnz_offdiag = (int)adj.nonZeros() - p;
+
+	//--- ordering and symbolic factorisation ---------------------------------
+	//the precision is estimated through a cholesky-like factor, so what each
+	//node is regressed on is the support of that FACTOR, not the graph.  the
+	//factor carries fill: eliminating a node ties its remaining neighbours to
+	//each other, so L has entries where the precision has none.  how much fill
+	//depends entirely on the elimination order - natural order on a grid is
+	//close to the worst case - so the order is chosen to reduce it and the
+	//pattern is found by a symbolic factorisation.  this is what graphite-maps
+	//does (metis + a cholmod symbolic factorisation); amd is eigen's built-in
+	//equivalent.
+	order_method = order;
+	for (auto& c : order_method)
+		c = (char)tolower(c);
+	if (order_method.size() == 0)
+		order_method = "amd";
+	if ((order_method != "amd") && (order_method != "natural"))
+		throw runtime_error("EnifGraph::from_file(): unknown ies_enif_order '" +
+			order_method + "', should be 'amd' or 'natural'");
+
+	//a positive definite matrix carrying the graph pattern.  gershgorin: with
+	//the diagonal at max degree + 1 the matrix is strictly diagonally dominant,
+	//so the factorisation cannot fail for numerical reasons and the pattern it
+	//returns is the symbolic one
+	int maxdeg = 0;
+	for (int i = 0; i < p; i++)
+		maxdeg = max(maxdeg, (int)adj.col(i).nonZeros() - 1);
+	Eigen::SparseMatrix<double> pattern = adj;
+	for (int k = 0; k < pattern.outerSize(); k++)
+		for (Eigen::SparseMatrix<double>::InnerIterator it(pattern, k); it; ++it)
+			it.valueRef() = (it.row() == it.col()) ? (double)(maxdeg + 1) : -1.0;
+
+	Eigen::SparseMatrix<double> Lp;
+	vector<int> orig_of_pos(p);
+	if (order_method == "natural")
+	{
+		Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower,
+			Eigen::NaturalOrdering<int>> sym;
+		sym.compute(pattern);
+		if (sym.info() != Eigen::Success)
+			throw runtime_error("EnifGraph::from_file(): symbolic factorisation failed");
+		Lp = sym.matrixL();
+		for (int i = 0; i < p; i++)
+			orig_of_pos[i] = i;
+	}
+	else
+	{
+		Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Lower,
+			Eigen::AMDOrdering<int>> sym;
+		sym.compute(pattern);
+		if (sym.info() != Eigen::Success)
+			throw runtime_error("EnifGraph::from_file(): symbolic factorisation failed");
+		Lp = sym.matrixL();
+		//P maps original -> elimination position; invert it so the solve can walk
+		//positions and recover which parameter each one is
+		const Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int>& P = sym.permutationP();
+		for (int i = 0; i < p; i++)
+			orig_of_pos[P.indices()(i)] = i;
+	}
+
+	//L is lower triangular in elimination space: a non-zero at (row, col) with
+	//row > col says the node at position 'row' is regressed on the node at
+	//position 'col'.  carry that back to parameter indices.
+	solve_order = orig_of_pos;
+	pred_sets.assign(p, vector<int>());
+	int lnnz = 0;
+	for (int c = 0; c < Lp.outerSize(); c++)
+		for (Eigen::SparseMatrix<double>::InnerIterator it(Lp, c); it; ++it)
+		{
+			int r = (int)it.row(), cc = (int)it.col();
+			lnnz++;
+			if (r > cc)
+				pred_sets[orig_of_pos[r]].push_back(orig_of_pos[cc]);
+		}
+	fill_edges = (lnnz - p) - (nnz_offdiag / 2);
+
 	initialized = true;
 	report(frec);
+	frec << "...solve ordering: " << order_method << "; cholesky factor carries "
+		<< (lnnz - p) << " off-diagonal entries, " << fill_edges << " of them fill "
+		<< "beyond the " << (nnz_offdiag / 2) << " graph edges" << endl;
 }
 
 
@@ -127,15 +206,12 @@ void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shri
 	ltrips.reserve(adj.nonZeros());
 	int n_shrunk = 0, max_pred = 0, n_floored = 0;
 
-	for (int i = 0; i < p; i++)
+	for (int pos = 0; pos < p; pos++)
 	{
-		vector<int> pred;
-		for (Eigen::SparseMatrix<double>::InnerIterator it(adj, i); it; ++it)
-		{
-			int j = (int)it.row();
-			if (j < i)
-				pred.push_back(j);
-		}
+		//walk the elimination ordering, not the parameter ordering
+		int i = solve_order.empty() ? pos : solve_order[pos];
+		vector<int> pred = pred_sets.empty() ? vector<int>() : pred_sets[i];
+
 		//A neighbourhood anywhere near the ensemble size overfits: the regression
 		//interpolates in-sample, the residual variance collapses, and since
 		//Lam_ii = 1/d_i the prior precision explodes.  An exploded prior precision
@@ -145,7 +221,26 @@ void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shri
 		int max_allowed = max(1, (nreal - 1) / 2);
 		if ((int)pred.size() > max_allowed)
 		{
-			pred.resize(max_allowed);
+			//keep the strongest predecessors, not the lowest-numbered ones.
+			//truncating by index is a geometric bias on a grid - it keeps
+			//whichever neighbours happen to come first in the file
+			vector<pair<double, int>> strength;
+			strength.reserve(pred.size());
+			double ni = anomalies.row(i).norm();
+			for (int j : pred)
+			{
+				double nj = anomalies.row(j).norm();
+				double den = ni * nj;
+				double c = (den > 0.0) ? abs(anomalies.row(i).dot(anomalies.row(j))) / den : 0.0;
+				strength.push_back(make_pair(c, j));
+			}
+			sort(strength.begin(), strength.end(),
+				[](const pair<double, int>& a, const pair<double, int>& b)
+				{ return a.first > b.first; });
+			pred.clear();
+			for (int k = 0; k < max_allowed; k++)
+				pred.push_back(strength[k].second);
+			sort(pred.begin(), pred.end());
 			n_shrunk++;
 		}
 		max_pred = max(max_pred, (int)pred.size());
