@@ -2320,6 +2320,7 @@ os << endl << "...pestpp-swp options:" << endl;
 	os << "ies_enif_graph: " << ies_enif_graph << endl;
 	os << "ies_enif_h_lasso: " << ies_enif_h_lasso << endl;
 	os << "ies_enif_shrink: " << ies_enif_shrink << endl;
+	os << "ies_enif_order: " << ies_enif_order << endl;
 	os << "ies_enif_save_h: " << ies_enif_save_h << endl;
 	os << "ies_multimodal_alpha: " << ies_multimodal_alpha << endl;
 	os << "ies_multimodal_weight_exponent: " << ies_multimodal_weight_exponent << endl;
@@ -2572,6 +2573,7 @@ void PestppOptions::set_defaults_legacy()
     set_ies_enif_graph("");
     set_ies_enif_h_lasso(0.0);
     set_ies_enif_shrink(1.0e-3);
+    set_ies_enif_order("amd");
     set_ies_enif_save_h(false);
     set_ies_multimodal_alpha(0.0);
     set_ies_multimodal_weight_exponent(0.0);
