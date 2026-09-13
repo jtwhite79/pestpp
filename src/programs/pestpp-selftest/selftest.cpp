@@ -2640,6 +2640,78 @@ static void test_prior_anomaly_scaling()
         "scaling changes the leading singular direction, so the tsvd truncates differently");
 }
 
+/*
+ * the scaling VECTOR the solve paths hand to ensemble_solution().
+ *
+ * three call sites used to build this inline and they drifted.  the multimodal
+ * path handed over a plain reciprocal - C_sc^-1 where the solve wants C_sc^-1/2 -
+ * and the other two branched on isdiagonal() with opposite conditions and
+ * identical bodies in both arms.  that second one was harmless, but only by
+ * accident: every MatType stores a square matrix, so .diagonal() was right
+ * either way.  this pins down all of it so the sites cannot drift again.
+ */
+static void test_prior_inv_sqrt_diag()
+{
+    cout << "[ies prior scaling: the C_sc^-1/2 vector handed to the solve]" << endl;
+
+    vector<string> pnames{ "p1", "p2", "p3", "p4" };
+    const int npar = (int)pnames.size();
+    Eigen::VectorXd var(npar);
+    var << 0.01, 1.0, 100.0, 4.0;
+
+    // a full (correlated) prior: only the diagonal may be used
+    vector<Eigen::Triplet<double>> trips;
+    for (int i = 0; i < npar; i++)
+        trips.push_back(Eigen::Triplet<double>(i, i, var[i]));
+    trips.push_back(Eigen::Triplet<double>(0, 1, 0.005));
+    trips.push_back(Eigen::Triplet<double>(1, 0, 0.005));
+    Eigen::SparseMatrix<double> full(npar, npar);
+    full.setFromTriplets(trips.begin(), trips.end());
+    Covariance cov_full(pnames, full, Mat::MatType::SPARSE);
+
+    Eigen::VectorXd s = prior_inv_sqrt_diag(cov_full);
+    bool ok = true;
+    for (int i = 0; i < npar; i++)
+        ok &= (fabs(s[i] - 1.0 / sqrt(var[i])) < 1.0e-12);
+    CHK(ok, "one over the square root of each prior variance");
+
+    // the multimodal bug: a plain reciprocal is 100 where the right answer is 10
+    CHK(fabs(s[0] - 1.0 / var[0]) > 1.0,
+        "the inverse square root, not the plain reciprocal");
+
+    // same numbers whatever the storage flag says - the isdiagonal() branch that
+    // used to guard this was a coin flip
+    vector<Eigen::Triplet<double>> dtrips;
+    for (int i = 0; i < npar; i++)
+        dtrips.push_back(Eigen::Triplet<double>(i, i, var[i]));
+    Eigen::SparseMatrix<double> diag(npar, npar);
+    diag.setFromTriplets(dtrips.begin(), dtrips.end());
+    Covariance cov_diag(pnames, diag, Mat::MatType::DIAGONAL);
+    CHK((prior_inv_sqrt_diag(cov_diag) - s).norm() < 1.0e-12,
+        "diagonal storage and sparse storage give the same scaling vector");
+
+    // fixed and tied parameters arrive with no variance
+    vector<Eigen::Triplet<double>> ztrips;
+    ztrips.push_back(Eigen::Triplet<double>(0, 0, 0.0));
+    for (int i = 1; i < npar; i++)
+        ztrips.push_back(Eigen::Triplet<double>(i, i, var[i]));
+    Eigen::SparseMatrix<double> zero(npar, npar);
+    zero.setFromTriplets(ztrips.begin(), ztrips.end());
+    Covariance cov_zero(pnames, zero, Mat::MatType::DIAGONAL);
+    Eigen::VectorXd sz = prior_inv_sqrt_diag(cov_zero);
+    CHK(sz.allFinite(), "a zero prior variance does not produce inf or nan");
+    CHK(fabs(sz[0] - 1.0) < 1.0e-12, "a zero-variance parameter is left unscaled");
+
+    // the vector form and the matrix form must agree - get_Am() uses the latter
+    // while the solve paths use the former, on the same prior
+    Eigen::MatrixXd anom(npar, 5);
+    for (int i = 0; i < npar; i++)
+        for (int j = 0; j < 5; j++)
+            anom(i, j) = 0.3 * (i + 1) - 0.11 * (j + 1);
+    CHK((Eigen::MatrixXd(s.asDiagonal() * anom) - scale_prior_anomalies(anom, var)).norm() < 1.0e-12,
+        "agrees with scale_prior_anomalies() on the same prior");
+}
+
 int main()
 {
     test_registry_equivalence();
@@ -2677,6 +2749,7 @@ int main()
     test_regul_weight_search_edges();
     test_ies_prior_scaling_is_neutral();
     test_prior_anomaly_scaling();
+    test_prior_inv_sqrt_diag();
     cout << "\npestpp-selftest: " << (g_fail == 0 ? "PASS" : "FAIL")
          << " (" << (g_total - g_fail) << "/" << g_total << " checks)" << endl;
     return g_fail == 0 ? 0 : 1;

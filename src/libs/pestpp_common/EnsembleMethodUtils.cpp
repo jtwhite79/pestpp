@@ -779,19 +779,7 @@ void EnsembleSolver::initialize_for_localized_solve(string center_on, vector<int
 
 	parcov_inv_map.clear();
 	parcov_inv_map.reserve(pe.shape().second);
-	Eigen::VectorXd parcov_inv;// = parcov.get(par_names).inv().e_ptr()->toDense().cwiseSqrt().asDiagonal();
-	if (!parcov.isdiagonal())
-	{
-		parcov_inv = parcov.get_matrix().diagonal();
-	}
-	else
-	{
-		//message(2,"extracting diagonal from prior parameter covariance matrix");
-		Covariance parcov_diag;
-		parcov_diag.from_diagonal(parcov);
-		parcov_inv = parcov_diag.get_matrix().diagonal();
-	}
-	parcov_inv = parcov_inv.cwiseSqrt().cwiseInverse();
+	Eigen::VectorXd parcov_inv = prior_inv_sqrt_diag(parcov);
 	vector<string> par_names = pe.get_var_names();
 	for (int i = 0; i < parcov_inv.size(); i++)
 		parcov_inv_map[par_names[i]] = parcov_inv[i];
@@ -952,7 +940,14 @@ void EnsembleSolver::solve_multimodal(int num_threads, double cur_lam, bool use_
         MmUpgradeThread* ut_ptr = new MmUpgradeThread(performance_log, par_resid_map, par_diff_map, obs_resid_map, obs_diff_map, obs_err_map,
                                                                         mm_q_vec_map, pe_upgrade,mm_real_name_map,reg_factor,mm_real_weight_map);
 
-        Eigen::VectorXd parcov_inv_vec = 1. / parcov.e_ptr()->diagonal().array();
+        //C_sc^-1/2, NOT C_sc^-1.  ensemble_solution() - which this path calls, same
+        //as the non-multimodal one - expects the inverse SQUARE ROOT of the prior
+        //variance: it recovers the C_sc^1/2 back-transform as
+        //parcov_inv.diagonal().cwiseInverse().  handing it a plain reciprocal meant
+        //the scaling and the back-transform did not cancel, leaving the upgrade with
+        //a spurious factor of sqrt(prior variance) on every parameter.  the
+        //non-multimodal path builds this same quantity with cwiseSqrt().cwiseInverse().
+        Eigen::VectorXd parcov_inv_vec = prior_inv_sqrt_diag(parcov);
         for (int i = 0; i < num_threads; i++)
         {
             exception_ptrs.push_back(exception_ptr());
@@ -1156,17 +1151,7 @@ void EnsembleSolver::nonlocalized_solve(double cur_lam,bool use_glm_form, Parame
     {
         throw runtime_error("parcov not aligned with act par names");
     }
-    if (parcov.isdiagonal())
-    {
-        parcov_inv_vec = parcov.get_matrix().diagonal();
-    }
-    else
-    {
-        Covariance parcov_diag;
-        parcov_diag.from_diagonal(parcov);
-        parcov_inv_vec = parcov_diag.get_matrix().diagonal();
-    }
-    parcov_inv_vec = parcov_inv_vec.cwiseSqrt().cwiseInverse();
+    parcov_inv_vec = prior_inv_sqrt_diag(parcov);
     Eigen::DiagonalMatrix<double, Eigen::Dynamic> parcov_inv(parcov_inv_vec);
     Eigen::MatrixXd upgrade_1;
     par_diff.transposeInPlace();
@@ -4036,8 +4021,16 @@ map<string, Eigen::VectorXd> L2PhiHandler::calc_regul(ParameterEnsemble & pe)
 	pe.transform_ip(ParameterEnsemble::transStatus::NUM);
 	Eigen::MatrixXd resid = get_par_resid(pe);
 
+	//chen and oliver eq 1: the model mismatch term is the quadratic form
+	//(m - m_pr)^T C_M^-1 (m - m_pr), so for a diagonal prior it is
+	//sum(resid^2 / var).  square FIRST, then weight by the inverse variance.
+	//this used to scale by 1/var and square afterwards, which gives
+	//sum(resid^2 / var^2) - an extra factor of the prior variance on every
+	//parameter.  harmless when every variance is the same, but these priors span
+	//orders of magnitude, so it silently reweighted which parameters the
+	//regularization phi penalises, by the variance ratio instead of its sqrt.
+	resid = resid.array().cwiseProduct(resid.array());
 	resid = resid.array().rowwise() * parcov_inv_diag.transpose().array();
-    resid = resid.array().cwiseProduct(resid.array());
 
 	for (int i = 0; i < real_names.size(); i++)
 	{
@@ -10455,6 +10448,26 @@ vector<string> EnsembleMethod::activate_obs(const map<string, double>& obs_to_ac
 	message(1, ss.str());
 	return activated;
 }
+
+Eigen::VectorXd prior_inv_sqrt_diag(Covariance& parcov)
+{
+	//no branching on isdiagonal(): every MatType keeps a SQUARE matrix - a
+	//DIAGONAL covariance is built as Triplet(i,i,var) over row_names x row_names -
+	//so .diagonal() is the variance vector whatever the storage.  the old inline
+	//copies branched on isdiagonal() with OPPOSITE conditions at two sites and
+	//identical bodies in both arms, which was harmless but is exactly the drift
+	//that let the multimodal path end up with the wrong power entirely.
+	Eigen::VectorXd var = parcov.get_matrix().diagonal();
+	Eigen::VectorXd s(var.size());
+	for (int i = 0; i < var.size(); i++)
+	{
+		//fixed and tied parameters can arrive with no variance; 1/sqrt(0) would
+		//quietly poison the solve, so leave those alone
+		s[i] = (var[i] > 0.0) ? (1.0 / sqrt(var[i])) : 1.0;
+	}
+	return s;
+}
+
 
 Eigen::MatrixXd scale_prior_anomalies(const Eigen::MatrixXd& anomalies,
 	const Eigen::VectorXd& prior_var)

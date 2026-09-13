@@ -672,6 +672,19 @@ Eigen::MatrixXd scale_prior_anomalies(const Eigen::MatrixXd& anomalies,
 	const Eigen::VectorXd& prior_var);
 
 
+/* C_sc^-1/2 as a plain vector: one over the square root of each prior variance.
+
+This is what UpgradeThread::ensemble_solution() means by its parcov_inv argument,
+and it is worth having in ONE place.  Three call sites used to build it inline and
+they drifted: the multimodal path handed over a plain reciprocal (C_sc^-1) instead,
+so its scaling never cancelled against the C_sc^1/2 back-transform.  Two of the
+others branched on isdiagonal() with opposite conditions and identical bodies,
+which was harmless only because every MatType stores a square matrix.
+
+A parameter with no prior variance - fixed or tied - gets 1.0 rather than inf. */
+Eigen::VectorXd prior_inv_sqrt_diag(Covariance& parcov);
+
+
 class EnsembleMethod
 {
 

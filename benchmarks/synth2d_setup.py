@@ -18,8 +18,19 @@ import flopy
 import synth2d_model as m2d
 
 # mf6 from the path first - ci puts test_bin/<plat> there (mf6.exe on windows) -
-# then the usual local install
-MF6 = shutil.which("mf6") or os.path.expanduser("~/bin/mf6")
+# then the usual local install.  None when there is no mf6 anywhere, so callers can
+# skip instead of running off into a path that was never going to exist: the old
+# form handed back ~/bin/mf6 whether or not it was there, which is how a missing
+# mf6 on ci turned into a confusing FileNotFoundError naming the runner's home dir
+def _find_mf6():
+    exe = shutil.which("mf6")
+    if exe is not None:
+        return exe
+    local = os.path.expanduser("~/bin/mf6")
+    return local if os.path.exists(local) else None
+
+
+MF6 = _find_mf6()
 PP_SPACE = 5          # pilot point every N cells
 # variogram ranges, as multiples of cell size.  pyemu's ExpVario is exp(-d/a),
 # so a is the e-folding length and the practical range is nearer 3a.  the two
@@ -70,6 +81,9 @@ def setup(new_d="synth2d_template", nrow=40, ncol=40, noise_frac=0.01, seed=9988
     not reachable by a reduced parameterisation - that is the point of doing it,
     but it means phi cannot go to the noise floor for those problems.
     """
+    if MF6 is None:
+        raise RuntimeError("no mf6 on the path or in ~/bin - cannot build the synth2d model")
+
     org_d = new_d + "_org"
     base_d = org_d + "_base"
     m2d.build_model(base_d, nrow=nrow, ncol=ncol, run=True, exe_name=MF6)

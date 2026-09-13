@@ -5532,6 +5532,12 @@ def synth2d_enif_test(nrow=25, ncol=25, num_reals=50, noptmax=3, plot=True):
     import synth2d_setup
     import synth2d_viz
 
+    if synth2d_setup.MF6 is None:
+        # no model, no test - say so rather than dying later on a path that does not
+        # exist.  this is how it shows up on ci when test_bin has no mf6 for the platform
+        import unittest
+        raise unittest.SkipTest("no mf6 on the path or in ~/bin - skipping the 2-D synthetic test")
+
     model_d = "synth2d"
     template_d = os.path.join(model_d, "template")
     truth_d = os.path.join(model_d, "template_org")
