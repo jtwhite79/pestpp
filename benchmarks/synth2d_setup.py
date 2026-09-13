@@ -151,7 +151,8 @@ def setup(new_d="synth2d_template", nrow=40, ncol=40, noise_frac=0.01, seed=9988
                         prefix="rivflux", obsgp="rivflux")
 
     pf.mod_sys_cmds.append("mf6")
-    pf.add_py_function("synth2d_setup.py", "apply_arrays()", is_pre_cmd=True)
+    # full path so this works when ci runs the tests from another folder
+    pf.add_py_function(os.path.abspath(__file__), "apply_arrays()", is_pre_cmd=True)
     # apply pilot point factors with pyemu's own kriging rather than the
     # pypestutils shared library.  pyemu already falls back on ImportError, but a
     # stale ppu library raises AttributeError instead and escapes that guard.
