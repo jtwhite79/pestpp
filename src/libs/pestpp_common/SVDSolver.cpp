@@ -1523,12 +1523,13 @@ ModelRun SVDSolver::iteration_upgrd(RunManagerAbstract &run_manager, Termination
 
 						current_product = lambda_vec.size() * lambda_scale_vec.size();
 						}
-					} 
 					// set the new lambda vector and lambda scale vector back to the base scenario
 					std::sort(lambda_vec.begin(), lambda_vec.end());
 					std::sort(lambda_scale_vec.begin(), lambda_scale_vec.end());
 					pest_scenario.get_pestpp_options_ptr()->set_base_lambda_vec(lambda_vec);
 					pest_scenario.get_pestpp_options_ptr()->set_lambda_scale_vec(lambda_scale_vec);
+					} 
+					
 					else 
 					{ // otherwise stick with our default
 						panther_message.str("");
