@@ -21,18 +21,18 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
 import pyemu
 
-# --- palette -------------------------------------------------------------
-CMAP_PROP = "viridis"
-CMAP_ANOM = "RdBu_r"
-C_PRIOR = "#a0aec0"
-C_POST = "#2b6cb0"
-C_TRUTH = "black"
-C_METHOD = {"ies": "#c53030", "enif": "#2b6cb0",
-            "enif_cov": "#2b6cb0", "enif_rook": "#2f855a", "enif_queen": "#d69e2e"}
-LBL_METHOD = {"ies": "pestpp-ies", "enif": "EnIF",
-              "enif_cov": "EnIF (dense parcov)",
-              "enif_rook": "EnIF (rook graph)",
-              "enif_queen": "EnIF (queen graph)"}
+
+def _palette():
+    """colours and labels shared by every plot: grey prior, blue posterior, red
+    obs+noise and ies, viridis for fields, RdBu_r for errors"""
+    return {"cmap_prop": "viridis", "cmap_anom": "RdBu_r",
+            "prior": "#a0aec0", "post": "#2b6cb0", "truth": "black",
+            "method": {"ies": "#c53030", "enif": "#2b6cb0", "enif_cov": "#2b6cb0",
+                       "enif_rook": "#2f855a", "enif_queen": "#d69e2e"},
+            "label": {"ies": "pestpp-ies", "enif": "EnIF",
+                      "enif_cov": "EnIF (dense parcov)",
+                      "enif_rook": "EnIF (rook graph)",
+                      "enif_queen": "EnIF (queen graph)"}}
 
 
 def _phi_file(master_d, case="synth2d"):
@@ -46,6 +46,7 @@ def plot_phi(master_dirs, case="synth2d", logy=True, figsize=None):
     realization traces are the point: they show whether the ensemble is moving
     together or whether a few members are carrying the mean.
     """
+    pal = _palette()
     items = [(m, d) for m, d in master_dirs.items() if os.path.exists(_phi_file(d, case))]
     fig, axes = plt.subplots(1, len(items), figsize=figsize or (4.6 * len(items), 4.0),
                              sharey=True)
@@ -56,11 +57,11 @@ def plot_phi(master_dirs, case="synth2d", logy=True, figsize=None):
         reals = [c for c in df.columns
                  if c not in ("iteration", "total_runs", "mean",
                               "standard_deviation", "min", "max")]
-        c = C_METHOD.get(meth, C_POST)
+        c = pal["method"].get(meth, pal["post"])
         for r in reals:
             ax.plot(it, df[r].values, color=c, lw=0.5, alpha=0.18)
         ax.plot(it, df["mean"].values, color=c, lw=2.5, label="mean")
-        ax.set_title(f"{LBL_METHOD.get(meth, meth)}  ({len(reals)} realizations)",
+        ax.set_title(f"{pal['label'].get(meth, meth)}  ({len(reals)} realizations)",
                      fontsize=10)
         ax.set_xlabel("iteration")
         ax.grid(alpha=0.3)
@@ -80,6 +81,7 @@ def plot_phi_by_ensemble_size(model_d, sizes, prefix="nsweep", case="synth2d",
     to mark the size where a model run failed, so the panel is not read as a
     clean comparison.
     """
+    pal = _palette()
     fig, axes = plt.subplots(1, len(sizes), figsize=figsize or (3.4 * len(sizes), 3.8),
                              sharey=True)
     axes = np.atleast_1d(axes)
@@ -89,15 +91,15 @@ def plot_phi_by_ensemble_size(model_d, sizes, prefix="nsweep", case="synth2d",
             if not os.path.exists(f):
                 continue
             df = pd.read_csv(f)
-            ax.plot(df["iteration"], df["mean"], "o-", color=C_METHOD[meth],
-                    lw=1.8, ms=4, label=LBL_METHOD[meth])
+            ax.plot(df["iteration"], df["mean"], "o-", color=pal["method"][meth],
+                    lw=1.8, ms=4, label=pal["label"][meth])
         ax.set_yscale("log")
         ax.set_title(f"N = {n}", fontsize=10)
         ax.set_xlabel("iteration")
         ax.grid(alpha=0.3)
         if flag and n in flag:
             ax.text(0.5, 0.02, flag[n], transform=ax.transAxes, ha="center",
-                    va="bottom", fontsize=7, color=C_METHOD["ies"])
+                    va="bottom", fontsize=7, color=pal["method"]["ies"])
     axes[0].set_ylabel("measurement phi")
     axes[-1].legend(frameon=False, fontsize=8)
     fig.suptitle("the EnIF gap narrows with ensemble size", y=1.02, fontsize=11)
@@ -111,6 +113,7 @@ def plot_obs_vs_sim(master_d, template_d, case="synth2d", iters=None, figsize=No
     grey band is the prior ensemble, blue band the final ensemble, black dots
     the measured values the run was conditioned on.
     """
+    pal = _palette()
     pst = pyemu.Pst(os.path.join(template_d, f"{case}.pst"))
     obs = pst.observation_data
     nz = obs.loc[obs.weight > 0]
@@ -166,19 +169,19 @@ def plot_obs_vs_sim(master_d, template_d, case="synth2d", iters=None, figsize=No
         names, t = list(sub.index), sub["t"].values
 
         # every realization as its own trace: grey prior, blue posterior
-        for oe, col, lab in ((oe0, C_PRIOR, f"prior (iter {iters[0]})"),
-                             (oeN, C_POST, f"posterior (iter {iters[-1]})")):
+        for oe, col, lab in ((oe0, pal["prior"], f"prior (iter {iters[0]})"),
+                             (oeN, pal["post"], f"posterior (iter {iters[-1]})")):
             v = oe.loc[:, names].values
             ax.plot(t, v.T, color=col, lw=0.6, alpha=0.30)
             ax.plot([], [], color=col, lw=2, label=lab)   # legend proxy only
 
         # red: the obs+noise realizations the run was conditioned to
         if noise is not None:
-            ax.plot(t, noise.loc[:, names].values.T, color=C_METHOD["ies"],
+            ax.plot(t, noise.loc[:, names].values.T, color=pal["method"]["ies"],
                     lw=0.0, marker=".", ms=2.0, alpha=0.30)
-            ax.plot([], [], color=C_METHOD["ies"], lw=0.0, marker=".", ms=8,
+            ax.plot([], [], color=pal["method"]["ies"], lw=0.0, marker=".", ms=8,
                     label="obs + noise")
-        ax.plot(t, sub.obsval.values, "-", color=C_METHOD["ies"], lw=1.4, alpha=0.9)
+        ax.plot(t, sub.obsval.values, "-", color=pal["method"]["ies"], lw=1.4, alpha=0.9)
 
         ax.set_title(uc, fontsize=11)
         ax.set_xlabel("time (d)")
@@ -222,6 +225,7 @@ def realize_arrays(template_d, parval, work_d=None, case="synth2d"):
 def plot_property_maps(master_d, template_d, truth_d, case="synth2d",
                        iters=None, figsize=None):
     """truth, prior mean, posterior mean and posterior error for hk and sy"""
+    pal = _palette()
     pst = pyemu.Pst(os.path.join(template_d, f"{case}.pst"))
     if iters is None:
         its = sorted(int(f.split(".")[-3]) for f in os.listdir(master_d)
@@ -258,7 +262,7 @@ def plot_property_maps(master_d, template_d, truth_d, case="synth2d",
         vmin, vmax = min(t.min(), n.min()), max(t.max(), n.max())
         for c, (arr, lab) in enumerate(((t, "truth"), (p, "prior mean"),
                                         (n, "posterior mean"))):
-            im = axes[r, c].imshow(arr, cmap=CMAP_PROP, vmin=vmin, vmax=vmax,
+            im = axes[r, c].imshow(arr, cmap=pal["cmap_prop"], vmin=vmin, vmax=vmax,
                                    interpolation="nearest")
             axes[r, c].set_title(f"{name} {lab}", fontsize=9)
             plt.colorbar(im, ax=axes[r, c], fraction=0.046)
@@ -267,11 +271,11 @@ def plot_property_maps(master_d, template_d, truth_d, case="synth2d",
         if v <= 0.0:
             # identically zero: this property was not adjusted in this variant,
             # so TwoSlopeNorm would reject vmin == vcenter == vmax
-            im = axes[r, 3].imshow(err, cmap=CMAP_ANOM, vmin=-1.0, vmax=1.0,
+            im = axes[r, 3].imshow(err, cmap=pal["cmap_anom"], vmin=-1.0, vmax=1.0,
                                    interpolation="nearest")
             axes[r, 3].set_title(f"{name} posterior - truth\n(not adjusted)", fontsize=9)
         else:
-            im = axes[r, 3].imshow(err, cmap=CMAP_ANOM,
+            im = axes[r, 3].imshow(err, cmap=pal["cmap_anom"],
                                    norm=TwoSlopeNorm(vmin=-v, vcenter=0.0, vmax=v),
                                    interpolation="nearest")
             axes[r, 3].set_title(f"{name} posterior - truth", fontsize=9)
@@ -323,13 +327,15 @@ def plot_model_map(model_ws, truth_d=None, case="synth2d", kper=-1, figsize=(12.
     contours.  right panel is the true hk field with the same features overlaid,
     so it is clear which parts of the domain the observations can actually see.
     """
+    pal = _palette()
     import flopy
     import synth2d_model as m2d
 
     sim = flopy.mf6.MFSimulation.load(sim_ws=model_ws, verbosity_level=0)
     gwf = sim.get_model()
     nrow, ncol = gwf.modelgrid.nrow, gwf.modelgrid.ncol
-    extent = (0, ncol * m2d.DELR, nrow * m2d.DELC, 0)
+    delr, delc = gwf.dis.delr.array[0], gwf.dis.delc.array[0]
+    extent = (0, ncol * delr, nrow * delc, 0)
 
     head = flopy.utils.HeadFile(os.path.join(model_ws, f"{case}.hds")).get_data(
         kstpkper=flopy.utils.HeadFile(
@@ -338,18 +344,18 @@ def plot_model_map(model_ws, truth_d=None, case="synth2d", kper=-1, figsize=(12.
 
     def overlay(ax):
         # river on the west edge, specified inflow on the east edge
-        ax.add_patch(plt.Rectangle((0, 0), m2d.DELR, nrow * m2d.DELC,
-                                   fc=C_POST, ec="none", alpha=0.85, zorder=3))
-        ax.add_patch(plt.Rectangle(((ncol - 1) * m2d.DELR, 0), m2d.DELR,
-                                   nrow * m2d.DELC, fc=C_METHOD["ies"], ec="none",
+        ax.add_patch(plt.Rectangle((0, 0), delr, nrow * delc,
+                                   fc=pal["post"], ec="none", alpha=0.85, zorder=3))
+        ax.add_patch(plt.Rectangle(((ncol - 1) * delr, 0), delr,
+                                   nrow * delc, fc=pal["method"]["ies"], ec="none",
                                    alpha=0.85, zorder=3))
         for (_, i, j) in m2d.well_cells(nrow, ncol):
-            ax.plot((j + 0.5) * m2d.DELR, (i + 0.5) * m2d.DELC, "v", color="black",
+            ax.plot((j + 0.5) * delr, (i + 0.5) * delc, "v", color="black",
                     ms=11, mfc="white", mew=1.8, zorder=5)
         for nme, (_, i, j) in m2d.head_obs_cells(nrow, ncol).items():
-            ax.plot((j + 0.5) * m2d.DELR, (i + 0.5) * m2d.DELC, "o", color="black",
+            ax.plot((j + 0.5) * delr, (i + 0.5) * delc, "o", color="black",
                     ms=8, mfc="white", mew=1.8, zorder=5)
-            ax.annotate(nme, ((j + 0.5) * m2d.DELR, (i + 0.5) * m2d.DELC),
+            ax.annotate(nme, ((j + 0.5) * delr, (i + 0.5) * delc),
                         textcoords="offset points", xytext=(9, 5), fontsize=8,
                         zorder=6)
         ax.set_xlabel("x (m)")
@@ -357,7 +363,7 @@ def plot_model_map(model_ws, truth_d=None, case="synth2d", kper=-1, figsize=(12.
     ncols = 2 if truth_d else 1
     fig, axes = plt.subplots(1, ncols, figsize=figsize, squeeze=False)
     ax = axes[0, 0]
-    im = ax.imshow(head, cmap=CMAP_PROP, extent=extent, interpolation="bilinear")
+    im = ax.imshow(head, cmap=pal["cmap_prop"], extent=extent, interpolation="bilinear")
     cs = ax.contour(head, levels=12, colors="white", linewidths=0.8, extent=extent,
                     origin="upper")
     ax.clabel(cs, inline=True, fontsize=7, fmt="%.1f")
@@ -370,7 +376,7 @@ def plot_model_map(model_ws, truth_d=None, case="synth2d", kper=-1, figsize=(12.
     if truth_d:
         ax = axes[0, 1]
         hk = np.loadtxt(os.path.join(truth_d, "truth_hk.dat"))
-        im = ax.imshow(hk, cmap=CMAP_PROP, extent=extent, interpolation="nearest")
+        im = ax.imshow(hk, cmap=pal["cmap_prop"], extent=extent, interpolation="nearest")
         plt.colorbar(im, ax=ax, fraction=0.046, label="hk (m/d)")
         overlay(ax)
         ax.set_title("true hk field\n"
@@ -428,6 +434,7 @@ def plot_par_moments(master_dirs, template_d, case="synth2d", figsize=None):
     bottom   - distribution of the variance-retention ratio by parameter group,
                which is the summary number for ensemble collapse
     """
+    pal = _palette()
     pst = pyemu.Pst(os.path.join(template_d, f"{case}.pst"))
     names = list(pst.adj_par_names)
     grp = pst.parameter_data.loc[names, "pargp"].values
@@ -438,7 +445,7 @@ def plot_par_moments(master_dirs, template_d, case="synth2d", figsize=None):
                              squeeze=False)
     for c, (meth, d) in enumerate(items):
         pri, post, its = _par_ensembles(d, pst, case)
-        col = C_METHOD.get(meth, C_POST)
+        col = pal["method"].get(meth, pal["post"])
         m0, m1 = pri.mean().values, post.mean().values
         s0, s1 = pri.std(ddof=1).values, post.std(ddof=1).values
 
@@ -451,7 +458,7 @@ def plot_par_moments(master_dirs, template_d, case="synth2d", figsize=None):
         ax.plot(lim, lim, "k--", lw=1, alpha=0.6)
         ax.set_xlabel("prior mean (log10)")
         ax.set_ylabel("posterior mean (log10)")
-        ax.set_title(f"{LBL_METHOD.get(meth, meth)}: first moment\n"
+        ax.set_title(f"{pal['label'].get(meth, meth)}: first moment\n"
                      f"(iter {its[0]} -> {its[1]})", fontsize=10)
         ax.grid(alpha=0.3)
         if c == 0:
@@ -500,6 +507,7 @@ def plot_par_moments(master_dirs, template_d, case="synth2d", figsize=None):
 def plot_obs_vs_sim_multi(master_dirs, template_d, case="synth2d", figsize=None):
     """rows = observation sites, columns = variants, so a row is directly
     comparable across methods"""
+    pal = _palette()
     pst = pyemu.Pst(os.path.join(template_d, f"{case}.pst"))
     obs = pst.observation_data
     nz = obs.loc[obs.weight > 0]
@@ -539,24 +547,24 @@ def plot_obs_vs_sim_multi(master_dirs, template_d, case="synth2d", figsize=None)
             s["t"] = s["time"].astype(float)
             s = s.sort_values("t")
             names, t = list(s.index), s["t"].values
-            for oe, col in ((oe0, C_PRIOR), (oeN, C_POST)):
+            for oe, col in ((oe0, pal["prior"]), (oeN, pal["post"])):
                 if oe is not None:
                     ax.plot(t, oe.loc[:, names].values.T, color=col, lw=0.6, alpha=0.30)
             if noise is not None:
-                ax.plot(t, noise.loc[:, names].values.T, color=C_METHOD["ies"],
+                ax.plot(t, noise.loc[:, names].values.T, color=pal["method"]["ies"],
                         lw=0, marker=".", ms=2.0, alpha=0.30)
-            ax.plot(t, s.obsval.values, "-", color=C_METHOD["ies"], lw=1.3, alpha=0.9)
+            ax.plot(t, s.obsval.values, "-", color=pal["method"]["ies"], lw=1.3, alpha=0.9)
             ax.grid(alpha=0.3)
             if r == 0:
-                ax.set_title(f"{LBL_METHOD.get(meth, meth)}\n(iter {its[0]} -> {its[-1]})",
+                ax.set_title(f"{pal['label'].get(meth, meth)}\n(iter {its[0]} -> {its[-1]})",
                              fontsize=10)
             if c == 0:
                 ax.set_ylabel(uc, fontsize=9)
             if r == len(sites) - 1:
                 ax.set_xlabel("time (d)")
-    axes[0, 0].plot([], [], color=C_PRIOR, lw=2, label="prior")
-    axes[0, 0].plot([], [], color=C_POST, lw=2, label="posterior")
-    axes[0, 0].plot([], [], color=C_METHOD["ies"], lw=0, marker=".", ms=8,
+    axes[0, 0].plot([], [], color=pal["prior"], lw=2, label="prior")
+    axes[0, 0].plot([], [], color=pal["post"], lw=2, label="posterior")
+    axes[0, 0].plot([], [], color=pal["method"]["ies"], lw=0, marker=".", ms=8,
                     label="obs + noise")
     axes[0, 0].legend(frameon=False, fontsize=8)
     fig.suptitle("simulated traces vs the data, every realization drawn",
@@ -569,6 +577,7 @@ def plot_property_maps_multi(master_dirs, template_d, truth_d, case="synth2d",
                              figsize=None):
     """rows = variants, columns = prior mean / posterior mean / error, with the
     truth shown once at the top"""
+    pal = _palette()
     pst = pyemu.Pst(os.path.join(template_d, f"{case}.pst"))
     grps = set(pst.parameter_data.loc[pst.adj_par_names, "pargp"].astype(str))
     props = [p for p in ("hk", "sy") if any(g.startswith(p) for g in grps)]
@@ -597,7 +606,7 @@ def plot_property_maps_multi(master_dirs, template_d, truth_d, case="synth2d",
             for c, (arr, lab) in enumerate(((truth, "truth"),
                                             (pri[k], "prior mean"),
                                             (post[k], "posterior mean"))):
-                im = axes[r, c].imshow(arr, cmap=CMAP_PROP, vmin=vmin, vmax=vmax,
+                im = axes[r, c].imshow(arr, cmap=pal["cmap_prop"], vmin=vmin, vmax=vmax,
                                        interpolation="nearest")
                 axes[r, c].set_title(f"{lab}", fontsize=9)
                 plt.colorbar(im, ax=axes[r, c], fraction=0.046)
@@ -605,12 +614,12 @@ def plot_property_maps_multi(master_dirs, template_d, truth_d, case="synth2d",
             v = float(np.abs(err).max())
             if v <= 0.0:
                 v = 1.0
-            im = axes[r, 3].imshow(err, cmap=CMAP_ANOM,
+            im = axes[r, 3].imshow(err, cmap=pal["cmap_anom"],
                                    norm=TwoSlopeNorm(vmin=-v, vcenter=0.0, vmax=v),
                                    interpolation="nearest")
             axes[r, 3].set_title("posterior - truth", fontsize=9)
             plt.colorbar(im, ax=axes[r, 3], fraction=0.046)
-            axes[r, 0].set_ylabel(LBL_METHOD.get(meth, meth), fontsize=10)
+            axes[r, 0].set_ylabel(pal["label"].get(meth, meth), fontsize=10)
         for a in axes.ravel():
             a.set_xticks([])
             a.set_yticks([])

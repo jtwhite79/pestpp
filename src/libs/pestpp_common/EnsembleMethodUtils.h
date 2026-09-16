@@ -386,6 +386,11 @@ private:
 	//conditional-independence graph and the sparse prior precision estimated on
 	//it; empty unless ies_enif_graph is supplied
 	EnifGraph enif_graph;
+	//the sparse H and its unexplained variance depend only on the ensemble, not on
+	//lambda, and one solver serves every lambda of an iteration - so fit them once
+	bool enif_h_ready = false;
+	Eigen::SparseMatrix<double> enif_H;
+	Eigen::VectorXd enif_unexp;
 	Eigen::MatrixXd& Am;
 	L2PhiHandler& ph;
 	unordered_map<string, Eigen::VectorXd> par_resid_map, obs_resid_map, Am_map;
@@ -550,11 +555,16 @@ public:
 	int get_num_reals() const { return current_num_reals; }
 	/// is reinflation in use at this point in the schedule?
 	bool is_active() const { return current_n_iter != 0; }
+	/// solver for the current reinflation cycle: "ies", "esmda" or "enif", or empty when
+	/// ies_reinflate_solver was not given and ies_use_mda / ies_use_enif decide as before
+	string get_solver() const { return current_solver; }
 
 private:
 	vector<int> n_iter_reinflate;
 	vector<double> reinflate_factor;
 	vector<int> reinflate_num_reals;
+	vector<string> reinflate_solver;
+	string current_solver;
 	int iters_since = 0;
 	int idx = 0;
 	int current_n_iter = 0;
@@ -845,6 +855,15 @@ public:
     void reinflate_par_ensemble(double reinflate_factor,int reinflate_num_reals,
                                 int center_on_min_phi = -1);
 
+	/// pick the solver for the solves that follow: "ies", "esmda", "enif", or empty to go back
+	/// to what ies_use_mda / ies_use_enif say.  set by the ies loop from ies_reinflate_solver
+	void set_active_solver(const string& solver) { active_solver = solver; }
+	string get_active_solver() const { return active_solver; }
+	/// start a fresh esmda inflation schedule at the next esmda solve, spread over seg_len
+	/// iterations.  used when the loop switches into esmda from another solver or after a
+	/// reinflation, so the schedule is not indexed from iteration 1 of the whole run
+	void begin_mda_segment(int seg_len) { mda_restart = true; mda_seg_len = seg_len; }
+
 protected:
 	string alg_tag;
 	Pest& pest_scenario;
@@ -881,6 +900,28 @@ protected:
 	vector<double> best_mean_phis;
 	double best_phi_yet;
 	vector<double> mda_lambdas;
+	// esmda schedule segment: the schedule is built over mda_seg_len iterations starting at
+	// iteration mda_seg_start.  the defaults (start 1, length noptmax) are the whole run, which
+	// is what every run without ies_reinflate_solver gets
+	int mda_seg_start = 1;
+	int mda_seg_len = -1;
+	bool mda_restart = false;
+	// empty means the solver comes from ies_use_mda / ies_use_enif
+	string active_solver;
+	// true when the enif solve should be used for this iteration
+	bool use_enif_solve() const {
+		if (active_solver.empty())
+			return pest_scenario.get_pestpp_options().get_ies_use_enif();
+		return active_solver == "enif";
+	}
+	// true when any stage of the run uses esmda, either through ies_use_mda or the solver list
+	bool any_mda_solve() const {
+		if (pest_scenario.get_pestpp_options().get_ies_reinflate_solver().empty())
+			return pest_scenario.get_pestpp_options().get_ies_use_mda();
+		for (auto& s : pest_scenario.get_pestpp_options().get_ies_reinflate_solver())
+			if (s == "esmda") return true;
+		return false;
+	}
 	vector<string> obs_dyn_state_names, par_dyn_state_names;
 	map<string,string> final2init_par_state_names;
 	int consec_bad_lambda_cycles;

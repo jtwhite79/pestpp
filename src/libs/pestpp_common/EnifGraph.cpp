@@ -371,10 +371,219 @@ Eigen::MatrixXd EnifGraph::information_step(const Eigen::SparseMatrix<double>& H
 }
 
 
-Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
-	const Eigen::MatrixXd& B, double lasso_frac, int num_threads,
+//one coordinate descent sweep over the columns listed in cols for
+//    min 0.5||b - X x||^2 + alpha ||x||_1
+//X is realizations x parameters, so each parameter is a contiguous column; cnorm holds
+//the squared column norms.  x and the residual r = b - X x are updated in place.
+//returns the largest coefficient change.
+static double lasso_sweep(const Eigen::MatrixXd& X, const Eigen::VectorXd& cnorm,
+	double alpha, Eigen::VectorXd& x, Eigen::VectorXd& r, const vector<int>& cols)
+{
+	double max_chg = 0.0;
+	for (int j : cols)
+	{
+		if (cnorm[j] <= 0.0)
+			continue;
+		double xj = x[j];
+		double rho = X.col(j).dot(r) + cnorm[j] * xj;
+		double nx = 0.0;
+		if (rho > alpha)
+			nx = (rho - alpha) / cnorm[j];
+		else if (rho < -alpha)
+			nx = (rho + alpha) / cnorm[j];
+		if (nx != xj)
+		{
+			r.noalias() -= X.col(j) * (nx - xj);
+			x[j] = nx;
+			max_chg = max(max_chg, abs(nx - xj));
+		}
+	}
+	return max_chg;
+}
+
+
+//coordinate descent to convergence with an active set: a full sweep finds which
+//coefficients are nonzero, sweeps over just those run until they settle, and the next
+//full sweep checks nothing outside them wants in.  warm starts from x and r.
+static void lasso_cd(const Eigen::MatrixXd& X, const Eigen::VectorXd& cnorm,
+	double alpha, Eigen::VectorXd& x, Eigen::VectorXd& r, const vector<int>& all_cols,
+	int max_sweeps, double tol)
+{
+	vector<int> active;
+	for (int outer = 0; outer < max_sweeps; outer++)
+	{
+		double chg = lasso_sweep(X, cnorm, alpha, x, r, all_cols);
+		if (chg < tol)
+			break;
+		active.clear();
+		for (int j : all_cols)
+			if (x[j] != 0.0)
+				active.push_back(j);
+		for (int inner = 0; inner < max_sweeps; inner++)
+			if (lasso_sweep(X, cnorm, alpha, x, r, active) < tol)
+				break;
+	}
+}
+
+
+//the reference implementation's H: standardized rows, penalty per observation by
+//k-fold cross-validation, then a refit on every realization
+static Eigen::SparseMatrix<double> estimate_sparse_H_cv(const Eigen::MatrixXd& A,
+	const Eigen::MatrixXd& B, int cv_folds, int num_threads,
 	Eigen::VectorXd& unexplained, ofstream& frec)
 {
+	int p = (int)A.rows();
+	int nreal = (int)A.cols();
+	int nobs = (int)B.rows();
+	unexplained.setZero(nobs);
+	int nfold = max(2, min(cv_folds, nreal));
+	const int n_alphas = 50;
+	const double alpha_eps = 1.0e-3;
+	const int max_sweeps = 1000;
+	//coefficients are in standardized units, so this is a relative tolerance
+	const double tol = 1.0e-6;
+
+	//unit-length parameter anomalies, stored realizations x parameters so each
+	//parameter is a contiguous column.  a parameter with no spread stays zero
+	Eigen::VectorXd asd = A.rowwise().norm();
+	Eigen::MatrixXd Xs(nreal, p);
+	for (int j = 0; j < p; j++)
+		Xs.col(j) = (asd[j] > 0.0) ? Eigen::VectorXd(A.row(j).transpose() / asd[j]) : Eigen::VectorXd::Zero(nreal);
+	vector<int> all_cols(p);
+	for (int j = 0; j < p; j++)
+		all_cols[j] = j;
+
+	//contiguous folds over the realizations, as a plain k-fold split does
+	vector<vector<int>> test_idx(nfold), train_idx(nfold);
+	for (int k = 0; k < nreal; k++)
+		test_idx[(int)((long)k * nfold / nreal)].push_back(k);
+	vector<Eigen::MatrixXd> Xtr(nfold), Xte(nfold);
+	vector<Eigen::VectorXd> xtr_norm(nfold);
+	for (int f = 0; f < nfold; f++)
+	{
+		set<int> te(test_idx[f].begin(), test_idx[f].end());
+		for (int k = 0; k < nreal; k++)
+			if (te.find(k) == te.end())
+				train_idx[f].push_back(k);
+		Xtr[f].resize(train_idx[f].size(), p);
+		Xte[f].resize(test_idx[f].size(), p);
+		for (size_t c = 0; c < train_idx[f].size(); c++)
+			Xtr[f].row(c) = Xs.row(train_idx[f][c]);
+		for (size_t c = 0; c < test_idx[f].size(); c++)
+			Xte[f].row(c) = Xs.row(test_idx[f][c]);
+		xtr_norm[f] = Xtr[f].colwise().squaredNorm().transpose();
+	}
+	Eigen::VectorXd xs_norm = Xs.colwise().squaredNorm().transpose();
+
+	vector<vector<Eigen::Triplet<double>>> row_trips(nobs);
+	vector<double> chosen_frac(nobs, 0.0);
+
+	auto solve_row = [&](int i)
+	{
+		double bsd = B.row(i).norm();
+		if (bsd <= 0.0)
+			return;
+		Eigen::VectorXd bs = B.row(i).transpose() / bsd;
+
+		//penalty path from the value that zeros the whole row down to alpha_eps of it
+		double amax = (Xs.transpose() * bs).cwiseAbs().maxCoeff();
+		if (amax <= 0.0)
+			return;
+		vector<double> alphas(n_alphas);
+		for (int a = 0; a < n_alphas; a++)
+			alphas[a] = amax * pow(alpha_eps, (double)a / (double)(n_alphas - 1));
+
+		//held-out squared error summed over folds, per penalty
+		vector<double> cv_err(n_alphas, 0.0);
+		for (int f = 0; f < nfold; f++)
+		{
+			Eigen::VectorXd btr(train_idx[f].size()), bte(test_idx[f].size());
+			for (size_t c = 0; c < train_idx[f].size(); c++)
+				btr[c] = bs[train_idx[f][c]];
+			for (size_t c = 0; c < test_idx[f].size(); c++)
+				bte[c] = bs[test_idx[f][c]];
+			//the penalty is on the sum of squares, so scale it to the training size
+			//to keep the path comparable to the full fit
+			double nscale = (double)train_idx[f].size() / (double)nreal;
+			Eigen::VectorXd x = Eigen::VectorXd::Zero(p);
+			Eigen::VectorXd r = btr;
+			for (int a = 0; a < n_alphas; a++)
+			{
+				lasso_cd(Xtr[f], xtr_norm[f], alphas[a] * nscale, x, r, all_cols, max_sweeps, tol);
+				cv_err[a] += (bte - Xte[f] * x).squaredNorm();
+			}
+		}
+		int best = (int)(min_element(cv_err.begin(), cv_err.end()) - cv_err.begin());
+		chosen_frac[i] = alphas[best] / amax;
+
+		//refit on every realization, warm starting down the path to the chosen penalty
+		Eigen::VectorXd x = Eigen::VectorXd::Zero(p);
+		Eigen::VectorXd r = bs;
+		for (int a = 0; a <= best; a++)
+			lasso_cd(Xs, xs_norm, alphas[a], x, r, all_cols, max_sweeps, tol);
+
+		//back to original units: h_ij = x_j * ||b_i|| / ||a_j||, and the residual
+		//variance in original units is what the observation error is inflated by
+		Eigen::VectorXd h = Eigen::VectorXd::Zero(p);
+		for (int j = 0; j < p; j++)
+			if ((x[j] != 0.0) && (asd[j] > 0.0))
+				h[j] = x[j] * bsd / asd[j];
+		Eigen::VectorXd res = B.row(i).transpose() - A.transpose() * h;
+		unexplained[i] = res.squaredNorm() * (double)(nreal - 1) / (double)nreal;
+		for (int j = 0; j < p; j++)
+			if (h[j] != 0.0)
+				row_trips[i].push_back(Eigen::Triplet<double>(i, j, h[j]));
+	};
+
+	//ies_num_threads defaults to -1; take every core then, the rows are independent
+	if (num_threads < 1)
+		num_threads = max(1, (int)std::thread::hardware_concurrency());
+	if (num_threads < 2)
+	{
+		for (int i = 0; i < nobs; i++)
+			solve_row(i);
+	}
+	else
+	{
+		vector<thread> threads;
+		std::atomic<int> next(0);
+		int nt = min(num_threads, nobs);
+		for (int t = 0; t < nt; t++)
+			threads.push_back(thread([&]() {
+				int i;
+				while ((i = next.fetch_add(1)) < nobs)
+					solve_row(i);
+				}));
+		for (auto& th : threads)
+			th.join();
+	}
+
+	vector<Eigen::Triplet<double>> all;
+	for (auto& rt : row_trips)
+		all.insert(all.end(), rt.begin(), rt.end());
+	Eigen::SparseMatrix<double> H(nobs, p);
+	H.setFromTriplets(all.begin(), all.end());
+	H.makeCompressed();
+
+	vector<double> fr = chosen_frac;
+	sort(fr.begin(), fr.end());
+	frec << "...sparse H by " << nfold << "-fold cross-validated lasso on standardized anomalies: "
+		<< H.nonZeros() << " of " << ((long)nobs * (long)p) << " entries (" << setprecision(3)
+		<< (100.0 * (double)H.nonZeros() / ((double)nobs * (double)p)) << " percent)" << endl;
+	frec << "...chosen penalty as a fraction of the row-zeroing value, min / median / max: "
+		<< fr.front() << " / " << fr[fr.size() / 2] << " / " << fr.back() << endl;
+	frec << "...mean unexplained variance per observation: " << unexplained.mean() << endl;
+	return H;
+}
+
+
+Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
+	const Eigen::MatrixXd& B, double lasso_frac, int num_threads,
+	Eigen::VectorXd& unexplained, ofstream& frec, int cv_folds)
+{
+	if (cv_folds > 0)
+		return estimate_sparse_H_cv(A, B, cv_folds, num_threads, unexplained, frec);
+
 	int p = (int)A.rows();
 	int nreal = (int)A.cols();
 	int nobs = (int)B.rows();

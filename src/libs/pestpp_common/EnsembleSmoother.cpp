@@ -56,11 +56,32 @@ void IterEnsembleSmoother::iterate_2_solution()
 	ReinflationSchedule reinflation(pest_scenario);
     int solution_iter = 0;
     int q;
+	// with ies_reinflate_solver the solver comes from the schedule and can change at each
+	// reinflation; without it get_solver() is empty and ies_use_mda / ies_use_enif decide
+	string last_solver;
+	bool new_cycle = true;
 	for (int i = 0; i < pest_scenario.get_control_info().noptmax; i++)
 	{
 		begin_iteration();
         solution_iter++;
-		if (pest_scenario.get_pestpp_options().get_ies_use_mda())
+		string solver = reinflation.get_solver();
+		set_active_solver(solver);
+		if ((!solver.empty()) && (solver != last_solver || new_cycle))
+		{
+			message(1, "solver for this reinflation cycle:", solver);
+			// esmda spreads its inflation over the cycle, so start its schedule fresh here
+			if (solver == "esmda")
+			{
+				int seg_len = reinflation.is_active() ? reinflation.get_n_iter()
+					: pest_scenario.get_control_info().noptmax - solution_iter + 1;
+				begin_mda_segment(seg_len);
+			}
+		}
+		new_cycle = false;
+		last_solver = solver;
+		bool mda_now = solver.empty() ? pest_scenario.get_pestpp_options().get_ies_use_mda()
+			: (solver == "esmda");
+		if (mda_now)
         {
 		    accept = (solve_mda(false) != UpgradeStatus::REJECTED_RETRY);
         }
@@ -90,6 +111,7 @@ void IterEnsembleSmoother::iterate_2_solution()
             reinflate_par_ensemble(reinflation.get_factor(),reinflation.get_num_reals());
             //adjust_weights(true);
             reinflation.advance();
+            new_cycle = true;
             //now report again to get the new phi sequence after reinflation
             should_terminate(reinflation.get_n_iter());
 

@@ -5139,6 +5139,76 @@ def modify_runstor(ws=".",fail_every=None):
     rs.update(df)
 
 
+def tenpar_reinflate_solver_test():
+    """ies_reinflate_solver: a single entry matches the old flags exactly (ies == no option,
+    esmda == ies_use_mda, enif == ies_use_enif), a list switches solver at each reinflation
+    with the last entry held, and a bad entry stops the run.  serial runs on the 10 par xsec,
+    so it is quick"""
+    model_d = "ies_10par_xsec"
+    template_d = scratch_template(os.path.join(model_d, "test_template"), suffix="_reinflate_solver")
+
+    def run_case(name, options, noptmax=6):
+        test_d = os.path.join(model_d, "master_reinflate_solver_" + name)
+        if os.path.exists(test_d):
+            shutil.rmtree(test_d)
+        shutil.copytree(template_d, test_d)
+        pst = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        pst.pestpp_options = {"ies_num_reals": 10, "ies_lambda_mults": 1.0,
+                              "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0}
+        pst.pestpp_options.update(options)
+        pst.control_data.noptmax = noptmax
+        pst.write(os.path.join(test_d, "pest.pst"))
+        try:
+            pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=test_d)
+        except Exception:
+            pass
+        rec_f = os.path.join(test_d, "pest.rec")
+        rec = open(rec_f).read() if os.path.exists(rec_f) else ""
+        phi_f = os.path.join(test_d, "pest.phi.actual.csv")
+        phi = pd.read_csv(phi_f, index_col=0) if os.path.exists(phi_f) else None
+        return rec, phi
+
+    def cycle_solvers(rec):
+        tag = "solver for this reinflation cycle:"
+        return [ln.split(tag)[1].strip() for ln in rec.splitlines() if tag in ln]
+
+    # a single entry gives exactly what the old flag gave; dropped realizations are nan in
+    # the phi file, so nan in the same place counts as equal
+    for name, legacy, new in [("ies", {}, {"ies_reinflate_solver": "ies"}),
+                              ("esmda", {"ies_use_mda": True}, {"ies_reinflate_solver": "esmda"}),
+                              ("enif", {"ies_use_enif": True}, {"ies_reinflate_solver": "enif"})]:
+        _, phi_a = run_case(name + "_legacy", legacy)
+        rec_b, phi_b = run_case(name + "_option", new)
+        assert phi_a is not None and phi_b is not None, name + ": a run did not finish"
+        assert phi_a.shape == phi_b.shape, name + ": phi files differ in shape"
+        assert np.allclose(phi_a.values, phi_b.values, rtol=0.0, atol=0.0, equal_nan=True), \
+            name + ": ies_reinflate_solver does not match the old flag"
+        assert cycle_solvers(rec_b)[:1] == [name], name + ": solver not reported in the rec"
+
+    # switching at each reinflation, every 2 iterations
+    reinf = {"ies_n_iter_reinflate": 2, "ies_reinflate_factor": 1.0}
+    rec, phi = run_case("switch", dict(reinf, ies_reinflate_solver="esmda,enif,ies"))
+    got = cycle_solvers(rec)
+    assert got[:3] == ["esmda", "enif", "ies"], "switch: wrong solver order {0}".format(got)
+    assert "mda factor" in rec and "ensemble information filter solve" in rec and "glm factor" in rec, \
+        "switch: not all three solves ran"
+    assert phi is not None and np.isfinite(phi["mean"].values).all(), "switch: phi not finite"
+
+    # the last entry is held once the list runs out
+    rec, _ = run_case("hold_last", dict(reinf, ies_reinflate_solver="esmda,enif"))
+    got = cycle_solvers(rec)
+    assert len(got) >= 3 and got[0] == "esmda" and all(s == "enif" for s in got[1:]), \
+        "hold_last: last entry not held {0}".format(got)
+
+    # esmda after another solver starts its own inflation schedule
+    rec, phi = run_case("ies_then_esmda", dict(reinf, ies_reinflate_solver="ies,esmda"))
+    assert phi is not None and np.isfinite(phi["mean"].values).all(), "ies_then_esmda: phi not finite"
+
+    # a bad entry stops the run with a clear message
+    rec, _ = run_case("bad", {"ies_reinflate_solver": "ies,nope"}, noptmax=1)
+    assert "not recognized" in rec, "bad entry: no clear error"
+
+
 def tenpar_ext_run_mgr_test():
     import inspect
 
@@ -5532,7 +5602,7 @@ def synth2d_enif_test(nrow=25, ncol=25, num_reals=50, noptmax=3, plot=True):
     import synth2d_setup
     import synth2d_viz
 
-    if synth2d_setup.MF6 is None:
+    if synth2d_setup.find_mf6() is None:
         # no model, no test - say so rather than dying later on a path that does not
         # exist.  this is how it shows up on ci when test_bin has no mf6 for the platform
         import unittest

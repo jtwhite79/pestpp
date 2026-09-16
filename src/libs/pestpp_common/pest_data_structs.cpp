@@ -1199,6 +1199,11 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
         convert_ip(value,ies_enif_h_lasso);
         return true;
     }
+    else if (key == "IES_ENIF_H_CV_FOLDS")
+    {
+        convert_ip(value,ies_enif_h_cv_folds);
+        return true;
+    }
     else if (key == "IES_ENIF_SHRINK")
     {
         convert_ip(value,ies_enif_shrink);
@@ -1268,6 +1273,19 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
         for (const auto& fac : tok)
         {
             ies_reinflate_factor.push_back(convert_cp<double>(fac));
+        }
+        return true;
+    }
+    else if (key == "IES_REINFLATE_SOLVER")
+    {
+        //kept as given (lower cased); the entries are checked against ies/esmda/enif at
+        //initialize, not here, so a bad entry reports with the rest of the setup errors
+        vector<string> tok;
+        tokenize(value, tok, ",");
+        ies_reinflate_solver.clear();
+        for (const auto& s : tok)
+        {
+            ies_reinflate_solver.push_back(lower_cp(strip_cp(s)));
         }
         return true;
     }
@@ -2319,6 +2337,7 @@ os << endl << "...pestpp-swp options:" << endl;
 	os << "ies_enif_resid_inflate: " << ies_enif_resid_inflate << endl;
 	os << "ies_enif_graph: " << ies_enif_graph << endl;
 	os << "ies_enif_h_lasso: " << ies_enif_h_lasso << endl;
+	os << "ies_enif_h_cv_folds: " << ies_enif_h_cv_folds << endl;
 	os << "ies_enif_shrink: " << ies_enif_shrink << endl;
 	os << "ies_enif_order: " << ies_enif_order << endl;
 	os << "ies_enif_save_h: " << ies_enif_save_h << endl;
@@ -2334,6 +2353,10 @@ os << endl << "...pestpp-swp options:" << endl;
     os << endl;
     os << "ies_reinflate_factor: " << endl;
     for (auto v : ies_reinflate_factor)
+        os << v << ",";
+    os << endl;
+    os << "ies_reinflate_solver: " << endl;
+    for (auto v : ies_reinflate_solver)
         os << v << ",";
     os << endl;
     os << "ies_updatebyreals: " << ies_updatebyreals << endl;
@@ -2572,6 +2595,7 @@ void PestppOptions::set_defaults_legacy()
     set_ies_enif_resid_inflate(true);
     set_ies_enif_graph("");
     set_ies_enif_h_lasso(0.0);
+    set_ies_enif_h_cv_folds(0);
     set_ies_enif_shrink(1.0e-3);
     set_ies_enif_order("amd");
     set_ies_enif_save_h(false);
@@ -2584,6 +2608,7 @@ void PestppOptions::set_defaults_legacy()
     set_ies_phi_factors_by_real(false);
     set_ies_n_iter_reinflate(vector < int > {0});
     set_ies_reinflate_factor(vector < double > {1.0});
+    set_ies_reinflate_solver(vector<string>());
     set_ies_run_realname("");
 	set_ies_reinflate_num_reals(vector<int>{0});
 	set_ies_use_phi_lambda_iters(false);

@@ -694,6 +694,8 @@ public:
     void set_ies_enif_graph(string _s) { ies_enif_graph = _s; }
     double get_ies_enif_h_lasso() const { return ies_enif_h_lasso; }
     void set_ies_enif_h_lasso(double _f) { ies_enif_h_lasso = _f; }
+    int get_ies_enif_h_cv_folds() const { return ies_enif_h_cv_folds; }
+    void set_ies_enif_h_cv_folds(int _n) { ies_enif_h_cv_folds = _n; }
     double get_ies_enif_shrink() const { return ies_enif_shrink; }
     void set_ies_enif_shrink(double _f) { ies_enif_shrink = _f; }
     string get_ies_enif_order() const { return ies_enif_order; }
@@ -712,6 +714,8 @@ public:
     vector<int> get_ies_n_iter_reinflate() const {return ies_n_iter_reinflate;}
     void set_ies_reinflate_factor(vector<double> reinflate_factor)  { ies_reinflate_factor = reinflate_factor;}
     vector<double> get_ies_reinflate_factor() const {return ies_reinflate_factor;}
+    void set_ies_reinflate_solver(vector<string> solvers)  { ies_reinflate_solver = solvers;}
+    vector<string> get_ies_reinflate_solver() const {return ies_reinflate_solver;}
     void set_ies_aal_indicator_pars(vector<string> pars)  { ies_aal_indicator_pars = pars;}
     vector<string> get_ies_aal_indicator_pars() const {return ies_aal_indicator_pars;}
     void set_ies_run_realname(string name) {ies_run_realname = name;}
@@ -1089,6 +1093,7 @@ private:
 	bool ies_enif_resid_inflate;
 	string ies_enif_graph;
 	double ies_enif_h_lasso;
+	int ies_enif_h_cv_folds;
 	double ies_enif_shrink;
 	string ies_enif_order;
 	bool ies_enif_save_h;
@@ -1100,6 +1105,7 @@ private:
 	bool ies_phi_factors_by_real;
 	vector<int> ies_n_iter_reinflate;
     vector<double> ies_reinflate_factor;
+    vector<string> ies_reinflate_solver;
     bool ies_updatebyreals;
     vector<string> ies_aal_indicator_pars;
     string ies_run_realname;

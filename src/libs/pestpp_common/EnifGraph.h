@@ -117,9 +117,17 @@ worth having at all.
 lasso_frac scales the penalty relative to the smallest value that would zero a
 whole row, so it is dimensionless and lives in (0,1).  unexplained returns the
 per-observation residual variance, which is the quantity the observation error is
-inflated by.  Rows are independent, so this parallelises over num_threads. */
+inflated by.  Rows are independent, so this parallelises over num_threads.
+
+cv_folds > 0 switches to the way the reference implementation fits H: every
+parameter and observation anomaly row is scaled to unit length first, and the
+penalty for each observation is picked by cv_folds-fold cross-validation over the
+realizations, along a path of penalties with warm starts, then refit on all of
+them.  lasso_frac is not used then.  on raw anomalies a fixed penalty lets
+parameters whose spread has collapsed in, and H ends up interpolating the
+ensemble, which leaves the unexplained-variance inflation with nothing to do. */
 Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
 	const Eigen::MatrixXd& B, double lasso_frac, int num_threads,
-	Eigen::VectorXd& unexplained, ofstream& frec);
+	Eigen::VectorXd& unexplained, ofstream& frec, int cv_folds = 0);
 
 #endif // ENIFGRAPH_H_

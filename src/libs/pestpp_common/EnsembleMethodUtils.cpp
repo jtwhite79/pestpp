@@ -1275,10 +1275,16 @@ void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
         double lasso = pest_scenario.get_pestpp_options().get_ies_enif_h_lasso();
         if (lasso <= 0.0)
             lasso = 1.0e-2;
-        Eigen::VectorXd unexp;
-        Eigen::SparseMatrix<double> Hs = estimate_sparse_H(
-            A, B, lasso, pest_scenario.get_pestpp_options().get_ies_num_threads(),
-            unexp, frec);
+        if (!enif_h_ready)
+        {
+            performance_log->log_event("enif: estimating sparse H");
+            enif_H = estimate_sparse_H(
+                A, B, lasso, pest_scenario.get_pestpp_options().get_ies_num_threads(),
+                enif_unexp, frec, pest_scenario.get_pestpp_options().get_ies_enif_h_cv_folds());
+            enif_h_ready = true;
+        }
+        const Eigen::SparseMatrix<double>& Hs = enif_H;
+        const Eigen::VectorXd& unexp = enif_unexp;
 
         if (pest_scenario.get_pestpp_options().get_ies_enif_save_h())
         {
@@ -4807,7 +4813,7 @@ void EnsembleMethod::sanity_checks()
     string restart_obs = ppo->get_ies_obs_restart_csv();
     string restart_par = ppo->get_ies_par_restart_csv();
 
-    if (pest_scenario.get_pestpp_options().get_ies_use_mda() && (pest_scenario.get_pestpp_options().get_ies_loc_type()[0] == 'C'))
+    if (any_mda_solve() && (pest_scenario.get_pestpp_options().get_ies_loc_type()[0] == 'C'))
     {
         errors.push_back("Covariance-based localization not supported with MDA solver");
     }
@@ -5619,7 +5625,29 @@ int EnsembleMethod::initialize_prepare(int cycle, bool run, bool use_existing)
 	//set some defaults
 	PestppOptions* ppo = pest_scenario.get_pestpp_options_ptr();
 
-	if (ppo->get_ies_use_mda())
+	if (!ppo->get_ies_reinflate_solver().empty())
+	{
+		stringstream sss;
+		sss << "solver by reinflation cycle (last entry is held): ";
+		for (auto& s : ppo->get_ies_reinflate_solver())
+		{
+			if ((s != "ies") && (s != "esmda") && (s != "enif"))
+				throw_em_error("ies_reinflate_solver entry '" + s + "' not recognized, must be 'ies', 'esmda' or 'enif'");
+			sss << s << " ";
+		}
+		message(1, sss.str());
+		if (ppo->get_ies_use_mda() || ppo->get_ies_use_enif())
+			message(1, "WARNING: ies_reinflate_solver is set, so ies_use_mda and ies_use_enif are ignored");
+		if (ppo->get_ies_reinflate_solver().size() > 1)
+		{
+			bool reinflating = false;
+			for (auto n : ppo->get_ies_n_iter_reinflate())
+				if (n != 0) reinflating = true;
+			if (!reinflating)
+				message(1, "WARNING: ies_reinflate_solver has more than one entry but reinflation is off (ies_n_iter_reinflate = 0), only the first entry will be used");
+		}
+	}
+	if (any_mda_solve())
 	{
 	    message(1, "using multiple-data-assimilation algorithm");
 		int noptmax = pest_scenario.get_control_info().noptmax;
@@ -5818,7 +5846,7 @@ int EnsembleMethod::initialize_prepare(int cycle, bool run, bool use_existing)
         reset_to_nonoise = false;
     else if (!ppo->get_obscov_filename().empty())
         reset_to_nonoise = false;
-    else if (ppo->get_ies_use_mda())
+    else if (any_mda_solve())
         reset_to_nonoise = false;
     else
     {
@@ -7816,12 +7844,23 @@ void EnsembleMethod::get_mda_factors(bool last_iter, vector<double>& inflation_f
 	vector<double> mda_facs, scaled_mda_facs;
 	mda_facs.push_back(pest_scenario.get_pestpp_options().get_ies_mda_init_fac());
 	double tot;
-	if (iter == 1)	{
+	// the schedule is indexed by the iteration within the current esmda segment.  without
+	// ies_reinflate_solver the segment is the whole run (start 1, length noptmax), so seg_iter
+	// is just iter and nothing below changes
+	if (mda_restart)
+	{
+		mda_seg_start = iter;
+		mda_lambdas.clear();
+		mda_restart = false;
+	}
+	int seg_iter = iter - mda_seg_start + 1;
+	int seg_len = (mda_seg_len > 0) ? mda_seg_len : pest_scenario.get_control_info().noptmax;
+	if (seg_iter == 1)	{
 		
 		tot = 1.0 / mda_facs[0];
 		double dec_fac = pest_scenario.get_pestpp_options().get_ies_mda_dec_fac();// get_ies_mda_dec_fac();
 		
-		for (int i = 1; i < pest_scenario.get_control_info().noptmax; i++)
+		for (int i = 1; i < seg_len; i++)
 		{
 			mda_facs.push_back(mda_facs[i - 1] * dec_fac);
 			tot += (1.0 / mda_facs[i]);
@@ -7839,7 +7878,7 @@ void EnsembleMethod::get_mda_factors(bool last_iter, vector<double>& inflation_f
 		// the schedule was sized from noptmax back at iter 1; if noptmax has since been raised,
 		// extend it along the same geometric decay so the indexing below stays in range - the
 		// renormalization that follows redistributes the remaining mass across the new tail
-		int need = max(iter, pest_scenario.get_control_info().noptmax);
+		int need = max(seg_iter, seg_len);
 		if ((int)mda_lambdas.size() < need)
 		{
 			stringstream mss;
@@ -7852,19 +7891,19 @@ void EnsembleMethod::get_mda_factors(bool last_iter, vector<double>& inflation_f
 		}
 		if (last_iter) // trim unused lambdas after the last iteration
 		{
-			mda_lambdas.erase(mda_lambdas.begin()+iter, mda_lambdas.end());
+			mda_lambdas.erase(mda_lambdas.begin()+seg_iter, mda_lambdas.end());
 		}
 		int ii = 1;
 		double tot_fac1, tot_fac2;
 		tot_fac1 = 0;
 		tot_fac2 = 0;
 		scaled_mda_facs.clear();		
-		mda_lambdas[iter - 1] = last_best_lam;
+		mda_lambdas[seg_iter - 1] = last_best_lam;
 		tot = 0;
 		for (auto& mda_fac : mda_lambdas)
 		{		
 			tot += (1.0 / mda_fac);
-			if (ii<iter)
+			if (ii<seg_iter)
 				tot_fac1 += (1.0 / mda_fac);
 			else
 				tot_fac2 += (1.0 / mda_fac);
@@ -7874,7 +7913,7 @@ void EnsembleMethod::get_mda_factors(bool last_iter, vector<double>& inflation_f
 		ii = 1;
 		for (auto& mda_fac : mda_lambdas)
 		{
-			if (ii < iter)
+			if (ii < seg_iter)
 			{
 				ii += 1;
 				scaled_mda_facs.push_back(mda_fac);
@@ -7888,7 +7927,7 @@ void EnsembleMethod::get_mda_factors(bool last_iter, vector<double>& inflation_f
 
 	}
 	
-	inflation_factors = vector<double>{ mda_lambdas[iter-1] };
+	inflation_factors = vector<double>{ mda_lambdas[seg_iter-1] };
 	backtrack_factors = pest_scenario.get_pestpp_options().get_lambda_scale_vec();
 }
 
@@ -8114,7 +8153,7 @@ void EnsembleMethod::generate_upgrades(UpgradeContext& ctx, bool use_mda,
             message(1,"multimodal solve for inflation factor ",cur_lam);
             es.solve_multimodal(get_num_threads(), cur_lam, !use_mda, pe_upgrade, ctx.loc_map, mm_alpha);
         }
-		else if (pest_scenario.get_pestpp_options().get_ies_use_enif())
+		else if (use_enif_solve())
         {
             message(1,"ensemble information filter solve for inflation factor ",cur_lam);
             es.solve_enif(cur_lam, pe_upgrade);
@@ -8911,6 +8950,11 @@ ReinflationSchedule::ReinflationSchedule(Pest& pest_scenario)
 		current_num_reals = reinflate_num_reals[0];
 	if (reinflate_num_reals.size() > 1)
 		current_num_reals = reinflate_num_reals[1];
+	// the solver list is walked like factor: entry 0 runs until the first reinflation, entry 1
+	// until the second, and so on, with the last entry held once the list runs out
+	reinflate_solver = pest_scenario.get_pestpp_options().get_ies_reinflate_solver();
+	if (reinflate_solver.size() > 0)
+		current_solver = reinflate_solver[0];
 }
 
 /**
@@ -8929,6 +8973,8 @@ void ReinflationSchedule::advance()
 		current_n_iter = abs(n_iter_reinflate[idx]);
 	if ((int)reinflate_num_reals.size() > idx + 1)
 		current_num_reals = reinflate_num_reals[idx + 1];
+	if ((int)reinflate_solver.size() > idx)
+		current_solver = reinflate_solver[idx];
 }
 
 /**
