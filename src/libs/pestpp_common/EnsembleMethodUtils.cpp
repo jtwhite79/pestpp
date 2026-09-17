@@ -1214,6 +1214,12 @@ void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
     //e = x - x0 and r = y - d, both returned as reals x vars, so transpose to vars x reals
     Eigen::MatrixXd e = ph.get_par_resid_subset(pe, pe_real_names);
     e.transposeInPlace();
+    //the approximate solution drops the prior pull from the gradient, same as ies does
+    //with ies_use_approx (which defaults to true).  the full solution keeps each
+    //realization anchored on its own prior draw; the approximate one only ever moves
+    //on data misfit.  at iteration 1 e is zero either way, so this only bites later
+    if (pest_scenario.get_pestpp_options().get_ies_use_approx())
+        e.setZero();
     Eigen::MatrixXd r = ph.get_obs_resid_subset(oe, true, oe_real_names);
     r.transposeInPlace();
 
@@ -5625,6 +5631,13 @@ int EnsembleMethod::initialize_prepare(int cycle, bool run, bool use_existing)
 	//set some defaults
 	PestppOptions* ppo = pest_scenario.get_pestpp_options_ptr();
 
+	if (ppo->get_ies_use_enif() || (!ppo->get_ies_reinflate_solver().empty()))
+	{
+		if (ppo->get_ies_use_approx())
+			message(1, "enif: approximate solution, the prior pull (P - P0) is dropped from the gradient");
+		else
+			message(1, "enif: full solution, the prior pull (P - P0) is kept in the gradient");
+	}
 	if (!ppo->get_ies_reinflate_solver().empty())
 	{
 		stringstream sss;

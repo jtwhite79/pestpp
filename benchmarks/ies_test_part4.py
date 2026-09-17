@@ -5139,6 +5139,85 @@ def modify_runstor(ws=".",fail_every=None):
     rs.update(df)
 
 
+def tenpar_enif_approx_test():
+    """enif honors ies_use_approx the way ies does: the approximate solution drops the
+    prior pull (P - P0) from the gradient, the full one keeps it.  at iteration 1 that
+    term is zero either way, so the two must agree there and diverge after.  serial runs
+    on the 10 par xsec, both the covariance path and the graph path"""
+    model_d = "ies_10par_xsec"
+    template_d = scratch_template(os.path.join(model_d, "test_template"), suffix="_enif_approx")
+
+    # a graph for the graph path: 9 adjustable pars in a chain, so it is sparse but not empty
+    pst = pyemu.Pst(os.path.join(template_d, "pest.pst"))
+    pnames = pst.adj_par_names
+    n = len(pnames)
+    adj = np.eye(n)
+    for i in range(n - 1):
+        adj[i, i + 1] = adj[i + 1, i] = 1.0
+    pyemu.Matrix(x=adj, row_names=pnames, col_names=pnames).to_coo(
+        os.path.join(template_d, "graph_chain.jcb"))
+
+    def run_case(name, options, noptmax=3):
+        test_d = os.path.join(model_d, "master_enif_approx_" + name)
+        if os.path.exists(test_d):
+            shutil.rmtree(test_d)
+        shutil.copytree(template_d, test_d)
+        p = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        # run the model directly.  a previous test can leave a run.py in the shared
+        # template whose model command fails on the base realization and on every tenth
+        # run - that is how this test lost realizations before
+        p.model_command = ["mfnwt 10par_xsec.nam"]
+        p.pestpp_options = {"ies_num_reals": 10, "ies_lambda_mults": 1.0,
+                            "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0,
+                            "ies_use_enif": "true"}
+        p.pestpp_options.update(options)
+        p.control_data.noptmax = noptmax
+        p.write(os.path.join(test_d, "pest.pst"))
+        try:
+            pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=test_d)
+        except Exception:
+            pass
+        rec = open(os.path.join(test_d, "pest.rec")).read()
+        pes = {}
+        for i in range(noptmax + 1):
+            f = os.path.join(test_d, "pest.{0}.par.csv".format(i))
+            if os.path.exists(f):
+                pes[i] = pd.read_csv(f, index_col=0)
+        return rec, pes
+
+    for path, extra in [("cov", {}), ("graph", {"ies_enif_graph": "graph_chain.jcb"})]:
+        rec_a, pe_a = run_case(path + "_approx", dict(extra, ies_use_approx="true"))
+        rec_f, pe_f = run_case(path + "_full", dict(extra, ies_use_approx="false"))
+
+        assert "approximate solution" in rec_a, path + ": approx not reported in the rec"
+        assert "full solution" in rec_f, path + ": full not reported in the rec"
+        assert 1 in pe_a and 1 in pe_f, path + ": no iteration 1 ensemble"
+
+        # iteration 1: the prior pull is zero either way, so the two must match
+        common = [r for r in pe_a[1].index if r in pe_f[1].index]
+        d1 = np.abs(pe_a[1].loc[common, :].values - pe_f[1].loc[common, :].values).max()
+        assert d1 < 1.0e-6, "{0}: iteration 1 differs by {1}, should be identical".format(path, d1)
+
+        # after that they have to differ - otherwise the option is doing nothing
+        last = max(set(pe_a).intersection(set(pe_f)))
+        assert last > 1, path + ": need more than one iteration to compare"
+        common = [r for r in pe_a[last].index if r in pe_f[last].index]
+        dl = np.abs(pe_a[last].loc[common, :].values - pe_f[last].loc[common, :].values).max()
+        assert dl > 1.0e-8, "{0}: iteration {1} identical, ies_use_approx had no effect".format(path, last)
+
+        # report how far each ended up from the prior.  not asserted: the prior pull
+        # changes the direction of the step, and on the graph path the full solution can
+        # end up further from the prior than the approximate one - measured, not a bug
+        pe0 = pe_a[0]
+        common = [r for r in pe0.index if r in pe_a[last].index and r in pe_f[last].index]
+        pcols = [c for c in pe0.columns if c in pe_a[last].columns]
+        l0 = np.log10(pe0.loc[common, pcols].values)
+        da = np.linalg.norm(np.log10(pe_a[last].loc[common, pcols].values) - l0)
+        df = np.linalg.norm(np.log10(pe_f[last].loc[common, pcols].values) - l0)
+        print(path, "distance from prior: approx {0:.4f}  full {1:.4f}".format(da, df))
+        assert np.isfinite(da) and np.isfinite(df), path + ": non-finite parameter values"
+
+
 def tenpar_reinflate_solver_test():
     """ies_reinflate_solver: a single entry matches the old flags exactly (ies == no option,
     esmda == ies_use_mda, enif == ies_use_enif), a list switches solver at each reinflation
@@ -5153,6 +5232,9 @@ def tenpar_reinflate_solver_test():
             shutil.rmtree(test_d)
         shutil.copytree(template_d, test_d)
         pst = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        # see the note in tenpar_enif_approx_test: dont inherit whatever model command
+        # the shared template was left with
+        pst.model_command = ["mfnwt 10par_xsec.nam"]
         pst.pestpp_options = {"ies_num_reals": 10, "ies_lambda_mults": 1.0,
                               "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0}
         pst.pestpp_options.update(options)
