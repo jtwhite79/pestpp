@@ -702,6 +702,8 @@ public:
     void set_ies_enif_order(string _s) { ies_enif_order = _s; }
     bool get_ies_enif_save_h() const { return ies_enif_save_h; }
     void set_ies_enif_save_h(bool _f) { ies_enif_save_h = _f; }
+    bool get_ies_use_prior_prec() const { return ies_use_prior_prec; }
+    void set_ies_use_prior_prec(bool _flag) { ies_use_prior_prec = _flag; }
     double get_ies_multimodal_alpha() const { return ies_multimodal_alpha; }
     void set_ies_multimodal_alpha(double _flag) { ies_multimodal_alpha = _flag; }
     double get_ies_multimodal_weight_exponent() const { return ies_multimodal_weight_exponent; }
@@ -1097,6 +1099,7 @@ private:
 	double ies_enif_shrink;
 	string ies_enif_order;
 	bool ies_enif_save_h;
+	bool ies_use_prior_prec;
 	double ies_multimodal_alpha;
 	double ies_multimodal_weight_exponent;
 	double ies_multimodal_phi_weight;

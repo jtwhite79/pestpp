@@ -152,6 +152,14 @@ class L2PhiHandler
 {
 public:
 
+	//ies_reg_factor means two different things depending on who is asking.  the phi
+	//handler wants max(0,r): a negative value is the "full solution" signal and adds no
+	//reg phi.  the upgrade calc (EnsembleMethod::get_reg_factor) wants |r|: negative
+	//means use the magnitude on the prior pull without it showing up in phi.  both live
+	//here as statics so the selftest can pin the arithmetic without building anything
+	static double phi_reg_factor(double r) { return r < 0.0 ? 0.0 : r; }
+	static double upgrade_reg_factor(double r) { return r < 0.0 ? -r : r; }
+
 	enum phiType { MEAS, COMPOSITE, REGUL, ACTUAL, NOISE };
 	L2PhiHandler() { ; }
 	L2PhiHandler(Pest *_pest_scenario, FileManager *_file_manager,
@@ -269,10 +277,7 @@ private:
 	void write_group_csv(int iter_num, int total_runs, ofstream &csv,
 		vector<double> extra = vector<double>());
 
-	// live reg factor for phi: negative option value means 'full solution', for which the
-	// phi handler must ignore regularization (0.0); otherwise the option value. Was cached in
-	// org_reg_factor after the option got mutated to 0.0 at init.
-	double get_reg_factor() const { double r = pest_scenario->get_pestpp_options().get_ies_reg_factor(); return r < 0.0 ? 0.0 : r; }
+	double get_reg_factor() const { return phi_reg_factor(pest_scenario->get_pestpp_options().get_ies_reg_factor()); }
 	vector<string> oreal_names,preal_names;
 	Pest* pest_scenario;
 	FileManager* file_manager;
@@ -370,6 +375,10 @@ public:
     void solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade);
     void solve_multimodal(int num_threads, double cur_lam, bool use_glm_form, ParameterEnsemble& pe_upgrade, unordered_map<string,pair<vector<string>, vector<string>>>& loc_map, double mm_alpha);
     void update_multimodal_components(const double mm_alpha);
+    //ies_use_prior_prec: the p x p prior precision the glm solve should use in place of
+    //the ensemble pseudo-inverse.  owned by EnsembleMethod (it outlives this solver, which
+    //is rebuilt every iteration) and null when the option is off
+    void set_prior_prec(const Eigen::SparseMatrix<double>* q) { prior_prec = q; }
 
 
 private:
@@ -392,6 +401,7 @@ private:
 	Eigen::SparseMatrix<double> enif_H;
 	Eigen::VectorXd enif_unexp;
 	Eigen::MatrixXd& Am;
+	const Eigen::SparseMatrix<double>* prior_prec = nullptr;
 	L2PhiHandler& ph;
 	unordered_map<string, Eigen::VectorXd> par_resid_map, obs_resid_map, Am_map;
 	unordered_map<string, Eigen::VectorXd> par_diff_map, obs_diff_map, obs_err_map;
@@ -490,6 +500,15 @@ public:
                            const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& parcov_inv,
                            const vector<string>& act_obs_names,const vector<string>& act_par_names, double _reg_factor,
                            double mm_weight_sum = -1.0);
+    //the same glm step with an explicit prior precision Q in both the hessian and the
+    //gradient (ies_use_prior_prec).  par_diff, par_resid are raw (unscaled) p x N, obs_diff,
+    //obs_resid n x N; upgrade_1 comes back N x p like ensemble_solution
+    static void ensemble_solution_prec(const int iter, const int verbose_level, const int maxsing,
+                           const bool use_approx, const double cur_lam, const double eigthresh,
+                           Eigen::MatrixXd& par_resid, Eigen::MatrixXd& par_diff,
+                           const Eigen::SparseMatrix<double>& Q, Eigen::MatrixXd& obs_resid,
+                           Eigen::MatrixXd& obs_diff, Eigen::MatrixXd& upgrade_1,
+                           const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights, double _reg_factor);
 protected:
 	PerformanceLog* performance_log;
 	Localizer::How how;
@@ -878,7 +897,8 @@ protected:
 	Covariance parcov, obscov;
 	// live reg factor magnitude for the upgrade calc (abs of the option; a negative option
 	// value signals 'full solution' but still uses the magnitude). Was a cached member.
-	double get_reg_factor() const { double r = pest_scenario.get_pestpp_options().get_ies_reg_factor(); return r < 0.0 ? -r : r; }
+	//|ies_reg_factor|, the weight on the prior pull in the upgrade (0 means 1, see ensemble_solution)
+	double get_reg_factor() const { return L2PhiHandler::upgrade_reg_factor(pest_scenario.get_pestpp_options().get_ies_reg_factor()); }
 	// live verbosity - was cached at initialize(), so bumping it mid-run did nothing
 	int get_verbose_level() const { return pest_scenario.get_pestpp_options().get_ies_verbose_level(); }
 	// live thread count - each solve() spins its own pool, so this is safe to change per iteration
@@ -969,6 +989,11 @@ protected:
 	vector<int> resolve_subset_idxs(const vector<string>& names, const vector<string>& current_names) const;
 
 	Eigen::MatrixXd get_Am(const vector<string>& real_names, const vector<string>& par_names);
+	//ies_use_prior_prec: the prior precision, built once (graph estimate from the prior
+	//ensemble, or the parcov inverse) and handed to every EnsembleSolver after that
+	Eigen::SparseMatrix<double> prior_prec;
+	bool prior_prec_ready = false;
+	void initialize_prior_prec();
 
 
 	void zero_weight_obs(vector<string>& obs_to_zero_weight, bool update_obscov = true, bool update_oe_base = true);

@@ -1220,6 +1220,11 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
         ies_enif_save_h = pest_utils::parse_string_arg_to_bool(value);
         return true;
     }
+    else if (key == "IES_USE_PRIOR_PREC")
+    {
+        ies_use_prior_prec = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
     else if (key == "IES_MULTIMODAL_ALPHA")
     {
         convert_ip(value,ies_multimodal_alpha);
@@ -2341,6 +2346,7 @@ os << endl << "...pestpp-swp options:" << endl;
 	os << "ies_enif_shrink: " << ies_enif_shrink << endl;
 	os << "ies_enif_order: " << ies_enif_order << endl;
 	os << "ies_enif_save_h: " << ies_enif_save_h << endl;
+	os << "ies_use_prior_prec: " << ies_use_prior_prec << endl;
 	os << "ies_multimodal_alpha: " << ies_multimodal_alpha << endl;
 	os << "ies_multimodal_weight_exponent: " << ies_multimodal_weight_exponent << endl;
 	os << "ies_multimodal_phi_weight: " << ies_multimodal_phi_weight << endl;
@@ -2599,6 +2605,7 @@ void PestppOptions::set_defaults_legacy()
     set_ies_enif_shrink(1.0e-3);
     set_ies_enif_order("amd");
     set_ies_enif_save_h(false);
+    set_ies_use_prior_prec(false);
     set_ies_multimodal_alpha(0.0);
     set_ies_multimodal_weight_exponent(0.0);
     set_ies_multimodal_phi_weight(0.5);

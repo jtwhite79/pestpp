@@ -15,6 +15,7 @@
  *    opt_std_weights and their effect on use_chance/use_robust/use_fosm/get_risk)
  */
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <fstream>
 #include <limits>
@@ -34,6 +35,7 @@
 #include "utilities.h"
 #include "RunStorage.h"
 #include "SVDSolver.h"
+#include "SVDPackage.h"
 #include "Regularization.h"
 
 using namespace std;
@@ -2712,6 +2714,140 @@ static void test_prior_inv_sqrt_diag()
         "agrees with scale_prior_anomalies() on the same prior");
 }
 
+/* ies_use_prior_prec: the glm step with an explicit prior precision Q in both the
+ * hessian and the gradient.  when Q is the (untruncated) Am Am^T of the same
+ * ensemble - the pseudo-inverse of the prior anomaly covariance that the existing
+ * path uses - the two forms are the same thing written differently, so the
+ * upgrades have to agree to roundoff, at iteration 1 (data term only) and at
+ * iteration 2 with the prior pull switched on.  the obs anomalies are kept full
+ * rank (nobs >= N-1) so the existing path's V-subspace projection is the whole
+ * centred subspace; with fewer obs the two forms legitimately differ.
+ */
+static void test_ies_prior_prec_reduces_to_am()
+{
+    cout << "[ies prior precision: Q = Am Am^T reproduces the existing glm step]" << endl;
+
+    const int npar = 30, nobs = 40, nreal = 12;
+    // seeded pseudo-random so the anomalies are full rank (N-1): a smooth formula
+    // like sin(a i + b j) is rank 2 and then the obs svd spans only part of the
+    // centred subspace, which is exactly the case where the two forms differ
+    std::mt19937 gen(20260919);
+    std::uniform_real_distribution<double> unif(-1.0, 1.0);
+    Eigen::MatrixXd par_diff0(npar, nreal), obs_diff0(nobs, nreal), obs_resid0(nobs, nreal),
+        par_resid0(npar, nreal);
+    for (int i = 0; i < npar; i++)
+        for (int j = 0; j < nreal; j++)
+        {
+            par_diff0(i, j) = unif(gen);
+            par_resid0(i, j) = 0.3 * unif(gen);
+        }
+    for (int i = 0; i < nobs; i++)
+        for (int j = 0; j < nreal; j++)
+        {
+            obs_diff0(i, j) = unif(gen);
+            obs_resid0(i, j) = 0.2 * unif(gen) + 0.1;
+        }
+    par_diff0 = par_diff0.colwise() - par_diff0.rowwise().mean();
+    obs_diff0 = obs_diff0.colwise() - obs_diff0.rowwise().mean();
+    Eigen::MatrixXd obs_err0 = 0.1 * obs_diff0;
+
+    Eigen::VectorXd wvec(nobs);
+    for (int i = 0; i < nobs; i++)
+        wvec[i] = 0.5 + 0.1 * (i % 4);
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> weights(wvec);
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> parcov_identity(Eigen::VectorXd::Ones(npar));
+    vector<string> onames, pnames;
+    for (int i = 0; i < nobs; i++) onames.push_back("o" + to_string(i));
+    for (int i = 0; i < npar; i++) pnames.push_back("p" + to_string(i));
+
+    // Am exactly as get_Am builds it: tsvd of the scaled prior anomalies, U S^-1
+    const double eigthresh = 1.0e-10;
+    const int maxsing = 1000;
+    Eigen::MatrixXd Am;
+    {
+        Eigen::MatrixXd pd = par_diff0 / sqrt(double(nreal - 1));
+        Eigen::MatrixXd s, U, V;
+        SVD_REDSVD rsvd;
+        rsvd.solve_ip(pd, s, U, V, eigthresh, maxsing);
+        Eigen::MatrixXd sinv = s.asDiagonal().inverse();
+        Am = U * sinv;
+    }
+    Eigen::MatrixXd Qd = Am * Am.transpose();
+    Eigen::SparseMatrix<double> Q = Qd.sparseView();
+
+    auto solve_old = [&](int iter, double lam, double reg)
+    {
+        Eigen::MatrixXd par_resid = par_resid0, par_diff = par_diff0;
+        Eigen::MatrixXd obs_resid = obs_resid0, obs_diff = obs_diff0, obs_err = obs_err0;
+        Eigen::MatrixXd upgrade;
+        UpgradeThread::ensemble_solution(iter, 0, maxsing, 0, 0, false, false, true, lam, eigthresh,
+                                         par_resid, par_diff, Am, obs_resid, obs_diff, upgrade,
+                                         obs_err, weights, parcov_identity, onames, pnames, reg, -1.0);
+        return upgrade;
+    };
+    auto solve_new = [&](int iter, double lam, double reg, const Eigen::SparseMatrix<double>& q)
+    {
+        Eigen::MatrixXd par_resid = par_resid0, par_diff = par_diff0;
+        Eigen::MatrixXd obs_resid = obs_resid0, obs_diff = obs_diff0;
+        Eigen::MatrixXd upgrade;
+        UpgradeThread::ensemble_solution_prec(iter, 0, maxsing, false, lam, eigthresh, par_resid,
+                                              par_diff, q, obs_resid, obs_diff, upgrade, weights, reg);
+        return upgrade;
+    };
+    auto rel = [](const Eigen::MatrixXd& a, const Eigen::MatrixXd& b)
+    { return (a - b).norm() / max(1.0e-30, a.norm()); };
+
+    // iteration 1: data term only, at two lambdas
+    for (double lam : {0.0, 3.0})
+    {
+        Eigen::MatrixXd o = solve_old(1, lam, 1.0), n = solve_new(1, lam, 1.0, Q);
+        CHK(o.rows() == n.rows() && o.cols() == n.cols(), "prec form gives an N x p upgrade");
+        double d = rel(o, n);
+        if (d > 1.0e-8)
+            cout << "  iteration 1, lambda " << lam << ": relative diff " << d << endl;
+        CHK(d < 1.0e-8, "iteration 1 upgrade matches the existing glm step (lambda " + to_string(lam) + ")");
+        CHK(o.norm() > 1.0e-8, "the iteration 1 upgrade is non-zero");
+    }
+    // iteration 2 with reg_factor 1: the prior pull is in on both sides
+    {
+        Eigen::MatrixXd o = solve_old(2, 2.0, 1.0), n = solve_new(2, 2.0, 1.0, Q);
+        double d = rel(o, n);
+        if (d > 1.0e-8)
+            cout << "  iteration 2, prior pull on: relative diff " << d << endl;
+        CHK(d < 1.0e-8, "iteration 2 upgrade with the prior pull matches the existing full solution");
+        // and the pull did something, or the check above is the iteration 1 check again
+        CHK(rel(solve_old(1, 2.0, 1.0), o) > 1.0e-6, "the prior pull changes the iteration 2 upgrade");
+        // reg_factor 0 (the default) means weight 1 on the pull, on both sides.  this
+        // used to multiply the pull by 0 and quietly turn the full solution into the
+        // approx one - the guard was >= 0 instead of > 0
+        CHK(rel(solve_old(2, 2.0, 0.0), o) < 1.0e-12, "reg_factor 0 (default) is weight 1 on the existing full solution");
+        CHK(rel(solve_new(2, 2.0, 0.0, Q), n) < 1.0e-12, "reg_factor 0 (default) is weight 1 on the prec full solution");
+        // and a fractional weight really scales it, so the > 0 branch is live too
+        Eigen::MatrixXd half_o = solve_old(2, 2.0, 0.5), half_n = solve_new(2, 2.0, 0.5, Q);
+        CHK(rel(half_o, o) > 1.0e-6, "reg_factor 0.5 scales the pull on the existing full solution");
+        CHK(rel(half_o, half_n) < 1.0e-8, "reg_factor 0.5 matches on both sides");
+    }
+    // the two readings of ies_reg_factor: the upgrade takes |r| (negative = full
+    // solution with the magnitude on the pull, no reg phi), the phi handler max(0,r)
+    {
+        CHK(L2PhiHandler::upgrade_reg_factor(-1.0) == 1.0, "upgrade reg factor of -1 is 1");
+        CHK(L2PhiHandler::upgrade_reg_factor(0.0) == 0.0, "upgrade reg factor of 0 is 0");
+        CHK(L2PhiHandler::upgrade_reg_factor(0.5) == 0.5, "upgrade reg factor of 0.5 is 0.5");
+        CHK(L2PhiHandler::phi_reg_factor(-1.0) == 0.0, "phi reg factor of -1 is 0");
+        CHK(L2PhiHandler::phi_reg_factor(0.0) == 0.0, "phi reg factor of 0 is 0");
+        CHK(L2PhiHandler::phi_reg_factor(0.5) == 0.5, "phi reg factor of 0.5 is 0.5");
+    }
+    // a different Q must give a different answer, or none of this proves Q is used
+    {
+        Eigen::SparseMatrix<double> Qdiag(npar, npar);
+        Qdiag.setIdentity();
+        Qdiag *= 4.0;
+        CHK(rel(solve_new(1, 1.0, 1.0, Q), solve_new(1, 1.0, 1.0, Qdiag)) > 1.0e-4,
+            "a diagonal Q gives a different upgrade than Am Am^T");
+        CHK(solve_new(1, 1.0, 1.0, Qdiag).allFinite(), "the singular ones direction is dropped, not inverted");
+    }
+}
+
 int main()
 {
     test_registry_equivalence();
@@ -2750,6 +2886,7 @@ int main()
     test_ies_prior_scaling_is_neutral();
     test_prior_anomaly_scaling();
     test_prior_inv_sqrt_diag();
+    test_ies_prior_prec_reduces_to_am();
     cout << "\npestpp-selftest: " << (g_fail == 0 ? "PASS" : "FAIL")
          << " (" << (g_total - g_fail) << "/" << g_total << " checks)" << endl;
     return g_fail == 0 ? 0 : 1;

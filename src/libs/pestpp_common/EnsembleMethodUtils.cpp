@@ -1174,7 +1174,16 @@ void EnsembleSolver::nonlocalized_solve(double cur_lam,bool use_glm_form, Parame
         }
         mm_weight_sum = mm_real_weight_map.at(center_on).sum();
     }
-    UpgradeThread::ensemble_solution(iter,verbose_level,maxsing,0,0,use_prior_scaling,use_approx,use_glm_form,cur_lam,eigthresh,par_resid,
+    if (prior_prec != nullptr)
+    {
+        //ies_use_prior_prec: same inputs, but the prior enters as an explicit precision
+        //instead of the Am pseudo-inverse.  raw anomalies on purpose - see the note in
+        //ensemble_solution_prec on why ies_use_prior_scaling has nothing to do here
+        UpgradeThread::ensemble_solution_prec(iter,verbose_level,maxsing,use_approx,cur_lam,eigthresh,par_resid,
+                      par_diff,*prior_prec,obs_resid,obs_diff,upgrade_1,local_weights,reg_factor);
+    }
+    else
+        UpgradeThread::ensemble_solution(iter,verbose_level,maxsing,0,0,use_prior_scaling,use_approx,use_glm_form,cur_lam,eigthresh,par_resid,
                       par_diff,Am,obs_resid,obs_diff,upgrade_1,obs_err,local_weights,parcov_inv, act_obs_names,act_par_names,reg_factor,mm_weight_sum);
     pe_upgrade.add_2_cols_ip(act_par_names, upgrade_1);
 
@@ -1804,7 +1813,11 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
                 upgrade_2 = -1.0 * (par_diff * x7);
             }
             //x7.resize(0, 0);
-            if (_reg_factor >= 0)
+            //_reg_factor is |ies_reg_factor|.  zero is the default and means the prior
+            //pull goes in with weight 1, which is what the full solution always did before
+            //ies_reg_factor existed.  this used to be >= 0, which multiplied the pull by
+            //the default 0 and made the full solution the approx one
+            if (_reg_factor > 0)
             {
                 upgrade_1 = upgrade_1 + (_reg_factor * upgrade_2.transpose());
             }
@@ -1818,6 +1831,85 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
         }
     }
 
+}
+
+
+void UpgradeThread::ensemble_solution_prec(const int iter, const int verbose_level, const int maxsing,
+                           const bool use_approx, const double cur_lam, const double eigthresh,
+                           Eigen::MatrixXd& par_resid, Eigen::MatrixXd& par_diff,
+                           const Eigen::SparseMatrix<double>& Q, Eigen::MatrixXd& obs_resid,
+                           Eigen::MatrixXd& obs_diff, Eigen::MatrixXd& upgrade_1,
+                           const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights, double _reg_factor)
+{
+    //the glm step of ensemble_solution with the prior written out as a precision Q.
+    //in the existing form the prior enters the hessian as (1+lam) I in the anomaly
+    //subspace and the gradient through Am Am^T = (dM0 dM0^T)^+.  here Q replaces both
+    //at once:
+    //    H = (1+lam) dM^T Q dM + V S^2 V^T          (N x N)
+    //    g = V S U^T r + dM^T Q (m - m0)            (N x N, one column per realization)
+    //    upgrade = -dM H^+ g
+    //with dD = W obs_diff / sqrt(N-1) = U S V^T the same tsvd the existing path takes.
+    //putting Q in the gradient alone would mix two different priors, so it goes in both.
+    //when Q is the untruncated Am Am^T of the same ensemble this reduces to the existing
+    //form exactly - the selftest checks that.
+    //
+    //ies_use_prior_scaling is ignored here on purpose: scaling par_diff by C_sc^-1/2
+    //means Q has to be scaled by C_sc^1/2 on both sides to stay the same prior, and
+    //dM_s^T Q_s dM_s == dM^T Q dM exactly, so the scaling cancels before it can change
+    //anything.  raw anomalies in, raw upgrade out.
+    if ((Q.rows() != par_diff.rows()) || (Q.cols() != par_diff.rows()))
+        throw runtime_error("ensemble_solution_prec(): prior precision not aligned with par_diff");
+    int num_reals = par_resid.cols();
+    double scale = (1.0 / (sqrt(double(num_reals - 1))));
+    obs_resid = weights * obs_resid;
+    obs_diff = scale * (weights * obs_diff);
+    par_diff = scale * par_diff;
+
+    Eigen::MatrixXd s, Ut, V;
+    SVD_REDSVD rsvd;
+    rsvd.solve_ip(obs_diff, s, Ut, V, eigthresh, maxsing);
+    Ut.transposeInPlace();
+    Eigen::MatrixXd s2 = s.cwiseProduct(s);
+
+    //Q dM once, its the big product (p x p sparse times p x N)
+    Eigen::MatrixXd QdM = Q * par_diff;
+    Eigen::MatrixXd H = (1.0 + cur_lam) * (par_diff.transpose() * QdM);
+    H += V * s2.asDiagonal() * V.transpose();
+    Eigen::MatrixXd g = V * (s.asDiagonal() * (Ut * obs_resid));
+    if ((!use_approx) && (iter > 1))
+    {
+        //the prior pull, weighted the same way ensemble_solution weights upgrade_2:
+        //_reg_factor is |ies_reg_factor|, the default 0 means weight 1
+        Eigen::MatrixXd gp = QdM.transpose() * par_resid;
+        if (_reg_factor > 0)
+            g += _reg_factor * gp;
+        else
+            g += gp;
+    }
+
+    //H is singular along the ones vector whenever the anomalies are mean centred
+    //(dM 1 = 0) and can be elsewhere, so pseudo-invert it: keep the eigenvalues that
+    //are above eigthresh times the largest.  N x N, so this is cheap
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> esolve(H);
+    if (esolve.info() != Eigen::Success)
+        throw runtime_error("ensemble_solution_prec(): eigen decomposition of the hessian failed");
+    Eigen::VectorXd ev = esolve.eigenvalues();
+    double emax = ev.maxCoeff();
+    Eigen::VectorXd evinv = Eigen::VectorXd::Zero(ev.size());
+    int nkeep = 0;
+    for (int i = 0; i < ev.size(); i++)
+    {
+        if (ev[i] > eigthresh * emax)
+        {
+            evinv[i] = 1.0 / ev[i];
+            nkeep++;
+        }
+    }
+    if (verbose_level > 1)
+        cout << "ensemble_solution_prec: kept " << nkeep << " of " << ev.size() << " hessian eigenvalues, largest " << emax << endl;
+    Eigen::MatrixXd x = -1.0 * (esolve.eigenvectors() * (evinv.asDiagonal() * (esolve.eigenvectors().transpose() * g)));
+    upgrade_1 = par_diff * x;
+    upgrade_1.transposeInPlace();
 }
 
 
@@ -5693,6 +5785,27 @@ int EnsembleMethod::initialize_prepare(int cycle, bool run, bool use_existing)
 		ofstream& frec = file_manager.rec_ofstream();
 		use_localizer = localizer.initialize(performance_log, frec, forgive_missing);
 	}
+	if (ppo->get_ies_use_prior_prec())
+	{
+		//the precision form only exists for the plain, global glm solve so far
+		if (use_localizer)
+			throw_em_error("ies_use_prior_prec is not supported with localization");
+		if (ppo->get_ies_multimodal_alpha() > 0.0)
+			throw_em_error("ies_use_prior_prec is not supported with the multimodal solve (ies_multimodal_alpha)");
+		if (any_mda_solve())
+			throw_em_error("ies_use_prior_prec needs the glm form, not esmda (ies_use_mda / ies_reinflate_solver)");
+		bool enif = ppo->get_ies_use_enif();
+		for (auto& sol : ppo->get_ies_reinflate_solver())
+			if (sol == "enif") enif = true;
+		if (enif)
+			throw_em_error("ies_use_prior_prec is an ies option, it doesnt apply to the enif solve (ies_use_enif / ies_reinflate_solver)");
+		if ((ppo->get_ies_use_empirical_prior()) && (ppo->get_ies_enif_graph().empty()))
+			throw_em_error("ies_use_prior_prec with no ies_enif_graph needs parcov, which ies_use_empirical_prior turns off");
+		if (ppo->get_ies_enif_graph().empty())
+			message(1, "ies_use_prior_prec: prior precision will be the inverse of parcov");
+		else
+			message(1, "ies_use_prior_prec: prior precision will be estimated on graph " + ppo->get_ies_enif_graph() + " from the prior ensemble");
+	}
 	if (!use_localizer)
 		message(1, "not using localization");
 	else
@@ -5803,10 +5916,9 @@ int EnsembleMethod::initialize_prepare(int cycle, bool run, bool use_existing)
 
 	int subset_size = pest_scenario.get_pestpp_options().get_ies_subset_size();
 
-    // reg_factor is no longer cached: the magnitude is read live via get_reg_factor()
-    // (= abs of the option) for the upgrade calc, and the phi handler derives the negative
-    // 'full solution' semantics live via max(0, option). We no longer mutate the option to
-    // 0.0, which previously left reg_factor stale and inconsistent across three copies.
+    //reg_factor is no longer cached or mutated to 0.0 at init: the upgrade calc reads
+    //|option| through this classes get_reg_factor() and the phi handler reads
+    //max(0,option) through its own, both live
     if (pest_scenario.get_pestpp_options().get_ies_reg_factor() < 0)
     {
         message(1, "using reg_factor in upgrade calculations with full solution: ", get_reg_factor());
@@ -8110,6 +8222,8 @@ UpgradeStatus EnsembleMethod::prepare_upgrades(UpgradeContext& ctx, bool use_mda
 	{
 		ctx.Am = get_Am(pe.get_real_names(), pe.get_var_names());
 	}
+	if ((pest_scenario.get_pestpp_options().get_ies_use_prior_prec()) && (!prior_prec_ready))
+		initialize_prior_prec();
 
 	// choose the subset by position as before, then remember it by name
 	vector<int> _subset_idxs = get_subset_idxs(pe.shape().first, ctx.local_subset_size);
@@ -8140,6 +8254,8 @@ void EnsembleMethod::generate_upgrades(UpgradeContext& ctx, bool use_mda,
 	ObservationEnsemble oe_upgrade(oe.get_pest_scenario_ptr(), &rand_gen, oe.get_eigen(vector<string>(), act_obs_names, false), oe.get_real_names(), act_obs_names);
     EnsembleSolver es(performance_log, file_manager, pest_scenario, pe, oe_upgrade, oe_base, weights, localizer, parcov, ctx.Am, ph,
 		use_localizer, iter, act_par_names, act_obs_names, get_reg_factor());
+    if (pest_scenario.get_pestpp_options().get_ies_use_prior_prec())
+        es.set_prior_prec(&prior_prec);
     double mm_alpha = pest_scenario.get_pestpp_options().get_ies_multimodal_alpha();
     if (mm_alpha > 0.0)
     {
@@ -10582,6 +10698,76 @@ Eigen::MatrixXd EnsembleMethod::get_Am(const vector<string>& real_names, const v
 	Eigen::MatrixXd temp = s.asDiagonal().inverse();
 	Eigen::MatrixXd Am = U * temp;
 	return Am;
+}
+
+
+void EnsembleMethod::initialize_prior_prec()
+{
+	//ies_use_prior_prec: build Q once.  two sources: a conditional-independence graph
+	//(ies_enif_graph), in which case Q is the sparse precision estimated on it from the
+	//PRIOR ensemble the same way solve_enif does it, or the supplied parcov, inverted.
+	//either way Q is anchored on the prior and never re-estimated - a partly collapsed
+	//ensemble would shrink the prior term as the run goes on
+	stringstream ss;
+	ofstream& frec = file_manager.rec_ofstream();
+	string gname = pest_scenario.get_pestpp_options().get_ies_enif_graph();
+	int p = (int)act_par_names.size();
+	if (gname.size() > 0)
+	{
+		performance_log->log_event("ies_use_prior_prec: estimating the prior precision on the graph");
+		EnifGraph graph;
+		graph.from_file(gname, act_par_names, frec, pest_scenario.get_pestpp_options().get_ies_enif_order());
+		//solve_enif recovers the prior as x - e; pe_base is that same prior, so use it directly.
+		//mean centred, not center_on, to match solve_enif
+		vector<string> real_names = pe.get_real_names();
+		double scale = (1.0 / (sqrt(double(real_names.size() - 1))));
+		Eigen::MatrixXd A0 = pe_base.get_eigen_anomalies(real_names, act_par_names, string());
+		A0.transposeInPlace();
+		A0 *= scale;
+		graph.estimate_precision(A0, pest_scenario.get_pestpp_options().get_ies_enif_shrink(), frec);
+		prior_prec = graph.precision();
+		ss << "ies_use_prior_prec: prior precision estimated on graph '" << gname << "' from the prior ensemble ("
+		   << real_names.size() << " realizations), " << prior_prec.nonZeros() << " non-zeros";
+	}
+	else
+	{
+		performance_log->log_event("ies_use_prior_prec: inverting parcov");
+		if (parcov.get_row_names() != act_par_names)
+			throw_em_error("ies_use_prior_prec: parcov not aligned with the adjustable parameter names");
+		if (parcov.isdiagonal())
+		{
+			Eigen::VectorXd d = parcov.e_ptr()->diagonal();
+			vector<Eigen::Triplet<double>> trips;
+			trips.reserve(p);
+			for (int i = 0; i < p; i++)
+			{
+				if (d[i] <= 0.0)
+					throw_em_error("ies_use_prior_prec: parcov has a non-positive variance for " + act_par_names[i]);
+				trips.push_back(Eigen::Triplet<double>(i, i, 1.0 / d[i]));
+			}
+			prior_prec.resize(p, p);
+			prior_prec.setFromTriplets(trips.begin(), trips.end());
+			ss << "ies_use_prior_prec: prior precision is the inverse of the diagonal parcov";
+			if (pest_scenario.get_pestpp_options().get_parcov_filename().empty())
+				ss << " built from parameter bounds (no parcov_filename) - Q carries no correlation, "
+				   << "so this is the same as the ensemble pseudo-inverse only in the diagonal directions";
+		}
+		else
+		{
+			Eigen::MatrixXd C = parcov.e_ptr()->toDense();
+			Eigen::LDLT<Eigen::MatrixXd> ldlt(C);
+			if ((ldlt.info() != Eigen::Success) || (!ldlt.isPositive()))
+				throw_em_error("ies_use_prior_prec: parcov is not positive definite, cant invert it");
+			Eigen::MatrixXd Qd = ldlt.solve(Eigen::MatrixXd::Identity(p, p));
+			//the solve is only symmetric to roundoff and the eigen solver downstream wants it exact
+			Qd = 0.5 * (Qd + Qd.transpose());
+			prior_prec = Qd.sparseView();
+			ss << "ies_use_prior_prec: prior precision is the dense inverse of parcov (" << p << " x " << p << ")";
+		}
+	}
+	prior_prec.makeCompressed();
+	message(1, ss.str());
+	prior_prec_ready = true;
 }
 
 void EnsembleMethod::drop_bad_reals(ParameterEnsemble& _pe, ObservationEnsemble& _oe, vector<int> subset_idxs)

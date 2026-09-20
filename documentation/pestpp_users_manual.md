@@ -49,6 +49,8 @@ On a personal note, thanks are also due to the following people who have contrib
 
 - Reygie Macasieb (INTERA)
 
+- Michael Morphew (Neptune)
+
 # <a id='s3' />Preface
 
 Interoperability between programs of the PEST++ suite and those of the PEST suite has been greatly improved with the release of version 15 of PEST. This, it is hoped, will promulgate conjunctive use of these two suites. In particular, many of the utility programs that comprise the PEST suite (including its ground and surface water utilities) can perform the same support roles for programs of the PEST++ suite that they do for PEST itself. At the same time, the ever-expanding functionality of the PyEMU suite (White et al, 2016) can facilitate use of PEST as it does the same for PEST++.
@@ -3772,6 +3774,28 @@ This option is implemented in PESTPP-IES via the *ies_n_iter_reinflate* option. 
 
 Figure 9.3 – A contrived example showing how standard and reinflation iterations compare. Standard iterations (A/D) quickly collapse, (B/E) using a reinflation with 1 polish iteration yields a high parameter posterior variance, especially for hydraulic conductivity. (C/F) A reinflation at iteration 4 followed by several additional iterations yields nearly the same posterior as standard iterations for this simple mildly nonlinear problem.
 
+### <a id='s13-1-16' />9.1.16 The Ensemble Information Filter (experimental)
+
+*This section, and the functionality it describes, is a draft. The options described here have seen limited testing on synthetic problems and may change.*
+
+The ensemble smoother update described above works in the space of covariances: the prior parameter covariance and the cross-covariance (i.e. Jacobian) between parameters and simulated observations are both estimated from the ensemble. The ensemble information filter (EnIF) of Lunde et al. (2025) works instead with the "precision" matrix (aka an "information" matrix), that is, the inverse of the covariance. In this “information form” the update is additive: the posterior precision is the prior precision plus the information carried by the observations,
+
+Λ<sub>post</sub> = (1 + λ) Λ<sub>prior</sub> + H<sup>T</sup> R<sup>-1</sup> H
+
+where Λ<sub>prior</sub> is the prior parameter precision, H is a linear map from parameters to simulated observations (similar to the concept of the Jacobian), R is the observation noise covariance and λ is the Marquardt lambda (same as used elsewhere). The parameter upgrade for each realization is then the solution of a linear system with Λ<sub>post</sub>. This is the same damped Gauss-Levenberg-Marquardt step as the Chen and Oliver (2013) form that PESTPP-IES uses by default, but with two important differences in where the prior and the sensitivities come from:
+
+- The structure of the prior covariance matrix is supplied, not entirely estimated from the ensemble. In the standard iterative ensemble smoother the prior enters only through the ensemble itself, so its rank is at most the number of realizations minus one. In EnIF, the prior precision is an explicit npar-by-npar matrix. Two sources for users to supply this matrix are supported. The first is the prior parameter covariance matrix supplied through *parcov_filename()*, which is subsequently inverted internally (just like in the IES solution). The second, and the one that gives EnIF a distinction, is a so-called "conditional-dependence graph": a graph that says which parameters are directly related to which once all other parameters are known. Internally, the precision matrix is estimated from the prior ensemble using only the allowable patterns in this graph.  This makes the precision matrix (very) sparse, and estimating it is a sequence of small local regressions, rather than one large matrix inversion - this matters in very high dimensional cases, ones where ensemble methods are typically used. For spatially distributed parameters like grid-scale and/or (dense) pilot points, the graph is usually just a neighborhood relation on the grid or pilot-point network: the prior correlation between two cells may decay slowly with distance, but the partial correlation (the correlation once all other parameters are accounted for) is close to zero beyond the nearest neighbours, which is exactly what a sparse precision expresses.  This rapid decay in partial correlations is synonymous with the screening effect seen in geostatistics, where measured points near an estimation location effectively reduce the influence of points "behind" those measured points.
+
+- The sensitivity matrix H is regressed from the ensemble row-by-row (i.e. obs-by-obs). IES forms the mapping between parameters and observations in ensemble space - a much reduced space compared to npar and nobs.  EnIF does it differently.  Rather than using the parameter-to-observation cross-covariance directly, EnIF fits a linear model from parameter anomalies to simulated observation anomalies (where "anomalies" are just the ensembles with the mean vector subtracted off). Each of these little row solves seeks to force as many coefficients to strictly zero as possible, so that the minimum number of entries are used, remembering that each entry is sensitivity between the parameters and the current obs (i.e.row) being solved.  Mechanically, this is done by using an L1 (lasso) penalty, so that each observation is explained by a the minimum smallest number of parameters. You may think "wait, what if the minimum number of parameters doesnt do a good job of explaining the variability in the observation" - a good question to ask.  Under the hood, this is dealt with by inflating the observation noise used in the update by the variance that the fully solved H fails to explain for each observation, which stops the update taking over-confident steps into directions the regressed H cannot actually predict.
+
+Because the prior precision is an explicit, full-rank object, EnIF is not limited to the subspace spanned by the ensemble and it provides strong protection against spurious correlations - it does not need a localizer: a structural zero in the sparse H says that an observation carries no information about a parameter, and a structural zero in Λ<sub>prior</sub> says two parameters are conditionally independent. In the testing done to date, EnIF retains quite a bit more of the prior parameter variance than the standard PESTPP-IES update (that is, the posterior ensemble is less collapsed) but at the cost of not fittingthe observations as well as the IES solver for a given number of iterations and realizations. It also tends to need more iterations and more realizations than the standard update, and to operate at larger values of lambda. The trade-off between fit and retained variance is the point of the method, not a defect, but users should expect to run more iterations than they are used to.  Without the danger of spurious correlation, more iterations are not as dangerous as with IES.
+
+EnIF is activated with *ies_use_enif(true)*. A graph is supplied with *ies_enif_graph()*. PESTPP-IES also supports two hybrid modes that use parts of the EnIF machinery with the standard update:
+
+- Through the reinflation process described in section 9.1.15, the solver can be switched at a reinflation cycle using *ies_reinflate_solver()*, which takes a list of solver names, one per cycle. For example *ies_reinflate_solver(ies,enif)* with *ies_n_iter_reinflate(4,999)* runs the standard update for four iterations, reinflates, and then hands the remaining iterations to EnIF. In testing this reached a considerably better fit than EnIF alone in the same number of iterations, because the standard update makes fast early progress and EnIF then refines while preserving spread. Centering the reinflated ensemble on the ensemble mean (a positive *ies_n_iter_reinflate* value) seems to work better than centering on the minimum-phi realization (a negative value) in this arrangement.
+
+- *ies_use_prior_prec(true)* keeps the standard Chen and Oliver update but replaces the ensemble estimate of the prior in it (both in the “Hessian” and in the prior-pull gradient term of the full solution) with the explicit prior precision, either estimated on *ies_enif_graph()* from the prior ensemble or, if no graph is supplied, the inverse of *parcov*. The upgrade is still confined to the ensemble subspace, but uses a full-rank prior instead of a low-rank diagonal approximation. This option requires *ies_use_approx(false)* to have any effect beyond the first iteration and cannot be combined with localization, the multimodal solution process, ESMDA or EnIF itself. Testing to date shows it behaves more like EnIF than like the standard update.
+
 ## <a id='s13-2' />9.2 Using PESTPP-IES
 
 ### <a id='s13-2-1' />9.2.1 General
@@ -3975,6 +3999,22 @@ In highly nonlinear settings, some realizations may show an increase in phi acro
 <img src="./media/image7.png" style="width:6.26806in;height:3.20347in" alt="A graph of a graph Description automatically generated with medium confidence" />
 
 Figure 9.4 – The ensemble upgrade from iteration 2 to iteration 3 shows that some realizations have an increase in phi values, while most realizations show a decrease in phi.
+
+### <a id='s13-2-12' />9.2.12 Using the Ensemble Information Filter (experimental)
+
+*Draft; see the note at the start of section 9.1.16.*
+
+EnIF is activated with *ies_use_enif(true)*. It needs a prior. If no graph is supplied, the prior is the covariance matrix named by *parcov_filename()*, which must therefore be supplied; PESTPP-IES will warn if it falls back to the diagonal covariance it constructs from parameter bounds, since that prior carries no correlation and EnIF then has little to offer over the standard update. In this mode the prior covariance is used directly (through the Woodbury identity, so no p-by-p inverse is formed) and H is a dense ridge regression from the ensemble. This works for problems of a few thousand parameters but does not scale beyond that, and it does not benefit from sparsity.
+
+The recommended mode is to supply a conditional-independence graph with *ies_enif_graph()*. The graph is a square matrix, with rows and columns named by adjustable parameters, in any of the formats PESTPP-IES reads for matrices (binary JCO/JCB, ASCII matrix, or CSV). A nonzero entry means the two parameters are directly related; the diagonal is implied. Every adjustable parameter must appear, or PESTPP-IES will stop. For parameters defined on a model grid or a pilot-point network the natural graph is the nearest-neighbour (“rook”, four neighbours) or eight-neighbour (“queen”) relation between locations; both worked in testing, with the rook graph performing at least as well as the denser queen graph. A graph can also be obtained by inverting the prior covariance matrix and keeping only the largest partial correlations, which for a geostatistical prior recovers a nearest-neighbour lattice. Parameters that are not spatially distributed (for example a single global multiplier) should be connected to the parameters they interact with, or left with no edges, in which case they are treated as independent of everything else in the prior.
+
+The precision matrix is estimated on the graph from the prior ensemble once, at the start of the run, and is not re-estimated as the ensemble changes. The estimate involves, for each parameter, a regression on its graph neighbours (more precisely, on its predecessors in an elimination ordering chosen to keep fill-in small; *ies_enif_order()* selects that ordering and should normally be left at its default). The number of realizations therefore has to be large enough to support the size of the neighbourhoods. If a parameter has more predecessors than half the ensemble size, its neighbourhood is truncated to the strongest half and a warning is written to the run record file; if many parameters trigger this warning the ensemble is too small for the graph, and the estimated prior will be poorer than it could be. In the testing done to date, a 25-by-25 grid with the rook graph needed about 200 realizations before this truncation stopped mattering. *ies_enif_shrink()* adds a small ridge to each local regression and rarely needs changing.
+
+The sparse H is estimated once per iteration by lasso regression. *ies_enif_h_lasso()* sets the penalty as a fraction of the value that would zero the entire row for that observation, so it is dimensionless; the default of zero means a fixed penalty of 0.01 is used. A better choice, at some cost in run time, is to have PESTPP-IES choose the penalty for each observation by cross-validation over the realizations, which is turned on by giving *ies_enif_h_cv_folds()* a value of about 10. Without cross-validation and with a large ensemble, H can fit the ensemble almost exactly, in which case the unexplained-variance inflation described in section 9.1.16 does nothing and lambda can climb to very large values; the cross-validated penalty prevents this. *ies_enif_resid_inflate()* turns the inflation off, which is not recommended. *ies_enif_save_h(true)* writes the estimated H at each iteration to *case.N.enif_H.jcb* with observation and parameter names on the axes, which is the object to inspect when the fit is poor: a structural zero says that observation is carrying no information about that parameter.
+
+Everything else about the run is the same as for the standard update. EnIF returns a parameter upgrade, and the surrounding lambda search, backtracking, subset testing, bounds enforcement, phi accounting, termination criteria and reinflation all apply unchanged. The Marquardt lambda damps the prior precision, not the observation precision, so large lambdas leave the ensemble where it is rather than pulling it back to the prior; expect the lambdas that PESTPP-IES accepts to be larger (hundreds to thousands) than for the standard update. *ies_use_approx()* has the same meaning as for the standard update: *true* (the default) drops the prior-pull term from the gradient, *false* keeps each realization anchored to its own prior draw. EnIF is not supported with localization, the multimodal solution process, ESMDA or observation noise covariance matrices, and at the time of writing it does not refuse these combinations, so users should not combine them.
+
+*ies_use_prior_prec(true)*, described in section 9.1.16, takes the same graph and the same *ies_enif_shrink()* and *ies_enif_order()* options, but is an option of the standard update: it should be used with *ies_use_enif(false)* and *ies_use_approx(false)*, and it refuses localization, the multimodal solve, ESMDA and EnIF.
 
 ## <a id='s13-3' />9.3 PESTPP-IES Output Files
 
@@ -4350,6 +4390,11 @@ Note also that the number of control variables may change with time. Refer to th
 <td>list of ints</td>
 <td>The number of realizations to use between reinflation cycles.  If negative, new realizations are drawn from the current ensemble.</td>
 </tr>
+<tr class="odd">
+<td><em>ies_reinflate_solver(ies)</em></td>
+<td>list of strings</td>
+<td>The solver to use in each reinflation cycle, one entry per cycle; the last entry is held for any remaining cycles. Accepted values are “ies”, “esmda” and “enif”. Overrides <em>ies_use_mda</em> and <em>ies_use_enif</em> when supplied. For example “ies,enif” runs the standard update until the first reinflation and the ensemble information filter after it. See sections 9.1.15 and 9.1.16.</td>
+</tr>
 <tr class="even">
 <td><em>ies_use_phi_lambda_iters</em></td>
 <td>bool</td>
@@ -4369,6 +4414,56 @@ Note also that the number of control variables may change with time. Refer to th
 <td><em>ies_localizer_forgive_missing(false)</em></td>
 <td>bool</td>
 <td>Tolerate a localizer matrix whose rows or columns name parameters or observations that are not in the active set, rather than stopping. Useful when one localizer is reused across analyses, or when observations are activated part way through. Also accepted as <em>ies_localizer_forgive_extra</em>. Default is false.</td>
+</tr>
+<tr class="even">
+<td><em>ies_use_enif(false)</em></td>
+<td>bool</td>
+<td>Use the ensemble information filter (experimental) in place of the standard update. Requires a prior: either <em>parcov_filename</em> or <em>ies_enif_graph</em>. See sections 9.1.16 and 9.2.12.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_enif_graph</em></td>
+<td>string</td>
+<td>The name of a square matrix file (JCO/JCB, ASCII matrix or CSV, recognized by extension) whose rows and columns are adjustable parameter names and whose nonzero entries say which parameters are directly related in the prior. The prior precision is estimated on this sparsity pattern from the prior ensemble. Used by <em>ies_use_enif</em> and <em>ies_use_prior_prec</em>. Every adjustable parameter must appear.</td>
+</tr>
+<tr class="even">
+<td><em>ies_enif_order(amd)</em></td>
+<td>string</td>
+<td>The elimination ordering used when estimating the sparse prior precision on <em>ies_enif_graph</em>. “amd” (approximate minimum degree, the default) keeps fill-in small; “natural” uses the order the parameters appear in. Rarely needs changing.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_enif_shrink(0.001)</em></td>
+<td>double</td>
+<td>Ridge added to each local regression when estimating the sparse prior precision, as a fraction of the local variance. Automatically increased for parameters whose graph neighbourhood is large relative to the ensemble size. Rarely needs changing.</td>
+</tr>
+<tr class="even">
+<td><em>ies_enif_h_lasso(0.0)</em></td>
+<td>double</td>
+<td>The L1 penalty used to estimate the sparse parameter-to-observation map H when a graph is supplied, as a dimensionless fraction of the penalty that would zero the whole row. Zero (the default) means a fixed 0.01. Ignored when <em>ies_enif_h_cv_folds</em> is greater than zero.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_enif_h_cv_folds(0)</em></td>
+<td>int</td>
+<td>If greater than zero, the lasso penalty for each observation row of H is chosen by k-fold cross-validation over the realizations with this many folds, instead of the fixed <em>ies_enif_h_lasso</em> value. A value of about 10 is recommended for larger problems; it costs run time but stops H over-fitting the ensemble.</td>
+</tr>
+<tr class="even">
+<td><em>ies_enif_resid_inflate(true)</em></td>
+<td>bool</td>
+<td>Inflate the observation noise variance used in the update by the variance that the regressed H fails to explain for each observation. Turning this off is not recommended.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_enif_ridge(1.0e-6)</em></td>
+<td>double</td>
+<td>Ridge used in the dense ensemble regression for H when no graph is supplied (the covariance mode), as a fraction of the mean ensemble variance. Rarely needs changing.</td>
+</tr>
+<tr class="even">
+<td><em>ies_enif_save_h(false)</em></td>
+<td>bool</td>
+<td>Save the estimated sparse H at each iteration to <em>case.N.enif_H.jcb</em>, with observation and parameter names on the axes.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_use_prior_prec(false)</em></td>
+<td>bool</td>
+<td>Use an explicit prior precision matrix in place of the ensemble estimate of the prior in the standard (Chen and Oliver) update, in both the Hessian and the prior-pull term of the full solution. The precision is estimated on <em>ies_enif_graph</em> from the prior ensemble if a graph is supplied, otherwise it is the inverse of <em>parcov</em>. Should be used with <em>ies_use_approx(false)</em>. Cannot be combined with localization, <em>ies_multimodal_alpha</em>, ESMDA or <em>ies_use_enif</em>. Experimental; see section 9.1.16.</td>
 </tr>
 
 </tbody>
@@ -5673,6 +5768,8 @@ Homma T, Saltelli A. 1996. Importance measures in global sensitivity analysis of
 Kennedy, J. (1998), The behavior of particles, *Evolutionary Programming VII: Proceedings of the Seventh Annual Conference on Evolutionary Programming*, pp. 581–589.
 
 Lougee-Heimer, R., 2003. The common optimization interface for operations research: promoting open-source software in the operations research community. IBM J. Res. Dev. 47 (1), 57-66.
+
+Lunde, B.A.S., Arntzen, M.T., and others, 2025. Ensemble Information Filter: retrieving dynamical information from a sparse Gaussian graphical model. arXiv:2501.09016. Reference implementation: https://github.com/equinor/graphite-maps.
 
 Luo, X., Bhakta, T. and Naevdal, G., 2018. Correlation-based adaptive localization with applications to ensemble-based 4d seismic history-matching. *SPE Journal, April 2018, 396-427.*
 
