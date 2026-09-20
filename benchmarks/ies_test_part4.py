@@ -5947,6 +5947,103 @@ def tenpar_reg_factor_default_test():
             assert tot == 0.0, "{0} {1}: regul phi is {2} but should be zero".format(tag, nm, tot)
 
 
+def tenpar_enif_inflate_test():
+    """enif reports what the unexplained-variance noise inflation did: a per-observation
+    csv each iteration (case.N.enif_obs_inflate.csv) and a per-group summary in the rec.
+    serial runs on the 10 par xsec, covariance path and graph path, inflation on and
+    off.  checks the csv arithmetic against the control file weights, that the rec
+    section is there once per iteration, and that with the inflation off the effective
+    weight is the control file weight while the would-be ratio is still reported"""
+    model_d = "ies_10par_xsec"
+    template_d = scratch_template(os.path.join(model_d, "test_template"), suffix="_enif_inflate")
+    pst = pyemu.Pst(os.path.join(template_d, "pest.pst"))
+    pnames = pst.adj_par_names
+    n = len(pnames)
+    adj = np.eye(n)
+    for i in range(n - 1):
+        adj[i, i + 1] = adj[i + 1, i] = 1.0
+    pyemu.Matrix(x=adj, row_names=pnames, col_names=pnames).to_coo(
+        os.path.join(template_d, "graph_chain.jcb"))
+
+    def run_case(name, options, noptmax=2):
+        test_d = os.path.join(model_d, "master_enif_inflate_" + name)
+        if os.path.exists(test_d):
+            shutil.rmtree(test_d)
+        shutil.copytree(template_d, test_d)
+        p = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        p.model_command = ["mfnwt 10par_xsec.nam"]
+        # two groups with different weights so the group summary has something to sort
+        obs = p.observation_data
+        obs.loc[:, "weight"] = 10.0
+        half = obs.obsnme.values[: len(obs) // 2]
+        obs.loc[half, "weight"] = 2.0
+        obs.loc[half, "obgnme"] = "grpa"
+        obs.loc[obs.obgnme != "grpa", "obgnme"] = "grpb"
+        # more realizations than parameters, so the regressed H is overdetermined and
+        # leaves something unexplained.  with fewer, H interpolates the ensemble and
+        # the unexplained variance is roundoff, which is a real finding but a useless test
+        p.pestpp_options = {"ies_num_reals": 30, "ies_lambda_mults": 1.0,
+                            "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0,
+                            "ies_use_enif": "true"}
+        p.pestpp_options.update(options)
+        p.control_data.noptmax = noptmax
+        p.write(os.path.join(test_d, "pest.pst"), version=2)
+        pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=test_d)
+        rec = open(os.path.join(test_d, "pest.rec")).read()
+        dfs = {}
+        for i in range(1, noptmax + 1):
+            f = os.path.join(test_d, "pest.{0}.enif_obs_inflate.csv".format(i))
+            assert os.path.exists(f), name + ": missing " + f
+            df = pd.read_csv(f, index_col=0)
+            # pest++ writes names as they are in the control file, pyemu lower-cases them
+            df.index = df.index.str.lower()
+            df.loc[:, "group"] = df.group.str.lower()
+            dfs[i] = df
+        return p, rec, dfs
+
+    cols = ["group", "weight", "noise_var", "unexplained_var", "inflated_var",
+            "inflate_ratio", "effective_weight"]
+    for path, extra in [("cov", {}), ("graph", {"ies_enif_graph": "graph_chain.jcb"})]:
+        for tag, applied in (("on", True), ("off", False)):
+            p, rec, dfs = run_case(path + "_" + tag,
+                                   dict(extra, ies_enif_resid_inflate=str(applied).lower()))
+            header = "enif observation noise inflation summary, iteration"
+            assert rec.count(header) == len(dfs), "{0} {1}: rec has {2} summaries for {3} iterations".format(
+                path, tag, rec.count(header), len(dfs))
+            expect = "applied to the update: yes" if applied else "applied to the update: no"
+            assert expect in rec, "{0} {1}: rec does not say whether the inflation was applied".format(path, tag)
+            for it, df in dfs.items():
+                assert list(df.columns) == cols, "{0} {1}: unexpected columns {2}".format(path, tag, df.columns)
+                assert set(df.index) == set(p.nnz_obs_names), "{0} {1}: csv rows are not the nonzero obs".format(path, tag)
+                w = p.observation_data.loc[df.index, "weight"].values
+                g = p.observation_data.loc[df.index, "obgnme"].values
+                assert (df.group.values == g).all(), "{0} {1}: groups dont match the control file".format(path, tag)
+                assert np.allclose(df.weight.values, w), "{0} {1}: weights dont match the control file".format(path, tag)
+                assert np.allclose(df.noise_var.values, 1.0 / w ** 2), "{0} {1}: noise var is not 1/w^2".format(path, tag)
+                assert (df.unexplained_var.values >= 0.0).all(), "{0} {1}: negative unexplained variance".format(path, tag)
+                assert np.allclose(df.inflate_ratio.values, (df.noise_var + df.unexplained_var) / df.noise_var), \
+                    "{0} {1}: ratio is not (noise+unexp)/noise".format(path, tag)
+                if applied:
+                    assert np.allclose(df.inflated_var.values, df.noise_var + df.unexplained_var), \
+                        "{0} {1}: inflated var is not noise + unexplained".format(path, tag)
+                    assert (df.effective_weight.values <= w + 1.0e-12).all(), \
+                        "{0} {1}: inflation increased a weight".format(path, tag)
+                else:
+                    assert np.allclose(df.inflated_var.values, df.noise_var), \
+                        "{0} {1}: inflation off but the used variance is not the noise variance".format(path, tag)
+                    assert np.allclose(df.effective_weight.values, w), \
+                        "{0} {1}: inflation off but the effective weight is not the weight".format(path, tag)
+                assert np.allclose(df.effective_weight.values, 1.0 / np.sqrt(df.inflated_var)), \
+                    "{0} {1}: effective weight is not 1/sqrt(inflated var)".format(path, tag)
+                # the rec group summary should list both groups
+                for grp in ("grpa", "grpb"):
+                    assert grp in rec, "{0} {1}: group {2} missing from the rec summary".format(path, tag, grp)
+            print(path, tag, "iteration 1 mean ratio by group:",
+                  dfs[1].groupby("group").inflate_ratio.mean().round(3).to_dict())
+            # something has to be unexplained, or the report is checking zeros
+            assert dfs[1].inflate_ratio.max() > 1.001, path + ": H explains every observation to roundoff, nothing to report"
+
+
 if __name__ == "__main__":
 
     #synth2d_enif_test()

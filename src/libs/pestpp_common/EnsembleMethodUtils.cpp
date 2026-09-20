@@ -1315,14 +1315,27 @@ void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
         }
 
         Eigen::VectorXd rinv(n_obs);
+        Eigen::VectorXd wvec(n_obs);
         ObservationInfo* oi = pest_scenario.get_observation_info_ptr();
+        bool apply_inflate = pest_scenario.get_pestpp_options().get_ies_enif_resid_inflate();
         for (int i = 0; i < n_obs; i++)
         {
             double w = oi->get_weight(act_obs_names[i]);
+            wvec(i) = w;
             double v = 1.0 / (w * w);
-            if (pest_scenario.get_pestpp_options().get_ies_enif_resid_inflate())
+            if (apply_inflate)
                 v += unexp(i);
             rinv(i) = 1.0 / v;
+        }
+        if (!enif_inflate_reported)
+        {
+            vector<string> groups;
+            for (auto& name : act_obs_names)
+                groups.push_back(oi->get_group(name));
+            stringstream cs;
+            cs << file_manager.get_base_filename() << "." << iter << ".enif_obs_inflate.csv";
+            enif_inflation_report(act_obs_names, groups, wvec, unexp, apply_inflate, iter, cs.str(), frec);
+            enif_inflate_reported = true;
         }
         Eigen::MatrixXd upgrade_g = enif_graph.information_step(
             Hs, rinv, e, r, cur_lam, frec);
@@ -1346,21 +1359,33 @@ void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
     //regressed H as exact and takes over-confident steps into directions H cannot
     //actually predict - which the lambda search then has to reject.  the effect is
     //largest when H is poorly determined, i.e. at small ensemble size.
-    Eigen::VectorXd unexplained = Eigen::VectorXd::Zero(n_obs);
-    if (pest_scenario.get_pestpp_options().get_ies_enif_resid_inflate())
-    {
-        //residual anomalies: sqrt(N-1) * (B - H A), and H A = B M (A^T A)
-        Eigen::MatrixXd resid = (B - (B * gram_fact.solve(gram_raw))) * sqrt(double(num_reals - 1));
-        unexplained = resid.array().square().rowwise().sum() / double(num_reals);
-    }
+    //the unexplained variance is always computed so it can be reported, and only
+    //added to the noise when ies_enif_resid_inflate is true
+    bool apply_inflate = pest_scenario.get_pestpp_options().get_ies_enif_resid_inflate();
+    //residual anomalies: sqrt(N-1) * (B - H A), and H A = B M (A^T A)
+    Eigen::MatrixXd resid = (B - (B * gram_fact.solve(gram_raw))) * sqrt(double(num_reals - 1));
+    Eigen::VectorXd unexplained = resid.array().square().rowwise().sum() / double(num_reals);
 
     ObservationInfo* oi_ptr = pest_scenario.get_observation_info_ptr();
+    Eigen::VectorXd wvec(n_obs);
     for (int i = 0; i < n_obs; i++)
     {
         double w = oi_ptr->get_weight(act_obs_names[i]);
         if (w <= 0.0)
             throw runtime_error("EnsembleSolver::solve_enif(): zero weight on active observation " + act_obs_names[i]);
-        Gm(i, i) += (1.0 / (w * w)) + unexplained(i);
+        wvec(i) = w;
+        Gm(i, i) += (1.0 / (w * w)) + (apply_inflate ? unexplained(i) : 0.0);
+    }
+    if (!enif_inflate_reported)
+    {
+        vector<string> groups;
+        for (auto& name : act_obs_names)
+            groups.push_back(oi_ptr->get_group(name));
+        stringstream cs;
+        cs << file_manager.get_base_filename() << "." << iter << ".enif_obs_inflate.csv";
+        enif_inflation_report(act_obs_names, groups, wvec, unexplained, apply_inflate, iter, cs.str(),
+            file_manager.rec_ofstream());
+        enif_inflate_reported = true;
     }
     Eigen::LDLT<Eigen::MatrixXd> g_fact(Gm);
     if (g_fact.info() != Eigen::Success)

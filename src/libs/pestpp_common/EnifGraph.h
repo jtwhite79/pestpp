@@ -130,4 +130,30 @@ Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
 	const Eigen::MatrixXd& B, double lasso_frac, int num_threads,
 	Eigen::VectorXd& unexplained, ofstream& frec, int cv_folds = 0);
 
+/* per observation group summary of the noise inflation */
+struct EnifInflateGroupStats
+{
+	int count = 0;
+	double noise_var = 0.0;     //mean of 1/w^2
+	double unexp_var = 0.0;     //mean of the variance H fails to explain
+	double ratio_mean = 0.0;    //mean of (noise_var + unexp_var) / noise_var per obs
+	double ratio_min = 0.0;
+	double ratio_max = 0.0;
+	double weight_mean = 0.0;   //mean of the control file weight
+	double eff_weight_mean = 0.0; //mean of the weight the update actually used
+};
+
+/* report what the unexplained-variance inflation did to each observation.  the
+noise variance the update uses is 1/w^2 + unexplained (when applied), so the
+effective weight is 1/sqrt(that).  writes one row per observation to
+csv_filename and a group summary to the rec, sorted by mean inflation ratio,
+in the same shape as the group phi summary.  the mean unexplained variance
+that used to be the only thing reported mixes units across groups, so it is
+useless whenever the groups are in different units - hence per group.
+returns the group stats so the selftest can check the arithmetic. */
+map<string, EnifInflateGroupStats> enif_inflation_report(
+	const vector<string>& obs_names, const vector<string>& groups,
+	const Eigen::VectorXd& weights, const Eigen::VectorXd& unexplained,
+	bool applied, int iter, const string& csv_filename, ofstream& frec);
+
 #endif // ENIFGRAPH_H_

@@ -2848,9 +2848,79 @@ static void test_ies_prior_prec_reduces_to_am()
     }
 }
 
+static void test_enif_inflation_report()
+{
+    cout << "[enif inflation report: per-obs csv and per-group rec summary]" << endl;
+    // five obs in two groups, hand-picked so the numbers are easy to check
+    vector<string> names = {"h1", "h2", "h3", "q1", "q2"};
+    vector<string> groups = {"head", "head", "head", "flux", "flux"};
+    Eigen::VectorXd w(5), u(5);
+    w << 10.0, 10.0, 5.0, 0.1, 0.1;      // noise var 0.01, 0.01, 0.04, 100, 100
+    u << 0.01, 0.03, 0.0, 100.0, 300.0;  // ratios 2, 4, 1, 2, 4
+    std::filesystem::path tmp = std::filesystem::temp_directory_path();
+    string csv = (tmp / "selftest_enif_inflate.csv").string();
+    string rec = (tmp / "selftest_enif_inflate.rec").string();
+    ofstream frec(rec);
+    map<string, EnifInflateGroupStats> st = enif_inflation_report(names, groups, w, u, true, 3, csv, frec);
+    frec.close();
+
+    CHK(st.size() == 2, "two groups summarized");
+    CHK(st.at("head").count == 3 && st.at("flux").count == 2, "group counts");
+    CHK(fabs(st.at("head").noise_var - 0.02) < 1.0e-12, "head mean noise var 0.02");
+    CHK(fabs(st.at("head").unexp_var - 0.04 / 3.0) < 1.0e-12, "head mean unexplained var");
+    CHK(fabs(st.at("head").ratio_mean - 7.0 / 3.0) < 1.0e-12, "head mean ratio (2+4+1)/3");
+    CHK(fabs(st.at("head").ratio_min - 1.0) < 1.0e-12 && fabs(st.at("head").ratio_max - 4.0) < 1.0e-12, "head ratio min/max");
+    CHK(fabs(st.at("flux").ratio_mean - 3.0) < 1.0e-12, "flux mean ratio 3");
+    CHK(fabs(st.at("flux").weight_mean - 0.1) < 1.0e-12, "flux mean weight");
+    // effective weight = 1/sqrt(noise + unexp): q1 -> 1/sqrt(200), q2 -> 1/sqrt(400) = 0.05
+    CHK(fabs(st.at("flux").eff_weight_mean - 0.5 * (1.0 / sqrt(200.0) + 0.05)) < 1.0e-12, "flux mean effective weight");
+
+    // the csv: header plus one row per obs, inflated = noise + unexp when applied
+    ifstream fin(csv);
+    string line;
+    getline(fin, line);
+    CHK(line == "obs_name,group,weight,noise_var,unexplained_var,inflated_var,inflate_ratio,effective_weight", "csv header");
+    int nrow = 0;
+    bool q2_ok = false;
+    while (getline(fin, line))
+    {
+        nrow++;
+        if (line.rfind("q2,flux,", 0) == 0)
+        {
+            vector<string> tok;
+            stringstream ss(line);
+            string t;
+            while (getline(ss, t, ',')) tok.push_back(t);
+            q2_ok = (tok.size() == 8) && (fabs(stod(tok[5]) - 400.0) < 1.0e-6) && (fabs(stod(tok[6]) - 4.0) < 1.0e-9)
+                && (fabs(stod(tok[7]) - 0.05) < 1.0e-9);
+        }
+    }
+    fin.close();
+    CHK(nrow == 5, "csv has one row per observation");
+    CHK(q2_ok, "q2 row: inflated var 400, ratio 4, effective weight 0.05");
+
+    // the rec section, sorted by mean ratio so flux (3) comes before head (2.33)
+    ifstream rin(rec);
+    stringstream rs;
+    rs << rin.rdbuf();
+    string r = rs.str();
+    CHK(r.find("enif observation noise inflation summary, iteration 3") != string::npos, "rec section header carries the iteration");
+    CHK(r.find("inflation applied to the update: yes") != string::npos, "rec says the inflation was applied");
+    CHK(r.find("flux") < r.find("head"), "rec groups sorted by mean ratio, largest first");
+    CHK(r.find(csv) != string::npos, "rec names the csv");
+
+    // not applied: the csv still carries the would-be ratio but the effective weight is the weight
+    st = enif_inflation_report(names, groups, w, u, false, 4, csv, frec);
+    CHK(fabs(st.at("flux").eff_weight_mean - 0.1) < 1.0e-12, "not applied: effective weight is the control file weight");
+    CHK(fabs(st.at("flux").ratio_mean - 3.0) < 1.0e-12, "not applied: the would-be ratio is still reported");
+    std::filesystem::remove(csv);
+    std::filesystem::remove(rec);
+}
+
 int main()
 {
     test_registry_equivalence();
+    test_enif_inflation_report();
     test_generic_access();
     test_mutability();
     test_control_info();

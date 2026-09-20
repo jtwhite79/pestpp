@@ -676,3 +676,95 @@ Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
 		<< unexplained.mean() << endl;
 	return H;
 }
+
+
+map<string, EnifInflateGroupStats> enif_inflation_report(
+	const vector<string>& obs_names, const vector<string>& groups,
+	const Eigen::VectorXd& weights, const Eigen::VectorXd& unexplained,
+	bool applied, int iter, const string& csv_filename, ofstream& frec)
+{
+	int nobs = (int)obs_names.size();
+	if (((int)groups.size() != nobs) || (weights.size() != nobs) || (unexplained.size() != nobs))
+		throw runtime_error("enif_inflation_report(): obs names, groups, weights and unexplained variance are different lengths");
+
+	//one row per observation.  inflate_ratio is always the ratio the inflation
+	//WOULD apply, so a run with ies_enif_resid_inflate false still shows what it
+	//is missing.  effective_weight is what the update actually used
+	ofstream csv(csv_filename);
+	if (!csv.good())
+		throw runtime_error("enif_inflation_report(): error opening " + csv_filename);
+	csv << "obs_name,group,weight,noise_var,unexplained_var,inflated_var,inflate_ratio,effective_weight" << endl;
+	csv << setprecision(10);
+	map<string, EnifInflateGroupStats> stats;
+	for (int i = 0; i < nobs; i++)
+	{
+		double w = weights[i];
+		double nv = 1.0 / (w * w);
+		double uv = max(0.0, unexplained[i]);
+		double iv = nv + uv;
+		double ratio = iv / nv;
+		double used = applied ? iv : nv;
+		double ew = 1.0 / sqrt(used);
+		csv << obs_names[i] << "," << groups[i] << "," << w << "," << nv << "," << uv << ","
+			<< used << "," << ratio << "," << ew << endl;
+		EnifInflateGroupStats& s = stats[groups[i]];
+		if (s.count == 0)
+		{
+			s.ratio_min = ratio;
+			s.ratio_max = ratio;
+		}
+		s.count++;
+		s.noise_var += nv;
+		s.unexp_var += uv;
+		s.ratio_mean += ratio;
+		s.ratio_min = min(s.ratio_min, ratio);
+		s.ratio_max = max(s.ratio_max, ratio);
+		s.weight_mean += w;
+		s.eff_weight_mean += ew;
+	}
+	csv.close();
+	for (auto& kv : stats)
+	{
+		EnifInflateGroupStats& s = kv.second;
+		s.noise_var /= s.count;
+		s.unexp_var /= s.count;
+		s.ratio_mean /= s.count;
+		s.weight_mean /= s.count;
+		s.eff_weight_mean /= s.count;
+	}
+
+	//the rec section, in the shape of the group phi summary
+	vector<pair<string, double>> order;
+	int len = 5;
+	for (auto& kv : stats)
+	{
+		order.push_back(make_pair(kv.first, kv.second.ratio_mean));
+		len = max(len, (int)kv.first.size());
+	}
+	len++;
+	sort(order.begin(), order.end(),
+		[](const pair<string, double>& a, const pair<string, double>& b) { return a.second > b.second; });
+	frec << endl << "  ---  enif observation noise inflation summary, iteration " << iter << "  ---  " << endl;
+	frec << "       (noise variance is 1/weight^2, inflated by the variance H fails to explain)" << endl;
+	frec << "       (inflation applied to the update: " << (applied ? "yes" : "no, ies_enif_resid_inflate is false") << ")" << endl;
+	frec << "           (sorted by mean inflation ratio)" << endl;
+	frec << left << setw(len) << "group" << right << setw(7) << "count" << setw(12) << "noise_var"
+		<< setw(12) << "unexp_var" << setw(11) << "ratio" << setw(11) << "ratio_min" << setw(11) << "ratio_max"
+		<< setw(11) << "weight" << setw(11) << "eff_wght" << endl;
+	for (auto& o : order)
+	{
+		const EnifInflateGroupStats& s = stats[o.first];
+		frec << left << setw(len) << pest_utils::lower_cp(o.first) << " ";
+		frec << right << setw(6) << s.count << " ";
+		frec << right << setw(11) << setprecision(3) << s.noise_var << " ";
+		frec << setw(11) << setprecision(3) << s.unexp_var << " ";
+		frec << setw(10) << setprecision(3) << s.ratio_mean << " ";
+		frec << setw(10) << setprecision(3) << s.ratio_min << " ";
+		frec << setw(10) << setprecision(3) << s.ratio_max << " ";
+		frec << setw(10) << setprecision(3) << s.weight_mean << " ";
+		frec << setw(10) << setprecision(3) << s.eff_weight_mean << endl;
+	}
+	frec << "    Note: 'ratio' is inflated over original noise variance, 'eff_wght' is the weight the update used." << endl;
+	frec << "...saved per-observation inflation to " << csv_filename << endl << endl;
+	return stats;
+}

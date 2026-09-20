@@ -400,6 +400,8 @@ private:
 	bool enif_h_ready = false;
 	Eigen::SparseMatrix<double> enif_H;
 	Eigen::VectorXd enif_unexp;
+	//the noise inflation report is the same for every lambda too, so once per iteration
+	bool enif_inflate_reported = false;
 	Eigen::MatrixXd& Am;
 	const Eigen::SparseMatrix<double>* prior_prec = nullptr;
 	L2PhiHandler& ph;
