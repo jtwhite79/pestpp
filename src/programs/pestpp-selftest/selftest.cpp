@@ -15,6 +15,7 @@
  *    opt_std_weights and their effect on use_chance/use_robust/use_fosm/get_risk)
  */
 #include <iostream>
+#include <csignal>
 #include <random>
 #include <sstream>
 #include <fstream>
@@ -73,6 +74,8 @@ struct SqpProbe : public SeqQuadProgram
 
 static int g_fail = 0;
 static int g_total = 0;
+// the test being run, so a crash handler can say where it died
+static const char* g_current_test = "(none)";
 static void CHK(bool cond, const string& msg)
 {
     ++g_total;
@@ -2966,9 +2969,14 @@ static void test_irls_reweight()
 
 // a test that throws should count as a failure that names itself, not take the
 // whole selftest down with it - which is what happened on the windows ci runners,
-// where an uncaught exception is a silent exit 127
+// where an uncaught exception is a silent exit 127.  every test goes through here
+// so the log says which test is running, how many checks it made, and which of
+// them failed, with the total so far
 static void run_test(void (*fn)(), const char* name)
 {
+    g_current_test = name;
+    int total0 = g_total, fail0 = g_fail;
+    cout << "\n>>> " << name << endl;
     try
     {
         fn();
@@ -2981,48 +2989,92 @@ static void run_test(void (*fn)(), const char* name)
     {
         CHK(false, string(name) + " threw something that is not a std::exception");
     }
+    int n = g_total - total0, f = g_fail - fail0;
+    cout << "<<< " << name << ": " << (n - f) << "/" << n << " checks passed"
+         << (f > 0 ? "  ***FAILED***" : "") << "  (running total " << (g_total - g_fail) << "/" << g_total << ")" << endl;
+    g_current_test = "(none)";
+}
+
+// last words for the two ways a test can die without going through run_test's
+// catch: std::terminate (an exception thrown while another is in flight, or from
+// a destructor) and a hard signal.  both print the test name and flush, because
+// on the windows runners nothing at all was printed and the process just vanished
+static void on_terminate()
+{
+    cout << "\n*** std::terminate called during " << g_current_test;
+    try
+    {
+        exception_ptr ep = current_exception();
+        if (ep) rethrow_exception(ep);
+        cout << " (no active exception)";
+    }
+    catch (const exception& e)
+    {
+        cout << ": " << e.what();
+    }
+    catch (...)
+    {
+        cout << ": non-std exception";
+    }
+    cout << endl << flush;
+    abort();
+}
+
+static void on_signal(int sig)
+{
+    // keep this to plain writes - nothing fancy is safe in a signal handler
+    cout << "\n*** fatal signal " << sig << " during " << g_current_test << endl << flush;
+    signal(sig, SIG_DFL);
+    raise(sig);
 }
 
 int main()
 {
-    test_registry_equivalence();
+    // unbuffered so a hard crash cannot eat the lines that say where it happened
+    cout.setf(ios::unitbuf);
+    set_terminate(on_terminate);
+    signal(SIGSEGV, on_signal);
+    signal(SIGABRT, on_signal);
+    signal(SIGFPE, on_signal);
+    signal(SIGILL, on_signal);
+    run_test(test_registry_equivalence, "test_registry_equivalence");
     run_test(test_irls_reweight, "test_irls_reweight");
     run_test(test_enif_inflation_report, "test_enif_inflation_report");
-    test_generic_access();
-    test_mutability();
-    test_control_info();
-    test_tool_defaults();
-    test_constraints_live();
-    test_ies_reinflate_reset();
-    test_ies_ensemble_reset();
-    test_ies_iteration_controls();
-    test_mou_generation_controls();
-    test_sqp_controls();
-    test_tool_objects_track_live_options();
-    test_ensemble_zero_copy_view();
-    test_run_map_survives_resize();
-    test_subset_names_survive_membership_change();
-    test_read_file_tail();
-    test_instruction_file_tolerant_read();
-    test_parse_double_policy();
-    test_instruction_file_extreme_doubles();
-    test_fixed_instruction_misreads();
-    test_file_availability_checks();
-    test_partial_capability_handshake();
-    test_instruction_file_partial_reads_are_never_wrong();
-    test_model_interface_partial_across_files();
-    test_instruction_file_partial_real_case();
-    test_instruction_file_partial_remaining_branches();
-    test_quit_file_tokens();
-    test_run_storage_error_diagnostics();
-    test_run_storage_partial_update();
-    test_external_values_are_results();
-    test_partial_read_refuses_stale_outputs();
-    test_violation_single_run_matches_ensemble();
-    test_regul_weight_search_edges();
-    test_ies_prior_scaling_is_neutral();
-    test_prior_anomaly_scaling();
-    test_prior_inv_sqrt_diag();
+    run_test(test_generic_access, "test_generic_access");
+    run_test(test_mutability, "test_mutability");
+    run_test(test_control_info, "test_control_info");
+    run_test(test_tool_defaults, "test_tool_defaults");
+    run_test(test_constraints_live, "test_constraints_live");
+    run_test(test_ies_reinflate_reset, "test_ies_reinflate_reset");
+    run_test(test_ies_ensemble_reset, "test_ies_ensemble_reset");
+    run_test(test_ies_iteration_controls, "test_ies_iteration_controls");
+    run_test(test_mou_generation_controls, "test_mou_generation_controls");
+    run_test(test_sqp_controls, "test_sqp_controls");
+    run_test(test_tool_objects_track_live_options, "test_tool_objects_track_live_options");
+    run_test(test_ensemble_zero_copy_view, "test_ensemble_zero_copy_view");
+    run_test(test_run_map_survives_resize, "test_run_map_survives_resize");
+    run_test(test_subset_names_survive_membership_change, "test_subset_names_survive_membership_change");
+    run_test(test_read_file_tail, "test_read_file_tail");
+    run_test(test_instruction_file_tolerant_read, "test_instruction_file_tolerant_read");
+    run_test(test_parse_double_policy, "test_parse_double_policy");
+    run_test(test_instruction_file_extreme_doubles, "test_instruction_file_extreme_doubles");
+    run_test(test_fixed_instruction_misreads, "test_fixed_instruction_misreads");
+    run_test(test_file_availability_checks, "test_file_availability_checks");
+    run_test(test_partial_capability_handshake, "test_partial_capability_handshake");
+    run_test(test_instruction_file_partial_reads_are_never_wrong, "test_instruction_file_partial_reads_are_never_wrong");
+    run_test(test_model_interface_partial_across_files, "test_model_interface_partial_across_files");
+    run_test(test_instruction_file_partial_real_case, "test_instruction_file_partial_real_case");
+    run_test(test_instruction_file_partial_remaining_branches, "test_instruction_file_partial_remaining_branches");
+    run_test(test_quit_file_tokens, "test_quit_file_tokens");
+    run_test(test_run_storage_error_diagnostics, "test_run_storage_error_diagnostics");
+    run_test(test_run_storage_partial_update, "test_run_storage_partial_update");
+    run_test(test_external_values_are_results, "test_external_values_are_results");
+    run_test(test_partial_read_refuses_stale_outputs, "test_partial_read_refuses_stale_outputs");
+    run_test(test_violation_single_run_matches_ensemble, "test_violation_single_run_matches_ensemble");
+    run_test(test_regul_weight_search_edges, "test_regul_weight_search_edges");
+    run_test(test_ies_prior_scaling_is_neutral, "test_ies_prior_scaling_is_neutral");
+    run_test(test_prior_anomaly_scaling, "test_prior_anomaly_scaling");
+    run_test(test_prior_inv_sqrt_diag, "test_prior_inv_sqrt_diag");
     run_test(test_ies_prior_prec_reduces_to_am, "test_ies_prior_prec_reduces_to_am");
     cout << "\npestpp-selftest: " << (g_fail == 0 ? "PASS" : "FAIL")
          << " (" << (g_total - g_fail) << "/" << g_total << " checks)" << endl;
