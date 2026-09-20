@@ -2862,9 +2862,9 @@ static void test_enif_inflation_report()
     u << 0.01, 0.03, 0.0, 100.0, 300.0;  // ratios 2, 4, 1, 2, 4
     // written in the working directory like selftest_viol.rec above.  this test
     // killed the whole selftest on every windows ci job (exit 127 = an msvc
-    // fail-fast abort under msys bash, i.e. something threw) with nothing printed,
-    // first with temp_directory_path() and then without it - so the checkpoints
-    // below are there to say how far it gets, and main() catches what it throws
+    // fail-fast abort under msys bash) with nothing printed: the rec ifstream was
+    // still open when remove() ran, which windows refuses.  the checkpoints
+    // below are what found it, so they stay
     string csv = "selftest_enif_inflate.csv";
     string rec = "selftest_enif_inflate.rec";
     ofstream frec(rec);
@@ -2915,6 +2915,9 @@ static void test_enif_inflation_report()
     stringstream rs;
     rs << rin.rdbuf();
     string r = rs.str();
+    // closed before the remove() below: windows wont delete a file that is still
+    // open, posix will, and this is exactly what killed every windows ci job
+    rin.close();
     CHK(r.find("enif observation noise inflation summary, iteration 3") != string::npos, "rec section header carries the iteration");
     CHK(r.find("inflation applied to the update: yes") != string::npos, "rec says the inflation was applied");
     CHK(r.find("flux") < r.find("head"), "rec groups sorted by mean ratio, largest first");
