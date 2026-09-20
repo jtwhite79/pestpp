@@ -48,6 +48,7 @@ public:
 	std::pair<double, double> calc_sim_and_resid(const Parameters &pars) const;
 	bool is_regularization() const;
 	double get_weight()const {return weight;}
+	void set_weight(double _weight) { weight = _weight; }
 	double get_obs_value()const {return pival;}
 	const std::string& get_group() const{return group;}
 	const std::string *get_group_ptr() const{return &group;}
@@ -83,6 +84,16 @@ public:
 	int get_nnz_pi() const;
 	std::vector<std::string> get_keys() const;
 	void clear(){prior_info_map.clear();}
+	//what one irls reweighting pass did, for the rec file
+	struct IrlsStats
+	{
+		int n = 0;
+		int n_floor = 0;
+		double fmin = 0.0;
+		double fmed = 0.0;
+		double fmax = 0.0;
+	};
+	IrlsStats irls_reweight(const Parameters &pars, double eps, std::map<std::string, double> &w0);
 private:
 	std::map<std::string, PriorInformationRec> prior_info_map;
 };

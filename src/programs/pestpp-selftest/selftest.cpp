@@ -2920,9 +2920,48 @@ static void test_enif_inflation_report()
     std::filesystem::remove(rec);
 }
 
+static void test_irls_reweight()
+{
+    cout << "[irls prior info reweighting]" << endl;
+    // three regul equations and one non-regul one, in the pest pi line form.  p1 is log
+    // transformed so its residual is in log10 units, the others are native
+    PriorInformation pi;
+    pi.AddRecord("zo1 1.0 * log(p1) = 0.0 2.0 regul_zo");
+    pi.AddRecord("zo2 1.0 * p2 = 1.0 1.0 regul_zo");
+    pi.AddRecord("fo1 1.0 * p2 - 1.0 * p3 = 0.0 1.0 regul_fo");
+    pi.AddRecord("fo0 1.0 * p2 - 1.0 * p3 = 0.0 0.0 regul_fo");
+    pi.AddRecord("ob1 1.0 * p3 = 5.0 3.0 obsgrp");
+    Parameters pars;
+    pars.insert("P1", 100.0);   // resid = log10(100) - 0 = 2
+    pars.insert("P2", 1.0);     // resid = 0 -> at the floor
+    pars.insert("P3", 0.9);     // fo1 resid = 0.1
+    map<string, double> w0;
+    double eps = 0.01;
+    PriorInformation::IrlsStats st = pi.irls_reweight(pars, eps, w0);
+    CHK(st.n == 3, "irls: three nonzero regul equations reweighted");
+    CHK(st.n_floor == 1, "irls: one equation at the floor");
+    CHK(abs(pi.get_pi_rec("ZO1").get_weight() - 2.0 / sqrt(2.0)) < 1e-12, "irls: w = w0/sqrt(|r|)");
+    CHK(abs(pi.get_pi_rec("ZO2").get_weight() - 1.0 / sqrt(eps)) < 1e-12, "irls: zero residual gets w0/sqrt(eps)");
+    CHK(abs(pi.get_pi_rec("FO1").get_weight() - 1.0 / sqrt(0.1)) < 1e-12, "irls: difference equation reweighted from its own residual");
+    CHK(pi.get_pi_rec("FO0").get_weight() == 0.0, "irls: zero weight equation stays zero");
+    CHK(pi.get_pi_rec("OB1").get_weight() == 3.0, "irls: non-regul equation untouched");
+    CHK(abs(st.fmin - 1.0 / sqrt(2.0)) < 1e-12 && abs(st.fmax - 1.0 / sqrt(eps)) < 1e-12, "irls: min/max factor");
+    CHK(abs(st.fmed - 1.0 / sqrt(0.1)) < 1e-12, "irls: median factor");
+    // the point of the convention: the quadratic penalty (w r)^2 now equals w0^2 |r|
+    double r = pi.get_pi_rec("ZO1").calc_residual(pars);
+    double w = pi.get_pi_rec("ZO1").get_weight();
+    CHK(abs(w * w * r * r - 2.0 * 2.0 * abs(r)) < 1e-12, "irls: (w r)^2 == w0^2 |r|");
+    // a second pass at different parameters starts from w0 again, not from the last weights
+    pars.update_rec("P1", 10.0);  // resid = 1
+    pi.irls_reweight(pars, eps, w0);
+    CHK(abs(pi.get_pi_rec("ZO1").get_weight() - 2.0) < 1e-12, "irls: second pass reweights from w0, no compounding");
+    CHK(w0.size() == 5 && w0.at("ZO1") == 2.0, "irls: w0 holds the control file weights");
+}
+
 int main()
 {
     test_registry_equivalence();
+    test_irls_reweight();
     test_enif_inflation_report();
     test_generic_access();
     test_mutability();

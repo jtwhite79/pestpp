@@ -313,6 +313,10 @@ public:
 	void set_glm_debug_real_fail(bool _flag) { glm_debug_real_fail = _flag; }
 	bool get_glm_accept_mc_phi() const { return glm_accept_mc_phi; }
 	void set_glm_accept_mc_phi(bool _flag) { glm_accept_mc_phi = _flag; }
+	double get_glm_irls_eps() const { return glm_irls_eps; }
+	void set_glm_irls_eps(double _eps) { glm_irls_eps = _eps; }
+	int get_glm_irls_start_iter() const { return glm_irls_start_iter; }
+	void set_glm_irls_start_iter(int _iter) { glm_irls_start_iter = _iter; }
     bool get_glm_iter_mc() const { return glm_iter_mc; }
     void set_glm_iter_mc(bool _flag) { glm_iter_mc = _flag; }
     bool get_glm_debug_high_2nd_iter_phi() const {return glm_debug_high_2nd_iter_phi;}
@@ -886,6 +890,10 @@ private:
 	bool glm_debug_lamb_fail;
 	bool glm_debug_real_fail;
 	bool glm_accept_mc_phi;
+	//irls (l1) reweighting of the regularization prior info: eps > 0 turns it on and is the
+	//residual floor, start_iter is the first iteration whose end gets reweighted
+	double glm_irls_eps;
+	int glm_irls_start_iter;
 	bool glm_iter_mc;
 	bool glm_debug_high_2nd_iter_phi;
 	bool glm_hp_lambdas;

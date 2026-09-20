@@ -431,6 +431,7 @@ ModelRun SVDSolver::solve(RunManagerAbstract &run_manager, TerminationController
 		}
 		os << endl;
 		iteration_update_and_report(os, prev_run, best_upgrade_run, termination_ctl, run_manager);
+		irls_reweight(os, best_upgrade_run, global_iter_num);
 
 		if (termination_ctl.check_last_iteration()){
 			break;
@@ -2162,6 +2163,36 @@ void SVDSolver::iteration_update_and_report(ostream &os, const ModelRun &base_ru
 
 	//Need to pass defualt regularization weights so this comparision is consistent across iterations
 	termination_ctl.process_iteration(upgrade.get_phi_comp(DynamicRegularization::get_unit_reg_instance()), max_rel_change);
+}
+
+void SVDSolver::irls_reweight(ostream &os, const ModelRun &run, int global_iter_num)
+{
+	//l1 (irls) regularization: once the iteration is accepted, reset every regularization
+	//prior info weight from its own residual at the accepted parameters.  this sits underneath
+	//the weight factor search - irls sets the relative weights between equations, the search
+	//still scales them all together at the start of the next iteration.  Q_sqrt and the phi
+	//calcs read the weights straight off the prior info recs each time they are built, so
+	//nothing else needs to be told.  the "final phi" report just above still used the old
+	//weights, so the regul phi before/after here is the jump the next iteration starts from.
+	double eps = pest_scenario.get_pestpp_options().get_glm_irls_eps();
+	if (eps <= 0.0)
+		return;
+	if (global_iter_num < pest_scenario.get_pestpp_options().get_glm_irls_start_iter())
+		return;
+	PhiComponets phi_before = obj_func->get_phi_comp(run.get_obs(), run.get_ctl_pars(), *regul_scheme_ptr);
+	PriorInformation::IrlsStats stats = pest_scenario.get_prior_info_ptr()->irls_reweight(run.get_ctl_pars(), eps, irls_w0);
+	PhiComponets phi_after = obj_func->get_phi_comp(run.get_obs(), run.get_ctl_pars(), *regul_scheme_ptr);
+	//the rec stream is left at 2 digits by the jacobian stats above, which turns the factors into "2e+01"
+	streamsize n_prec = os.precision(6);
+	os << endl << "  ---  IRLS (L1) prior information reweighting after iteration " << global_iter_num << "  ---" << endl;
+	os << "    residual floor eps                             : " << eps << endl;
+	os << "    prior information equations reweighted         : " << stats.n << endl;
+	os << "    equations with |residual| below eps (at floor) : " << stats.n_floor << endl;
+	os << "    reweight factor w/w0 min / median / max        : " << stats.fmin << " / " << stats.fmed << " / " << stats.fmax << endl;
+	os << "    regularization phi before / after reweighting  : " << phi_before.regul << " / " << phi_after.regul << endl << endl;
+	os.precision(n_prec);
+	cout << "  irls reweighting: " << stats.n << " prior info equations, " << stats.n_floor << " at floor, regul phi "
+		<< phi_before.regul << " -> " << phi_after.regul << endl;
 }
 
 /**

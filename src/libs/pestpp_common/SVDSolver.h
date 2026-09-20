@@ -168,6 +168,10 @@ protected:
 	OutputFileWriter &output_file_writer;
 	PerformanceLog *performance_log;
 	bool terminate_local_iteration;
+	//control file prior info weights, filled on the first irls pass so every later pass
+	//reweights from the same starting point
+	map<string, double> irls_w0;
+	void irls_reweight(ostream &os, const ModelRun &run, int global_iter_num);
 		
 	virtual Parameters limit_parameters_freeze_all_ip(const Parameters &init_active_ctl_pars,
 		Parameters &upgrade_active_ctl_pars, const Parameters &frozen_active_ctl_pars = Parameters());

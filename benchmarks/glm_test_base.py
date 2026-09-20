@@ -973,6 +973,139 @@ def tenpar_fosm_external_stdev_test():
     assert np.abs(diff.values).sum() < 1e-6
 
 
+def glm_irls_test():
+    """irls (l1) tikhonov in pestpp-glm, glm_irls_eps / glm_irls_start_iter.  serial runs on
+    the 10 par xsec with zeroth order prior info, all pars log transformed.  the selftest pins the reweighting formula
+    on its own; this covers the rest: that the option off is the same as absent, that the
+    reweighting really reaches the next iteration and the reported phi, that start_iter
+    delays it, and that the two refusals fire"""
+    import re
+    model_d = "glm_10par_xsec"
+    t_d = scratch_template(os.path.join(model_d, "template"), suffix="_glm_irls")
+
+    def run_case(name, options, pestmode="regularization", prior_info=True, noptmax=3,
+                 expect_fail=False):
+        m_d = os.path.join(model_d, "master_glm_irls_" + name)
+        if os.path.exists(m_d):
+            shutil.rmtree(m_d)
+        shutil.copytree(t_d, m_d)
+        pst = pyemu.Pst(os.path.join(m_d, "pest.pst"))
+        pst.parameter_data.loc[:, "partrans"] = "log"
+        # every obs weighted so the fit has something to work against
+        pst.observation_data.loc[:, "weight"] = 10.0
+        if prior_info:
+            pyemu.helpers.zero_order_tikhonov(pst, parbounds=False, reset=True)
+        pst.control_data.pestmode = pestmode
+        pst.control_data.noptmax = noptmax
+        pst.control_data.nphinored = 10
+        pst.control_data.relparmax = 5.0
+        pst.control_data.facparmax = 5.0
+        pst.reg_data.phimlim = 1.0e-10
+        pst.reg_data.phimaccept = 1.05e-10
+        pst.reg_data.fracphim = 0.1
+        pst.pestpp_options = {"uncertainty": False}
+        pst.pestpp_options.update(options)
+        pst.write(os.path.join(m_d, "pest.pst"), version=2)
+        failed = False
+        try:
+            pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=m_d)
+        except Exception:
+            failed = True
+        rec = open(os.path.join(m_d, "pest.rec")).read()
+        if expect_fail:
+            assert failed, name + ": expected the run to be refused"
+            assert "GLM_IRLS_EPS" in rec, name + ": refusal not reported in the rec"
+            return rec, None, None
+        assert not failed, name + ": run failed"
+        iobj = pd.read_csv(os.path.join(m_d, "pest.iobj"))
+        ipar = pd.read_csv(os.path.join(m_d, "pest.ipar"), index_col=0)
+        return rec, iobj, ipar
+
+    def rec_blocks(rec):
+        """the irls block after each iteration: (iter, n, n_floor, fmin, fmed, fmax, before, after)"""
+        pat = (r"IRLS \(L1\) prior information reweighting after iteration (\d+).*?"
+               r"reweighted\s*:\s*(\d+).*?at floor\)\s*:\s*(\d+).*?"
+               r"max\s*:\s*([\d.eE+-]+) / ([\d.eE+-]+) / ([\d.eE+-]+).*?"
+               r"before / after reweighting\s*:\s*([\d.eE+-]+) / ([\d.eE+-]+)")
+        out = []
+        for m in re.finditer(pat, rec, re.S):
+            it, n, nf = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            out.append((it, n, nf) + tuple(float(m.group(k)) for k in range(4, 9)))
+        return out
+
+    # the refusals first
+    run_case("refuse_mode", {"glm_irls_eps": 1.0e-3}, pestmode="estimation", expect_fail=True)
+    run_case("refuse_nopi", {"glm_irls_eps": 1.0e-3}, prior_info=False, expect_fail=True)
+
+    eps = 1.0e-3
+    rec_b, iobj_b, ipar_b = run_case("base", {})
+    rec_o, iobj_o, ipar_o = run_case("off", {"glm_irls_eps": -1.0})
+    rec_i, iobj_i, ipar_i = run_case("irls", {"glm_irls_eps": eps})
+    rec_s, iobj_s, ipar_s = run_case("start2", {"glm_irls_eps": eps, "glm_irls_start_iter": 2})
+    print("base meas/regul phi:", list(zip(iobj_b.measurement_phi.round(3), iobj_b.regularization_phi.round(3))))
+    print("irls meas/regul phi:", list(zip(iobj_i.measurement_phi.round(3), iobj_i.regularization_phi.round(3))))
+
+    # option off is the option absent
+    hdr = "IRLS (L1) prior information reweighting"
+    assert hdr not in rec_b and hdr not in rec_o, "irls ran without being asked"
+    d = np.abs(iobj_b.values - iobj_o.values).max()
+    assert d == 0.0, "glm_irls_eps -1 differs from absent by {0}".format(d)
+
+    # the block is written after every iteration, and the counts make sense
+    blocks = rec_blocks(rec_i)
+    npi = pyemu.Pst(os.path.join(model_d, "master_glm_irls_irls", "pest.pst")).nprior
+    assert [b[0] for b in blocks] == list(range(1, len(iobj_i))), \
+        "irls: expected a block after each of {0} iterations, got {1}".format(len(iobj_i) - 1, [b[0] for b in blocks])
+    for it, n, nf, fmin, fmed, fmax, before, after in blocks:
+        assert n == npi, "irls iter {0}: reweighted {1} equations, expected {2}".format(it, n, npi)
+        assert 0 <= nf <= n, "irls iter {0}: floor count {1} out of range".format(it, nf)
+        assert fmin <= fmed <= fmax, "irls iter {0}: factors not ordered".format(it)
+        assert fmax <= 1.0 / np.sqrt(eps) * (1.0 + 1.0e-6), "irls iter {0}: factor above the floor cap".format(it)
+        assert (nf > 0) == (abs(fmax - 1.0 / np.sqrt(eps)) < 1.0e-6 * fmax), \
+            "irls iter {0}: floor count and max factor disagree".format(it)
+
+    # iteration 1 is reported before the first reweighting, so it has to match the L2 run
+    # exactly; from iteration 2 the weights differ and so must the parameters and the phi
+    assert np.abs(iobj_i.loc[1, ["measurement_phi", "regularization_phi"]].values
+                  - iobj_b.loc[1, ["measurement_phi", "regularization_phi"]].values).max() < 1.0e-8, \
+        "irls: iteration 1 differs from the L2 run, the reweighting fired too early"
+    assert np.abs(ipar_i.loc[1].values - ipar_b.loc[1].values).max() < 1.0e-10, "irls: iteration 1 parameters differ"
+    assert np.abs(ipar_i.loc[2].values - ipar_b.loc[2].values).max() > 1.0e-8, \
+        "irls: iteration 2 parameters match the L2 run, the reweighting did not reach the upgrade"
+    assert abs(iobj_i.loc[2, "regularization_phi"] - iobj_b.loc[2, "regularization_phi"]) > 1.0e-8, \
+        "irls: iteration 2 regul phi matches the L2 run, the reweighting did not reach the phi"
+
+    # the before/after ratio in the block is set by the residuals alone (the weight factor
+    # cancels), so recompute it from the .ipar file: zeroth order, log pars, so
+    # r = log10(p) - log10(p0).  "before" is with the weights from the previous reweighting
+    # (the control file weights for the first block), "after" with this one, so
+    # ratio = sum(r^2 / max(|r|,eps)) / sum(r^2 / max(|r_prev|,eps))
+    pst_i = pyemu.Pst(os.path.join(model_d, "master_glm_irls_irls", "pest.pst"))
+    par = pst_i.parameter_data
+    pnames = [p for p in par.loc[par.partrans == "log", "parnme"] if p in pst_i.adj_par_names]
+    p0 = np.log10(par.loc[pnames, "parval1"].values.astype(float))
+    for it, n, nf, fmin, fmed, fmax, before, after in blocks:
+        r = np.abs(np.log10(ipar_i.loc[it, pnames].values.astype(float)) - p0)
+        if it == 1:
+            denom = np.sum(r ** 2)
+        else:
+            r_prev = np.abs(np.log10(ipar_i.loc[it - 1, pnames].values.astype(float)) - p0)
+            denom = np.sum(r ** 2 / np.maximum(r_prev, eps))
+        ratio = np.sum(r ** 2 / np.maximum(r, eps)) / denom
+        assert abs(after / before - ratio) < 1.0e-4 * ratio, \
+            "irls iter {0}: rec before/after ratio {1} vs {2} from the residuals".format(it, after / before, ratio)
+        assert nf == int((r < eps).sum()), "irls iter {0}: floor count {1} vs {2} from the residuals".format(it, nf, (r < eps).sum())
+
+    # start_iter 2: nothing after iteration 1, so iterations 1 and 2 match the L2 run and
+    # the first block comes after iteration 2
+    sblocks = rec_blocks(rec_s)
+    assert sblocks and sblocks[0][0] == 2, "start_iter 2: first block after iteration {0}".format(sblocks[0][0] if sblocks else None)
+    assert np.abs(ipar_s.loc[2].values - ipar_b.loc[2].values).max() < 1.0e-10, \
+        "start_iter 2: iteration 2 parameters differ from the L2 run"
+    assert np.abs(ipar_s.loc[3].values - ipar_b.loc[3].values).max() > 1.0e-8, \
+        "start_iter 2: iteration 3 parameters match the L2 run, the reweighting never fired"
+
+
 if __name__ == "__main__":
     #freyberg_stress_test()
     #tenpar_xsec_stress_test()
