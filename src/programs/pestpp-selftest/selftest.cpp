@@ -2857,9 +2857,12 @@ static void test_enif_inflation_report()
     Eigen::VectorXd w(5), u(5);
     w << 10.0, 10.0, 5.0, 0.1, 0.1;      // noise var 0.01, 0.01, 0.04, 100, 100
     u << 0.01, 0.03, 0.0, 100.0, 300.0;  // ratios 2, 4, 1, 2, 4
-    std::filesystem::path tmp = std::filesystem::temp_directory_path();
-    string csv = (tmp / "selftest_enif_inflate.csv").string();
-    string rec = (tmp / "selftest_enif_inflate.rec").string();
+    // written in the working directory like selftest_viol.rec above, not
+    // temp_directory_path(): under bash on the windows runners TMP points at a
+    // directory that does not exist as a windows path, temp_directory_path() throws
+    // and the whole selftest died here on every windows ci job
+    string csv = "selftest_enif_inflate.csv";
+    string rec = "selftest_enif_inflate.rec";
     ofstream frec(rec);
     map<string, EnifInflateGroupStats> st = enif_inflation_report(names, groups, w, u, true, 3, csv, frec);
     frec.close();
