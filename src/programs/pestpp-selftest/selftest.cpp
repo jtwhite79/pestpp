@@ -2857,15 +2857,18 @@ static void test_enif_inflation_report()
     Eigen::VectorXd w(5), u(5);
     w << 10.0, 10.0, 5.0, 0.1, 0.1;      // noise var 0.01, 0.01, 0.04, 100, 100
     u << 0.01, 0.03, 0.0, 100.0, 300.0;  // ratios 2, 4, 1, 2, 4
-    // written in the working directory like selftest_viol.rec above, not
-    // temp_directory_path(): under bash on the windows runners TMP points at a
-    // directory that does not exist as a windows path, temp_directory_path() throws
-    // and the whole selftest died here on every windows ci job
+    // written in the working directory like selftest_viol.rec above.  this test
+    // killed the whole selftest on every windows ci job (exit 127 = an msvc
+    // fail-fast abort under msys bash, i.e. something threw) with nothing printed,
+    // first with temp_directory_path() and then without it - so the checkpoints
+    // below are there to say how far it gets, and main() catches what it throws
     string csv = "selftest_enif_inflate.csv";
     string rec = "selftest_enif_inflate.rec";
     ofstream frec(rec);
+    cout << "  writing " << csv << " and " << rec << " in " << std::filesystem::current_path().string() << endl;
     map<string, EnifInflateGroupStats> st = enif_inflation_report(names, groups, w, u, true, 3, csv, frec);
     frec.close();
+    cout << "  report written, " << st.size() << " groups" << endl;
 
     CHK(st.size() == 2, "two groups summarized");
     CHK(st.at("head").count == 3 && st.at("flux").count == 2, "group counts");
@@ -2879,6 +2882,7 @@ static void test_enif_inflation_report()
     CHK(fabs(st.at("flux").eff_weight_mean - 0.5 * (1.0 / sqrt(200.0) + 0.05)) < 1.0e-12, "flux mean effective weight");
 
     // the csv: header plus one row per obs, inflated = noise + unexp when applied
+    cout << "  reading back " << csv << endl;
     ifstream fin(csv);
     string line;
     getline(fin, line);
@@ -2903,6 +2907,7 @@ static void test_enif_inflation_report()
     CHK(q2_ok, "q2 row: inflated var 400, ratio 4, effective weight 0.05");
 
     // the rec section, sorted by mean ratio so flux (3) comes before head (2.33)
+    cout << "  reading back " << rec << endl;
     ifstream rin(rec);
     stringstream rs;
     rs << rin.rdbuf();
@@ -2913,6 +2918,7 @@ static void test_enif_inflation_report()
     CHK(r.find(csv) != string::npos, "rec names the csv");
 
     // not applied: the csv still carries the would-be ratio but the effective weight is the weight
+    cout << "  second pass, inflation not applied" << endl;
     st = enif_inflation_report(names, groups, w, u, false, 4, csv, frec);
     CHK(fabs(st.at("flux").eff_weight_mean - 0.1) < 1.0e-12, "not applied: effective weight is the control file weight");
     CHK(fabs(st.at("flux").ratio_mean - 3.0) < 1.0e-12, "not applied: the would-be ratio is still reported");
@@ -2958,11 +2964,30 @@ static void test_irls_reweight()
     CHK(w0.size() == 5 && w0.at("ZO1") == 2.0, "irls: w0 holds the control file weights");
 }
 
+// a test that throws should count as a failure that names itself, not take the
+// whole selftest down with it - which is what happened on the windows ci runners,
+// where an uncaught exception is a silent exit 127
+static void run_test(void (*fn)(), const char* name)
+{
+    try
+    {
+        fn();
+    }
+    catch (const exception& e)
+    {
+        CHK(false, string(name) + " threw: " + e.what());
+    }
+    catch (...)
+    {
+        CHK(false, string(name) + " threw something that is not a std::exception");
+    }
+}
+
 int main()
 {
     test_registry_equivalence();
-    test_irls_reweight();
-    test_enif_inflation_report();
+    run_test(test_irls_reweight, "test_irls_reweight");
+    run_test(test_enif_inflation_report, "test_enif_inflation_report");
     test_generic_access();
     test_mutability();
     test_control_info();
@@ -2998,7 +3023,7 @@ int main()
     test_ies_prior_scaling_is_neutral();
     test_prior_anomaly_scaling();
     test_prior_inv_sqrt_diag();
-    test_ies_prior_prec_reduces_to_am();
+    run_test(test_ies_prior_prec_reduces_to_am, "test_ies_prior_prec_reduces_to_am");
     cout << "\npestpp-selftest: " << (g_fail == 0 ? "PASS" : "FAIL")
          << " (" << (g_total - g_fail) << "/" << g_total << " checks)" << endl;
     return g_fail == 0 ? 0 : 1;
