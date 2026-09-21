@@ -518,6 +518,14 @@ PestppOptions::ARG_STATUS PestppOptions::assign_value_by_key_legacy(string key, 
 	{
 		glm_accept_mc_phi = pest_utils::parse_string_arg_to_bool(value);
 	}
+	else if (key == "GLM_IRLS_EPS")
+	{
+		convert_ip(value, glm_irls_eps);
+	}
+	else if (key == "GLM_IRLS_START_ITER")
+	{
+		convert_ip(value, glm_irls_start_iter);
+	}
 	else if (key == "GLM_REBASE_SUPER")
 	{
 		cout << "++GLM_REBASE_SUPER is deprecated and no longer supported (svd-assist has been "
@@ -1172,6 +1180,59 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
 	ies_ordered_binary = pest_utils::parse_string_arg_to_bool(value);
 	return true;
 	}
+    else if (key == "IES_USE_ENIF")
+    {
+        ies_use_enif = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
+    else if (key == "IES_ENIF_RIDGE")
+    {
+        convert_ip(value,ies_enif_ridge);
+        return true;
+    }
+    else if (key == "IES_ENIF_RESID_INFLATE")
+    {
+        ies_enif_resid_inflate = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
+    else if (key == "IES_ENIF_GRAPH")
+    {
+        //org_value, not value: filenames are case sensitive and `value` has
+        //already been upper-cased
+        ies_enif_graph = org_value;
+        return true;
+    }
+    else if (key == "IES_ENIF_H_LASSO")
+    {
+        convert_ip(value,ies_enif_h_lasso);
+        return true;
+    }
+    else if (key == "IES_ENIF_H_CV_FOLDS")
+    {
+        convert_ip(value,ies_enif_h_cv_folds);
+        return true;
+    }
+    else if (key == "IES_ENIF_SHRINK")
+    {
+        convert_ip(value,ies_enif_shrink);
+        return true;
+    }
+    else if (key == "IES_ENIF_ORDER")
+    {
+        //'amd' or 'natural'; the graph code lower-cases whatever arrives here
+        ies_enif_order = value;
+        return true;
+    }
+    else if (key == "IES_ENIF_SAVE_H")
+    {
+        ies_enif_save_h = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
+    else if (key == "IES_USE_PRIOR_PREC")
+    {
+        ies_use_prior_prec = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
     else if (key == "IES_MULTIMODAL_ALPHA")
     {
         convert_ip(value,ies_multimodal_alpha);
@@ -1225,6 +1286,19 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
         for (const auto& fac : tok)
         {
             ies_reinflate_factor.push_back(convert_cp<double>(fac));
+        }
+        return true;
+    }
+    else if (key == "IES_REINFLATE_SOLVER")
+    {
+        //kept as given (lower cased); the entries are checked against ies/esmda/enif at
+        //initialize, not here, so a bad entry reports with the rest of the setup errors
+        vector<string> tok;
+        tokenize(value, tok, ",");
+        ies_reinflate_solver.clear();
+        for (const auto& s : tok)
+        {
+            ies_reinflate_solver.push_back(lower_cp(strip_cp(s)));
         }
         return true;
     }
@@ -2079,6 +2153,8 @@ void PestppOptions::summary_legacy(ostream& os) const
 	os << "glm_debug_lamb_fail: " << glm_debug_lamb_fail << endl;
 	os << "glm_debug_real_fail: " << glm_debug_real_fail << endl;
 	os << "glm_accept_mc_phi: " << glm_accept_mc_phi << endl;
+	os << "glm_irls_eps: " << glm_irls_eps << endl;
+	os << "glm_irls_start_iter: " << glm_irls_start_iter << endl;
 	os << "glm_iter_mc: " << glm_iter_mc << endl;
 	os << "glm_high_2nd_iter_phi: " << glm_debug_high_2nd_iter_phi << endl;
 
@@ -2271,6 +2347,16 @@ os << endl << "...pestpp-swp options:" << endl;
 	os << "ies_localization_type: " << ies_loc_type << endl;
 	os << "ies_upgrades_in_memory: " << ies_upgrades_in_memory << endl;
 	os << "ies_ordered_binary: " << ies_ordered_binary << endl;
+	os << "ies_use_enif: " << ies_use_enif << endl;
+	os << "ies_enif_ridge: " << ies_enif_ridge << endl;
+	os << "ies_enif_resid_inflate: " << ies_enif_resid_inflate << endl;
+	os << "ies_enif_graph: " << ies_enif_graph << endl;
+	os << "ies_enif_h_lasso: " << ies_enif_h_lasso << endl;
+	os << "ies_enif_h_cv_folds: " << ies_enif_h_cv_folds << endl;
+	os << "ies_enif_shrink: " << ies_enif_shrink << endl;
+	os << "ies_enif_order: " << ies_enif_order << endl;
+	os << "ies_enif_save_h: " << ies_enif_save_h << endl;
+	os << "ies_use_prior_prec: " << ies_use_prior_prec << endl;
 	os << "ies_multimodal_alpha: " << ies_multimodal_alpha << endl;
 	os << "ies_multimodal_weight_exponent: " << ies_multimodal_weight_exponent << endl;
 	os << "ies_multimodal_phi_weight: " << ies_multimodal_phi_weight << endl;
@@ -2283,6 +2369,10 @@ os << endl << "...pestpp-swp options:" << endl;
     os << endl;
     os << "ies_reinflate_factor: " << endl;
     for (auto v : ies_reinflate_factor)
+        os << v << ",";
+    os << endl;
+    os << "ies_reinflate_solver: " << endl;
+    for (auto v : ies_reinflate_solver)
         os << v << ",";
     os << endl;
     os << "ies_updatebyreals: " << ies_updatebyreals << endl;
@@ -2342,6 +2432,8 @@ void PestppOptions::set_defaults_legacy()
 	set_glm_debug_lamb_fail(false);
 	set_glm_debug_real_fail(false);
 	set_glm_accept_mc_phi(false);
+	set_glm_irls_eps(-1.0);
+	set_glm_irls_start_iter(1);
 	set_glm_iter_mc(false);
     set_glm_debug_high_2nd_iter_phi(false);
 	set_glm_hp_lambdas(false);
@@ -2474,7 +2566,7 @@ void PestppOptions::set_defaults_legacy()
 	set_ies_subset_size(-10);
 	set_ies_reg_factor(0.0);
 	set_ies_verbose_level(1);
-	set_ies_use_prior_scaling(false);
+	set_ies_use_prior_scaling(true);
 	set_ies_num_reals(50);
 	set_ies_bad_phi(std::numeric_limits<double>::max());
 	set_ies_bad_phi_sigma(std::numeric_limits<double>::max());
@@ -2516,6 +2608,16 @@ void PestppOptions::set_defaults_legacy()
 	set_ies_loc_type("LOCAL");
 	set_ies_upgrades_in_memory(true);
 	set_ies_ordered_binary(true);
+    set_ies_use_enif(false);
+    set_ies_enif_ridge(1.0e-6);
+    set_ies_enif_resid_inflate(true);
+    set_ies_enif_graph("");
+    set_ies_enif_h_lasso(0.0);
+    set_ies_enif_h_cv_folds(0);
+    set_ies_enif_shrink(1.0e-3);
+    set_ies_enif_order("amd");
+    set_ies_enif_save_h(false);
+    set_ies_use_prior_prec(false);
     set_ies_multimodal_alpha(0.0);
     set_ies_multimodal_weight_exponent(0.0);
     set_ies_multimodal_phi_weight(0.5);
@@ -2525,6 +2627,7 @@ void PestppOptions::set_defaults_legacy()
     set_ies_phi_factors_by_real(false);
     set_ies_n_iter_reinflate(vector < int > {0});
     set_ies_reinflate_factor(vector < double > {1.0});
+    set_ies_reinflate_solver(vector<string>());
     set_ies_run_realname("");
 	set_ies_reinflate_num_reals(vector<int>{0});
 	set_ies_use_phi_lambda_iters(false);

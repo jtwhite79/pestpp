@@ -26,6 +26,7 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 #include "utilities.h"
 #include "Transformable.h"
 
@@ -370,4 +371,47 @@ int PriorInformation::get_nnz_pi() const
 			nnz++;
 	}
 	return nnz;
+}
+
+PriorInformation::IrlsStats PriorInformation::irls_reweight(const Parameters &pars, double eps, map<string, double> &w0)
+{
+	//the l1 penalty by reweighting.  pest applies weights as (w*r)^2 in phi, so to make the
+	//penalty behave like |r| we need w^2 * r^2 = w0^2 * |r|, which means w = w0/sqrt(|r|).
+	//(w = w0/|r| would give a constant penalty w0^2, which isnt l1 at all).  the floor eps
+	//keeps a residual that lands on zero from making the weight infinite and welding that
+	//equation shut for the rest of the run - it can still move if the data want it to.  w0
+	//is the control file weight, stored once on the first pass so the reweighting doesnt
+	//compound from iteration to iteration.  only regularization group equations are touched
+	//and zero-weight ones stay zero.  the residual is whatever calc_residual gives, so for
+	//log transformed pars it is in log10 units and eps has to be too.
+	IrlsStats stats;
+	vector<double> facs;
+	if (w0.empty())
+	{
+		for (auto &pi : prior_info_map)
+			w0[pi.first] = pi.second.get_weight();
+	}
+	for (auto &pi : prior_info_map)
+	{
+		if (!pi.second.is_regularization())
+			continue;
+		map<string, double>::const_iterator it = w0.find(pi.first);
+		if ((it == w0.end()) || (it->second <= 0.0))
+			continue;
+		double r = abs(pi.second.calc_residual(pars));
+		if (r < eps)
+			stats.n_floor++;
+		double fac = 1.0 / sqrt(max(r, eps));
+		pi.second.set_weight(it->second * fac);
+		facs.push_back(fac);
+	}
+	stats.n = facs.size();
+	if (stats.n > 0)
+	{
+		sort(facs.begin(), facs.end());
+		stats.fmin = facs.front();
+		stats.fmax = facs.back();
+		stats.fmed = facs[facs.size() / 2];
+	}
+	return stats;
 }

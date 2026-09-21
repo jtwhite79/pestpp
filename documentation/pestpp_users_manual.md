@@ -49,6 +49,8 @@ On a personal note, thanks are also due to the following people who have contrib
 
 - Reygie Macasieb (INTERA)
 
+- Michael Morphew (Neptune)
+
 # <a id='s3' />Preface
 
 Interoperability between programs of the PEST++ suite and those of the PEST suite has been greatly improved with the release of version 15 of PEST. This, it is hoped, will promulgate conjunctive use of these two suites. In particular, many of the utility programs that comprise the PEST suite (including its ground and surface water utilities) can perform the same support roles for programs of the PEST++ suite that they do for PEST itself. At the same time, the ever-expanding functionality of the PyEMU suite (White et al, 2016) can facilitate use of PEST as it does the same for PEST++.
@@ -2789,6 +2791,30 @@ where *m* is the number of adjustable parameters featured in the PEST control fi
 
 If IREGADJ is set to 1, PESTPP-GLM multiplies the weights pertaining to all members of each regularization group by a group-specific factor. This factor is chosen so that, after this operation has been performed, the total composite sensitivities of all regularization groups are the same.
 
+### <a id='s10-1-3-1' />6.2.3.1 L1 Regularization by Iterative Reweighting (experimental)
+
+*This section, and the functionality it describes, is a draft. The options have been tested on one small synthetic problem and may change.*
+
+The Tikhonov regularization described above penalizes the squared residual of each regularization observation and prior information equation; the regularization objective function is Σ(w<sub>k</sub>r<sub>k</sub>)² where r<sub>k</sub> is the residual of equation k and w<sub>k</sub> its weight. A squared penalty accepts many small departures from the preferred condition over a few large ones, and so tends to produce smooth, muted parameter fields with some variability everywhere. An L1 penalty, Σw<sub>k</sub>²|r<sub>k</sub>|, does the opposite: it is cheap for a few large departures and expensive for many small ones. With zeroth-order (preferred value) equations this yields sparse changes, where most parameters stay exactly at their preferred values and a few move a lot. With first-order (preferred difference) equations it yields total variation regularization, where the field is piecewise constant with a small number of sharp jumps, which is often a better description of geological zonation than a smooth field.
+
+PESTPP-GLM implements the L1 penalty by the iteratively reweighted least squares (IRLS) approach. The Gauss-Marquardt-Levenberg equations are unchanged; instead, after every iteration, once the upgraded parameters have been accepted, the weight of each regularization prior information equation is internally and recomputed from its own residual at those parameters:
+
+w<sub>k</sub> = w<sub>k</sub><sup>0</sup> / sqrt(max(|r<sub>k</sub>|, ε))
+
+where w<sub>k</sub><sup>0</sup> is the weight the equation was given in the control file. Substituting this into the squared penalty gives (w<sub>k</sub>r<sub>k</sub>)² = (w<sub>k</sub><sup>0</sup>)²|r<sub>k</sub>|, that is, the L1 penalty, once the iteration has converged. ε is a floor on the residual: without it an equation whose residual reaches zero would be given near-infinite weight and could never move again, a problem in nonlinear settings. It is expressed in the units of the residuals, which for log-transformed parameters are log<sub>10</sub> units. A value of about one thousandth of the range of the parameters concerned has worked; larger values make the penalty behave more like the standard squared one, smaller values make it sharper but make the weight factor search (see below) less stable.
+
+IRLS is activated by supplying a positive value for *glm_irls_eps()*. It requires PESTMODE to be "regularization" and at least one prior information equation with a nonzero weight in a regularization group; PESTPP-GLM will stop with an error otherwise. Only prior information equations in regularization groups are reweighted; regularization observations and equations with zero weight are left alone. *glm_irls_start_iter()* (default 1) delays the first reweighting until after that iteration, so that the residuals it is computed from come from a partly calibrated parameter set rather than from the initial values (where every zeroth-order residual is zero and every equation would start at the floor).
+
+Some things to be aware of:
+
+- The regularization weight factor search still operates. IRLS sets the *relative* weights of the equations; the PHIMLIM-driven search described in section 6.2.2 still finds a single factor that scales all of them so that the measurement objective function meets PHIMLIM. The two coexist, but each reweighting changes the regularization objective function (it typically jumps up, because equations with small residuals gain weight), and the search then has to pull the factor back at the start of the next iteration. This shows in the run record file as a larger regularization objective function immediately after the reweighting than at the end of the next iteration. If the weight factor reaches WFMIN or WFMAX the reweighting has outrun the search range; widen it or increase ε.
+- IREGADJ should be 0. Inter-regularization group weight adjustment (section 6.2.3) equalizes the contribution of each regularization group, which works against the IRLS scheme whose purpose is to make contributions unequal. At the time of writing the combination is not refused.
+- More iterations (and therefore model runs) may be needed. The weights only stop changing once the residuals stop changing, so IRLS converges more slowly than the standard penalty, and the regularization objective function can keep moving, or oscillate, after the measurement objective function has flattened. Each extra iteration is a full Jacobian, so on large problems the cost is real. Set NOPTMAX with this in mind. The termination criteria (PHIREDSTP, NPHISTP, NPHINORED) are evaluated on an objective function whose weights are changing, so they may trip earlier or later than they would otherwise.
+- The reported regularization objective function changes meaning. It is computed with the current weights, so once IRLS is active it is (approximately) the L1 penalty, not the squared one, and is not comparable with a run that does not use IRLS. The measurement objective function is unaffected and is comparable.
+- Choose the equations to match the expected field. On a synthetic problem with a smoothly varying hydraulic conductivity field, L1 with zeroth-order equations gave the worst result of the four combinations tried (it left a third of the pilot points untouched and over-fitted the rest), while L1 with first-order equations gave the best. The L1 penalty is a strong prior; it helps when that prior is not obviously wrong and hurts when it is.
+
+After each reweighting PESTPP-GLM writes a short block to the run record file giving ε, the number of equations reweighted, how many are at the floor, the minimum, median and maximum reweighting factor, and the regularization objective function before and after the reweighting.
+
 ### <a id='s10-1-4' />6.2.4 Choosing Values for the Marquardt Lambda
 
 In contrast to PEST, PESTPP-GLM does not use the control variables specified on the fifth line of the “control data” section of the PEST control file to govern how it chooses Marquardt lambdas. Instead, it receives Marquardt lambda control information from PEST++ control variables. Two of these are *lambdas()* and *lambda_scale_fac()*. Default settings for these variables are as follows:
@@ -3025,6 +3051,8 @@ Note also that the number of control variables may change with time. Refer to th
 | *glm_normal_form(diag)*           | string                 | The form of the normal matrix to use. Can be “ident” (identity matrix lambda scaling), “diag” (use the diagonal of X<sup>t</sup>QX for lambda scaling), “prior” (scale with the inverse of the prior parameter covariance matrix), or "HP" (similar to diag but attempts to more closely resemble the exact normal matrix scaling formula from PEST_HP). Default is diag.                                                                                                                                |
 | *glm_hp_lambdas(false)*           | string                 | Flag that controls whether to override normal GLM lambda determination with PEST_HP-style lambdas and lambda scale vectors. Default is false.                 
 | *glm_panther_lambdas(false)*           | string                 | Flag that controls whether to add or remove from lambdas and lambda_scale_fac as needed depending on the number of agents currently connected to panther. Mutually exclusive with *glm_hp_lambdas*. *glm_hp_lambdas* will override *glm_panther_lambdas* if both are set to true. Does nothing if running in serial. Default is false.                                                                                                                                                                                            |
+| *glm_irls_eps(-1.0)*                | double                 | If greater than zero, activates L1 (iteratively reweighted least squares) regularization: after every iteration each regularization prior information equation is reweighted as w = w<sup>0</sup>/sqrt(max(\|r\|, glm_irls_eps)), where r is its residual. The value is the floor on the residual, in residual units. Requires PESTMODE regularization and weighted prior information in a regularization group. Experimental; see section 6.2.3.1. |
+| *glm_irls_start_iter(1)*            | integer                | The first iteration after which IRLS reweighting is applied; earlier iterations use the control file weights unchanged. Only used if *glm_irls_eps* is greater than zero. |
 | *reg_use_achievable_target(true)*           | boolean                | Allow PESTPP-GLM to relax the target measurement objective function for an iteration when the measurement objective function has stalled and FRACPHIM, rather than PHIMLIM, is setting that target. See section 6.2.2. Default is true. |
 | *max_reg_iter(20)*           | integer                | The maximum number of iterations of the numerical procedure that finds the regularization weight factor for an iteration. See section 4.16. Default is 20. |
 
@@ -3772,6 +3800,28 @@ This option is implemented in PESTPP-IES via the *ies_n_iter_reinflate* option. 
 
 Figure 9.3 – A contrived example showing how standard and reinflation iterations compare. Standard iterations (A/D) quickly collapse, (B/E) using a reinflation with 1 polish iteration yields a high parameter posterior variance, especially for hydraulic conductivity. (C/F) A reinflation at iteration 4 followed by several additional iterations yields nearly the same posterior as standard iterations for this simple mildly nonlinear problem.
 
+### <a id='s13-1-16' />9.1.16 The Ensemble Information Form (experimental)
+
+*This section, and the functionality it describes, is a draft. The options described here have seen limited testing on synthetic problems and may change.*
+
+The ensemble smoother update described above works in the space of covariances: the prior parameter covariance and the cross-covariance (i.e. Jacobian) between parameters and simulated observations are both estimated from the ensemble. The ensemble information form (EnIF) of Lunde et al. (2025) works instead with the "precision" matrix (aka an "information" matrix), that is, the inverse of the covariance. In this “information form” the update is additive: the posterior precision is the prior precision plus the information carried by the observations,
+
+Λ<sub>post</sub> = (1 + λ) Λ<sub>prior</sub> + H<sup>T</sup> R<sup>-1</sup> H
+
+where Λ<sub>prior</sub> is the prior parameter precision, H is a linear map from parameters to simulated observations (similar to the concept of the Jacobian), R is the observation noise covariance and λ is the Marquardt lambda (same as used elsewhere). The parameter upgrade for each realization is then the solution of a linear system with Λ<sub>post</sub>. This is the same damped Gauss-Levenberg-Marquardt step as the Chen and Oliver (2013) form that PESTPP-IES uses by default, but with two important differences in where the prior and the sensitivities come from:
+
+- The structure of the prior covariance matrix is supplied, not entirely estimated from the ensemble. In the standard iterative ensemble smoother the prior enters only through the ensemble itself, so its rank is at most the number of realizations minus one. In EnIF, the prior precision is an explicit npar-by-npar matrix. Two sources for users to supply this matrix are supported. The first is the prior parameter covariance matrix supplied through *parcov_filename()*, which is subsequently inverted internally (just like in the IES solution). The second, and the one that gives EnIF a distinction, is a so-called "conditional-dependence graph": a graph that says which parameters are directly related to which once all other parameters are known. Internally, the precision matrix is estimated from the prior ensemble using only the allowable patterns in this graph.  This makes the precision matrix (very) sparse, and estimating it is a sequence of small local regressions, rather than one large matrix inversion - this matters in very high dimensional cases, ones where ensemble methods are typically used. For spatially distributed parameters like grid-scale and/or (dense) pilot points, the graph is usually just a neighborhood relation on the grid or pilot-point network: the prior correlation between two cells may decay slowly with distance, but the partial correlation (the correlation once all other parameters are accounted for) is close to zero beyond the nearest neighbours, which is exactly what a sparse precision expresses.  This rapid decay in partial correlations is synonymous with the screening effect seen in geostatistics, where measured points near an estimation location effectively reduce the influence of points "behind" those measured points.
+
+- The sensitivity matrix H is regressed from the ensemble row-by-row (i.e. obs-by-obs). IES forms the mapping between parameters and observations in ensemble space - a much reduced space compared to npar and nobs.  EnIF does it differently.  Rather than using the parameter-to-observation cross-covariance directly, EnIF fits a linear model from parameter anomalies to simulated observation anomalies (where "anomalies" are just the ensembles with the mean vector subtracted off). Each of these little row solves seeks to force as many coefficients to strictly zero as possible, so that the minimum number of entries are used, remembering that each entry is sensitivity between the parameters and the current obs (i.e.row) being solved.  Mechanically, this is done by using an L1 (lasso) penalty, so that each observation is explained by a the minimum smallest number of parameters. You may think "wait, what if the minimum number of parameters doesnt do a good job of explaining the variability in the observation" - a good question to ask.  Under the hood, this is dealt with by inflating the observation noise used in the update by the variance that the fully solved H fails to explain for each observation, which stops the update taking over-confident steps into directions the regressed H cannot actually predict.
+
+Because the prior precision is an explicit, full-rank object, EnIF is not limited to the subspace spanned by the ensemble and it provides strong protection against spurious correlations - it does not need a localizer: a structural zero in the sparse H says that an observation carries no information about a parameter, and a structural zero in Λ<sub>prior</sub> says two parameters are conditionally independent. In the testing done to date, EnIF retains quite a bit more of the prior parameter variance than the standard PESTPP-IES update (that is, the posterior ensemble is less collapsed) but at the cost of not fittingthe observations as well as the IES solver for a given number of iterations and realizations. It also tends to need more iterations and more realizations than the standard update, and to operate at larger values of lambda. The trade-off between fit and retained variance is the point of the method, not a defect, but users should expect to run more iterations than they are used to.  Without the danger of spurious correlation, more iterations are not as dangerous as with IES.
+
+EnIF is activated with *ies_use_enif(true)*. A graph is supplied with *ies_enif_graph()*. PESTPP-IES also supports two hybrid modes that use parts of the EnIF machinery with the standard update:
+
+- Through the reinflation process described in section 9.1.15, the solver can be switched at a reinflation cycle using *ies_reinflate_solver()*, which takes a list of solver names, one per cycle. For example *ies_reinflate_solver(ies,enif)* with *ies_n_iter_reinflate(4,999)* runs the standard update for four iterations, reinflates, and then hands the remaining iterations to EnIF. In testing this reached a considerably better fit than EnIF alone in the same number of iterations, because the standard update makes fast early progress and EnIF then refines while preserving spread. Centering the reinflated ensemble on the ensemble mean (a positive *ies_n_iter_reinflate* value) seems to work better than centering on the minimum-phi realization (a negative value) in this arrangement.
+
+- *ies_use_prior_prec(true)* keeps the standard Chen and Oliver update but replaces the ensemble estimate of the prior in it (both in the “Hessian” and in the prior-pull gradient term of the full solution) with the explicit prior precision, either estimated on *ies_enif_graph()* from the prior ensemble or, if no graph is supplied, the inverse of *parcov*. The upgrade is still confined to the ensemble subspace, but uses a full-rank prior instead of a low-rank diagonal approximation. This option requires *ies_use_approx(false)* to have any effect beyond the first iteration and cannot be combined with localization, the multimodal solution process, ESMDA or EnIF itself. Testing to date shows it behaves more like EnIF than like the standard update.
+
 ## <a id='s13-2' />9.2 Using PESTPP-IES
 
 ### <a id='s13-2-1' />9.2.1 General
@@ -3976,6 +4026,24 @@ In highly nonlinear settings, some realizations may show an increase in phi acro
 
 Figure 9.4 – The ensemble upgrade from iteration 2 to iteration 3 shows that some realizations have an increase in phi values, while most realizations show a decrease in phi.
 
+### <a id='s13-2-12' />9.2.12 Using the Ensemble Information Form (experimental)
+
+*Draft; see the note at the start of section 9.1.16.*
+
+EnIF is activated with *ies_use_enif(true)*. It needs a precision matrix. If no graph is supplied, the prior parameter covariance matrix named by *parcov_filename()* is used; PESTPP-IES will warn if it falls back to the diagonal covariance it constructs from parameter bounds, since that prior carries no correlation and EnIF then has little to offer over the standard update.
+
+The recommended approach is to supply a conditional-dependence graph with *ies_enif_graph()*. The graph is a square matrix, with rows and columns named by adjustable parameters, in any of the formats PESTPP-IES reads for matrices (binary JCO/JCB, ASCII matrix, or CSV). A nonzero entry means the two parameters are directly related; the diagonal is implied. Every adjustable parameter must appear, or PESTPP-IES will stop. For parameters defined on a model grid or a pilot-point network the natural graph is the nearest-neighbor (i.e. a “rook”, four neighbors) or eight-neighbor (i.e. a “queen”) relation between locations; both worked in testing, with the rook graph performing at least as well as the denser queen graph. A graph can also be obtained by inverting the prior covariance matrix and keeping only the largest partial correlations, which for a geostatistical prior recovers a nearest-neighbor lattice. Parameters that are not spatially distributed (for example a single global multiplier) should be connected to the parameters they interact with, or left with no edges, in which case they are treated as independent of everything else in the prior (the standard assumption - remember parameters can still be "linked" through the H matrix if they are correlated in the response to data).
+
+The precision matrix is estimated on the graph from the prior ensemble once, at the start of the run, and is not re-estimated as the ensemble changes. The estimate involves, for each parameter, a small regression on its graph neighbors (more precisely, on its predecessors in an elimination ordering chosen to keep fill-in small; *ies_enif_order()* selects that ordering and should normally be left at its default). The number of realizations therefore has to be large enough to support the size of the neighborhoods, more realizations, bigger neighborhoods are supported. If a parameter has more predecessors than half the ensemble size, its neighborhood is truncated to the strongest half and a warning is written to the run record file; if many parameters trigger this warning the ensemble is too small for the graph, and the estimated precision matrix will be suboptimal. In the testing done to date, a 25-by-25 grid of pilot points with the rook graph needed about 200 realizations before this truncation stopped mattering. *ies_enif_shrink()* adds a small ridge to each local regression and rarely needs changing.
+
+The sparse H is estimated once per iteration by lasso regression. *ies_enif_h_lasso()* sets the penalty as a fraction of the value that would zero the entire row for that observation, so it is dimensionless; the default of zero means a fixed penalty of 0.01 is used. A better choice, at some cost in run time, is to have PESTPP-IES choose the penalty for each observation by cross-validation over the realizations, which is turned on by giving *ies_enif_h_cv_folds()* a value of about 10. Without cross-validation and with a large ensemble, H can erroneously fit the ensemble almost exactly, in which case the unexplained-variance inflation described in section 9.1.16 does nothing and lambda can climb to very large values; the cross-validated penalty prevents this. *ies_enif_resid_inflate()* turns the inflation off, which is not recommended. *ies_enif_save_h(true)* writes the estimated H at each iteration to *case.N.enif_H.jcb* with observation and parameter names on the axes, which is the object to inspect when the fit is poor: a structural zero says that observation is carrying no information about that parameter. What the inflation did is reported every iteration regardless: *case.N.enif_obs_inflate.csv* lists, for each observation, the noise variance, the unexplained variance, the variance the update used, their ratio and the resulting effective weight, and the run record file carries a per-observation-group summary of the same in the shape of the group phi summary. If the ratios are all close to one, H is fitting the ensemble to roundoff and the inflation is doing nothing (see the note on cross-validation above); if they are large for a group, that group is being down-weighted in the update relative to its control file weights.
+
+Everything else about the run is the same as for the standard update. EnIF returns a parameter upgrade, and the surrounding lambda search, backtracking, subset testing, bounds enforcement, phi accounting, termination criteria and reinflation all apply unchanged. The Marquardt lambda damps the prior precision, not the observation precision, so large lambdas leave the ensemble where it is rather than pulling it back to the prior; expect the lambdas that PESTPP-IES accepts to be larger (hundreds to thousands) than for the standard update. *ies_use_approx()* has the same meaning as for the standard update: *true* (the default) drops the prior-pull term from the gradient, *false* keeps each realization anchored to its own prior draw. EnIF is not supported with localization, the multimodal solution process, ESMDA or observation noise covariance matrices, and at the time of writing it does not refuse these combinations, so users should not combine them.
+
+Any important but valuable by-product on using EnIF is that it produces a sparse Jacobian matrix that represents the relation between parameters and observations in the standard nobs X npar space, similar to PESTPP-GLM and PEST_HP (as opposed to IES, which works in the ensemble space for this relation).  This means that influence diagrams of how observations are pulling and pushing parameters can be made even in very high dimensional problems.
+
+*ies_use_prior_prec(true)*, described in section 9.1.16, takes the same graph and the same *ies_enif_shrink()* and *ies_enif_order()* options, but is an option of the standard update: it should be used with *ies_use_enif(false)* and *ies_use_approx(false)*, and it refuses localization, the multimodal solve, ESMDA and EnIF.
+
 ## <a id='s13-3' />9.3 PESTPP-IES Output Files
 
 ### <a id='s13-3-1' />9.3.1 CSV Output Files
@@ -3998,6 +4066,7 @@ As always, it is assumed that the filename base of the PEST control file on whic
 | *case.phi.regul.csv*              | Regularization objective functions calculated during each iteration of the ensemble smoother process for all members of the ensemble. For a particular realization this is calculated using differences between current and initial parameter values. The weight applied to a particular difference is the inverse of the prior standard deviation of the parameter.                                                                                           |
 | *case.phi.composite.csv*          | The composite objective function is the measurement objective function plus the regularization objective function multiplied by the value of the *ies_reg_factor()* control variable.                                                                                                                                                                                                                                                                              |
 | *case.N.autoadaloc.csv*           | The (optional) automatic adaptive localization summary for each iteration                                                                                                                                                                                                                                                                                                                                                                                      |
+| *case.N.enif_obs_inflate.csv*     | Written each iteration by the ensemble information form (section 9.2.12). One row per non-zero-weighted observation: the control file weight, the noise variance (1/weight<sup>2</sup>), the variance the regressed H fails to explain, the variance the update actually used, their ratio, and the effective weight (1/sqrt(used variance)). A per-group summary of the same is written to the run record file. |
 | *case.pdc.csv*                    | A summary of prior-data conflict information                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | *case.N.pcs.csv*                  | A summary of parameter changes by group compared to the initial parameter ensemble. Note that these changes implicitly include changes in summary statistics resulting from realizations that are dropped or that fail to run.                                                                                                                                                                                                                                 |
 | *case.rejected.N.obs.csv/jcb*     | The ensemble of model output values which correspond to observations listed in the “observation data” section of the PEST control file from a “rejected”/failed upgrade solution iteration.                                                                                                                                                                                                                                                                    |
@@ -4350,6 +4419,11 @@ Note also that the number of control variables may change with time. Refer to th
 <td>list of ints</td>
 <td>The number of realizations to use between reinflation cycles.  If negative, new realizations are drawn from the current ensemble.</td>
 </tr>
+<tr class="odd">
+<td><em>ies_reinflate_solver(ies)</em></td>
+<td>list of strings</td>
+<td>The solver to use in each reinflation cycle, one entry per cycle; the last entry is held for any remaining cycles. Accepted values are “ies”, “esmda” and “enif”. Overrides <em>ies_use_mda</em> and <em>ies_use_enif</em> when supplied. For example “ies,enif” runs the standard update until the first reinflation and the ensemble information form after it. See sections 9.1.15 and 9.1.16.</td>
+</tr>
 <tr class="even">
 <td><em>ies_use_phi_lambda_iters</em></td>
 <td>bool</td>
@@ -4369,6 +4443,56 @@ Note also that the number of control variables may change with time. Refer to th
 <td><em>ies_localizer_forgive_missing(false)</em></td>
 <td>bool</td>
 <td>Tolerate a localizer matrix whose rows or columns name parameters or observations that are not in the active set, rather than stopping. Useful when one localizer is reused across analyses, or when observations are activated part way through. Also accepted as <em>ies_localizer_forgive_extra</em>. Default is false.</td>
+</tr>
+<tr class="even">
+<td><em>ies_use_enif(false)</em></td>
+<td>bool</td>
+<td>Use the ensemble information form (experimental) in place of the standard update. Requires a prior: either <em>parcov_filename</em> or <em>ies_enif_graph</em>. See sections 9.1.16 and 9.2.12.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_enif_graph</em></td>
+<td>string</td>
+<td>The name of a square matrix file (JCO/JCB, ASCII matrix or CSV, recognized by extension) whose rows and columns are adjustable parameter names and whose nonzero entries say which parameters are directly related in the prior. The prior precision is estimated on this sparsity pattern from the prior ensemble. Used by <em>ies_use_enif</em> and <em>ies_use_prior_prec</em>. Every adjustable parameter must appear.</td>
+</tr>
+<tr class="even">
+<td><em>ies_enif_order(amd)</em></td>
+<td>string</td>
+<td>The elimination ordering used when estimating the sparse prior precision on <em>ies_enif_graph</em>. “amd” (approximate minimum degree, the default) keeps fill-in small; “natural” uses the order the parameters appear in. Rarely needs changing.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_enif_shrink(0.001)</em></td>
+<td>double</td>
+<td>Ridge added to each local regression when estimating the sparse prior precision, as a fraction of the local variance. Automatically increased for parameters whose graph neighbourhood is large relative to the ensemble size. Rarely needs changing.</td>
+</tr>
+<tr class="even">
+<td><em>ies_enif_h_lasso(0.0)</em></td>
+<td>double</td>
+<td>The L1 penalty used to estimate the sparse parameter-to-observation map H when a graph is supplied, as a dimensionless fraction of the penalty that would zero the whole row. Zero (the default) means a fixed 0.01. Ignored when <em>ies_enif_h_cv_folds</em> is greater than zero.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_enif_h_cv_folds(0)</em></td>
+<td>int</td>
+<td>If greater than zero, the lasso penalty for each observation row of H is chosen by k-fold cross-validation over the realizations with this many folds, instead of the fixed <em>ies_enif_h_lasso</em> value. A value of about 10 is recommended for larger problems; it costs run time but stops H over-fitting the ensemble.</td>
+</tr>
+<tr class="even">
+<td><em>ies_enif_resid_inflate(true)</em></td>
+<td>bool</td>
+<td>Inflate the observation noise variance used in the update by the variance that the regressed H fails to explain for each observation. Turning this off is not recommended.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_enif_ridge(1.0e-6)</em></td>
+<td>double</td>
+<td>Ridge used in the dense ensemble regression for H when no graph is supplied (the covariance mode), as a fraction of the mean ensemble variance. Rarely needs changing.</td>
+</tr>
+<tr class="even">
+<td><em>ies_enif_save_h(false)</em></td>
+<td>bool</td>
+<td>Save the estimated sparse H at each iteration to <em>case.N.enif_H.jcb</em>, with observation and parameter names on the axes.</td>
+</tr>
+<tr class="odd">
+<td><em>ies_use_prior_prec(false)</em></td>
+<td>bool</td>
+<td>Use an explicit prior precision matrix in place of the ensemble estimate of the prior in the standard (Chen and Oliver) update, in both the Hessian and the prior-pull term of the full solution. The precision is estimated on <em>ies_enif_graph</em> from the prior ensemble if a graph is supplied, otherwise it is the inverse of <em>parcov</em>. Should be used with <em>ies_use_approx(false)</em>. Cannot be combined with localization, <em>ies_multimodal_alpha</em>, ESMDA or <em>ies_use_enif</em>. Experimental; see section 9.1.16.</td>
 </tr>
 
 </tbody>
@@ -5673,6 +5797,8 @@ Homma T, Saltelli A. 1996. Importance measures in global sensitivity analysis of
 Kennedy, J. (1998), The behavior of particles, *Evolutionary Programming VII: Proceedings of the Seventh Annual Conference on Evolutionary Programming*, pp. 581–589.
 
 Lougee-Heimer, R., 2003. The common optimization interface for operations research: promoting open-source software in the operations research community. IBM J. Res. Dev. 47 (1), 57-66.
+
+Lunde, B.A.S., Arntzen, M.T., and others, 2025. Ensemble Information Filter: retrieving dynamical information from a sparse Gaussian graphical model. arXiv:2501.09016. Reference implementation: https://github.com/equinor/graphite-maps.
 
 Luo, X., Bhakta, T. and Naevdal, G., 2018. Correlation-based adaptive localization with applications to ensemble-based 4d seismic history-matching. *SPE Journal, April 2018, 396-427.*
 

@@ -5139,6 +5139,158 @@ def modify_runstor(ws=".",fail_every=None):
     rs.update(df)
 
 
+def tenpar_enif_approx_test():
+    """enif honors ies_use_approx the way ies does: the approximate solution drops the
+    prior pull (P - P0) from the gradient, the full one keeps it.  at iteration 1 that
+    term is zero either way, so the two must agree there and diverge after.  serial runs
+    on the 10 par xsec, both the covariance path and the graph path"""
+    model_d = "ies_10par_xsec"
+    template_d = scratch_template(os.path.join(model_d, "test_template"), suffix="_enif_approx")
+
+    # a graph for the graph path: 9 adjustable pars in a chain, so it is sparse but not empty
+    pst = pyemu.Pst(os.path.join(template_d, "pest.pst"))
+    pnames = pst.adj_par_names
+    n = len(pnames)
+    adj = np.eye(n)
+    for i in range(n - 1):
+        adj[i, i + 1] = adj[i + 1, i] = 1.0
+    pyemu.Matrix(x=adj, row_names=pnames, col_names=pnames).to_coo(
+        os.path.join(template_d, "graph_chain.jcb"))
+
+    def run_case(name, options, noptmax=3):
+        test_d = os.path.join(model_d, "master_enif_approx_" + name)
+        if os.path.exists(test_d):
+            shutil.rmtree(test_d)
+        shutil.copytree(template_d, test_d)
+        p = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        # run the model directly.  a previous test can leave a run.py in the shared
+        # template whose model command fails on the base realization and on every tenth
+        # run - that is how this test lost realizations before
+        p.model_command = ["mfnwt 10par_xsec.nam"]
+        p.pestpp_options = {"ies_num_reals": 10, "ies_lambda_mults": 1.0,
+                            "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0,
+                            "ies_use_enif": "true"}
+        p.pestpp_options.update(options)
+        p.control_data.noptmax = noptmax
+        p.write(os.path.join(test_d, "pest.pst"))
+        try:
+            pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=test_d)
+        except Exception:
+            pass
+        rec = open(os.path.join(test_d, "pest.rec")).read()
+        pes = {}
+        for i in range(noptmax + 1):
+            f = os.path.join(test_d, "pest.{0}.par.csv".format(i))
+            if os.path.exists(f):
+                pes[i] = pd.read_csv(f, index_col=0)
+        return rec, pes
+
+    for path, extra in [("cov", {}), ("graph", {"ies_enif_graph": "graph_chain.jcb"})]:
+        rec_a, pe_a = run_case(path + "_approx", dict(extra, ies_use_approx="true"))
+        rec_f, pe_f = run_case(path + "_full", dict(extra, ies_use_approx="false"))
+
+        assert "approximate solution" in rec_a, path + ": approx not reported in the rec"
+        assert "full solution" in rec_f, path + ": full not reported in the rec"
+        assert 1 in pe_a and 1 in pe_f, path + ": no iteration 1 ensemble"
+
+        # iteration 1: the prior pull is zero either way, so the two must match
+        common = [r for r in pe_a[1].index if r in pe_f[1].index]
+        d1 = np.abs(pe_a[1].loc[common, :].values - pe_f[1].loc[common, :].values).max()
+        assert d1 < 1.0e-6, "{0}: iteration 1 differs by {1}, should be identical".format(path, d1)
+
+        # after that they have to differ - otherwise the option is doing nothing
+        last = max(set(pe_a).intersection(set(pe_f)))
+        assert last > 1, path + ": need more than one iteration to compare"
+        common = [r for r in pe_a[last].index if r in pe_f[last].index]
+        dl = np.abs(pe_a[last].loc[common, :].values - pe_f[last].loc[common, :].values).max()
+        assert dl > 1.0e-8, "{0}: iteration {1} identical, ies_use_approx had no effect".format(path, last)
+
+        # report how far each ended up from the prior.  not asserted: the prior pull
+        # changes the direction of the step, and on the graph path the full solution can
+        # end up further from the prior than the approximate one - measured, not a bug
+        pe0 = pe_a[0]
+        common = [r for r in pe0.index if r in pe_a[last].index and r in pe_f[last].index]
+        pcols = [c for c in pe0.columns if c in pe_a[last].columns]
+        l0 = np.log10(pe0.loc[common, pcols].values)
+        da = np.linalg.norm(np.log10(pe_a[last].loc[common, pcols].values) - l0)
+        df = np.linalg.norm(np.log10(pe_f[last].loc[common, pcols].values) - l0)
+        print(path, "distance from prior: approx {0:.4f}  full {1:.4f}".format(da, df))
+        assert np.isfinite(da) and np.isfinite(df), path + ": non-finite parameter values"
+
+
+def tenpar_reinflate_solver_test():
+    """ies_reinflate_solver: a single entry matches the old flags exactly (ies == no option,
+    esmda == ies_use_mda, enif == ies_use_enif), a list switches solver at each reinflation
+    with the last entry held, and a bad entry stops the run.  serial runs on the 10 par xsec,
+    so it is quick"""
+    model_d = "ies_10par_xsec"
+    template_d = scratch_template(os.path.join(model_d, "test_template"), suffix="_reinflate_solver")
+
+    def run_case(name, options, noptmax=6):
+        test_d = os.path.join(model_d, "master_reinflate_solver_" + name)
+        if os.path.exists(test_d):
+            shutil.rmtree(test_d)
+        shutil.copytree(template_d, test_d)
+        pst = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        # see the note in tenpar_enif_approx_test: dont inherit whatever model command
+        # the shared template was left with
+        pst.model_command = ["mfnwt 10par_xsec.nam"]
+        pst.pestpp_options = {"ies_num_reals": 10, "ies_lambda_mults": 1.0,
+                              "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0}
+        pst.pestpp_options.update(options)
+        pst.control_data.noptmax = noptmax
+        pst.write(os.path.join(test_d, "pest.pst"))
+        try:
+            pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=test_d)
+        except Exception:
+            pass
+        rec_f = os.path.join(test_d, "pest.rec")
+        rec = open(rec_f).read() if os.path.exists(rec_f) else ""
+        phi_f = os.path.join(test_d, "pest.phi.actual.csv")
+        phi = pd.read_csv(phi_f, index_col=0) if os.path.exists(phi_f) else None
+        return rec, phi
+
+    def cycle_solvers(rec):
+        tag = "solver for this reinflation cycle:"
+        return [ln.split(tag)[1].strip() for ln in rec.splitlines() if tag in ln]
+
+    # a single entry gives exactly what the old flag gave; dropped realizations are nan in
+    # the phi file, so nan in the same place counts as equal
+    for name, legacy, new in [("ies", {}, {"ies_reinflate_solver": "ies"}),
+                              ("esmda", {"ies_use_mda": True}, {"ies_reinflate_solver": "esmda"}),
+                              ("enif", {"ies_use_enif": True}, {"ies_reinflate_solver": "enif"})]:
+        _, phi_a = run_case(name + "_legacy", legacy)
+        rec_b, phi_b = run_case(name + "_option", new)
+        assert phi_a is not None and phi_b is not None, name + ": a run did not finish"
+        assert phi_a.shape == phi_b.shape, name + ": phi files differ in shape"
+        assert np.allclose(phi_a.values, phi_b.values, rtol=0.0, atol=0.0, equal_nan=True), \
+            name + ": ies_reinflate_solver does not match the old flag"
+        assert cycle_solvers(rec_b)[:1] == [name], name + ": solver not reported in the rec"
+
+    # switching at each reinflation, every 2 iterations
+    reinf = {"ies_n_iter_reinflate": 2, "ies_reinflate_factor": 1.0}
+    rec, phi = run_case("switch", dict(reinf, ies_reinflate_solver="esmda,enif,ies"))
+    got = cycle_solvers(rec)
+    assert got[:3] == ["esmda", "enif", "ies"], "switch: wrong solver order {0}".format(got)
+    assert "mda factor" in rec and "ensemble information filter solve" in rec and "glm factor" in rec, \
+        "switch: not all three solves ran"
+    assert phi is not None and np.isfinite(phi["mean"].values).all(), "switch: phi not finite"
+
+    # the last entry is held once the list runs out
+    rec, _ = run_case("hold_last", dict(reinf, ies_reinflate_solver="esmda,enif"))
+    got = cycle_solvers(rec)
+    assert len(got) >= 3 and got[0] == "esmda" and all(s == "enif" for s in got[1:]), \
+        "hold_last: last entry not held {0}".format(got)
+
+    # esmda after another solver starts its own inflation schedule
+    rec, phi = run_case("ies_then_esmda", dict(reinf, ies_reinflate_solver="ies,esmda"))
+    assert phi is not None and np.isfinite(phi["mean"].values).all(), "ies_then_esmda: phi not finite"
+
+    # a bad entry stops the run with a clear message
+    rec, _ = run_case("bad", {"ies_reinflate_solver": "ies,nope"}, noptmax=1)
+    assert "not recognized" in rec, "bad entry: no clear error"
+
+
 def tenpar_ext_run_mgr_test():
     import inspect
 
@@ -5516,8 +5668,385 @@ def plot_mm_weight_beta_experiment(csv_name=None, model_d="mm_beta_exp", noptmax
     print("saved plots:", ", ".join(saved))
 
 
+def synth2d_enif_test(nrow=25, ncol=25, num_reals=50, noptmax=3, plot=True):
+    """2-D synthetic high-dimensional test: pestpp-ies vs the ensemble
+    information filter, on a problem where a real geostatistical prior
+    covariance is available.
+
+    hk and sy are parameterised at grid scale AND pilot points, so the parameter
+    count scales with nrow/ncol - that is the dial for problem dimension.  both
+    methods get the same prior ensemble and the same seed, so what is being
+    compared is the upgrade itself.
+
+    enif needs the prior COVARIANCE, not just an ensemble drawn from it, which is
+    why this problem writes both.
+    """
+    import synth2d_setup
+    import synth2d_viz
+
+    if synth2d_setup.find_mf6() is None:
+        # no model, no test - say so rather than dying later on a path that does not
+        # exist.  this is how it shows up on ci when test_bin has no mf6 for the platform
+        import unittest
+        raise unittest.SkipTest("no mf6 on the path or in ~/bin - skipping the 2-D synthetic test")
+
+    model_d = "synth2d"
+    template_d = os.path.join(model_d, "template")
+    truth_d = os.path.join(model_d, "template_org")
+    if not os.path.exists(os.path.join(template_d, "synth2d.pst")):
+        os.makedirs(model_d, exist_ok=True)
+        synth2d_setup.setup(new_d=template_d, nrow=nrow, ncol=ncol)
+
+    master_dirs = {}
+    for tag, extra in (("ies", {}), ("enif", {"ies_use_enif": "true"})):
+        t_d = scratch_template(template_d, suffix="_" + tag)
+        m_d = os.path.join(model_d, "master_" + tag)
+        pst = pyemu.Pst(os.path.join(t_d, "synth2d.pst"))
+        pst.pestpp_options = {
+            "ies_par_en": "prior_pe.jcb",
+            "parcov_filename": "prior_cov.jcb",
+            "ies_num_reals": num_reals,
+            "ies_include_base": "false",
+            "random_seed": 112358,
+            "save_binary": "true",
+        }
+        pst.pestpp_options.update(extra)
+        pst.control_data.noptmax = noptmax
+        pst.write(os.path.join(t_d, "synth2d.pst"), version=2)
+        pyemu.os_utils.start_workers(t_d, exe_path, "synth2d.pst",
+                                     num_workers=10, worker_root=model_d,
+                                     master_dir=m_d)
+        shutil.rmtree(t_d, ignore_errors=True)
+        master_dirs[tag] = m_d
+
+    phis = {}
+    for tag, m_d in master_dirs.items():
+        df = pd.read_csv(os.path.join(m_d, "synth2d.phi.actual.csv"))
+        phis[tag] = df["mean"].values
+        print(tag, "mean phi by iteration:", np.round(df["mean"].values, 2))
+
+    for tag, v in phis.items():
+        assert v[-1] < v[0], "{0}: phi did not improve ({1:.1f} -> {2:.1f})".format(
+            tag, v[0], v[-1])
+
+    if plot:
+        synth2d_viz.plot_all(master_dirs, template_d, truth_d,
+                             out_d=os.path.join(model_d, "figs"))
+    return master_dirs, phis
+
+
+def tenpar_prior_prec_test():
+    """ies_use_prior_prec: the glm step with an explicit prior precision Q in both the
+    hessian and the gradient, instead of the ensemble pseudo-inverse.  serial runs on the
+    10 par xsec with both Q sources - the parcov inverse (here the diagonal from bounds)
+    and a chain graph estimated from the prior ensemble.  checks that phi drops, that the
+    default path is untouched, that the iteration 1 upgrade on the parcov path matches a
+    numpy transcription of the formula, and that the option refuses localization, the
+    multimodal solve, esmda and enif"""
+    model_d = "ies_10par_xsec"
+    template_d = scratch_template(os.path.join(model_d, "test_template"), suffix="_prior_prec")
+
+    pst = pyemu.Pst(os.path.join(template_d, "pest.pst"))
+    pnames = pst.adj_par_names
+    n = len(pnames)
+    adj = np.eye(n)
+    for i in range(n - 1):
+        adj[i, i + 1] = adj[i + 1, i] = 1.0
+    pyemu.Matrix(x=adj, row_names=pnames, col_names=pnames).to_coo(
+        os.path.join(template_d, "graph_chain.jcb"))
+    # a localizer for the refusal check: all ones, so it changes nothing but is "on"
+    pyemu.Matrix(x=np.ones((pst.nnz_obs, n)), row_names=pst.nnz_obs_names,
+                 col_names=pnames).to_ascii(os.path.join(template_d, "loc.mat"))
+
+    def run_case(name, options, noptmax=3, expect_fail=False):
+        test_d = os.path.join(model_d, "master_prior_prec_" + name)
+        if os.path.exists(test_d):
+            shutil.rmtree(test_d)
+        shutil.copytree(template_d, test_d)
+        p = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        # run the model directly, see tenpar_enif_approx_test for why
+        p.model_command = ["mfnwt 10par_xsec.nam"]
+        # every obs weighted so the obs anomalies have some rank, and no bounds
+        # enforcement so the saved ensembles are the raw linear-algebra step
+        p.observation_data.loc[:, "weight"] = 10.0
+        p.svd_data.maxsing = 100
+        p.svd_data.eigthresh = 1.0e-7
+        p.pestpp_options = {"ies_num_reals": 10, "ies_lambda_mults": 1.0,
+                            "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0,
+                            "ies_initial_lambda": 10.0, "ies_enforce_bounds": "false",
+                            "ies_subset_size": 100}
+        p.pestpp_options.update(options)
+        p.control_data.noptmax = noptmax
+        p.write(os.path.join(test_d, "pest.pst"), version=2)
+        failed = False
+        try:
+            pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=test_d)
+        except Exception:
+            failed = True
+        rec = open(os.path.join(test_d, "pest.rec")).read()
+        if expect_fail:
+            assert failed, name + ": expected the run to be refused"
+            assert "ies_use_prior_prec" in rec, name + ": refusal not reported in the rec"
+            return rec, None, None
+        assert not failed, name + ": run failed"
+        phi = pd.read_csv(os.path.join(test_d, "pest.phi.actual.csv"))
+        ens = {}
+        for i in range(noptmax + 1):
+            f = os.path.join(test_d, "pest.{0}.par.csv".format(i))
+            if os.path.exists(f):
+                ens[("pe", i)] = pd.read_csv(f, index_col=0)
+            f = os.path.join(test_d, "pest.{0}.obs.csv".format(i))
+            if os.path.exists(f):
+                ens[("oe", i)] = pd.read_csv(f, index_col=0)
+        ens["noise"] = pd.read_csv(os.path.join(test_d, "pest.obs+noise.csv"), index_col=0)
+        return rec, phi, ens
+
+    # the refusals first, they are quick
+    for name, bad in [("loc", {"ies_localizer": "loc.mat"}),
+                      ("mm", {"ies_multimodal_alpha": 0.5}),
+                      ("mda", {"ies_use_mda": "true"}),
+                      ("enif", {"ies_use_enif": "true"}),
+                      ("reinf_enif", {"ies_reinflate_solver": "ies,enif",
+                                      "ies_n_iter_reinflate": "1,999"})]:
+        run_case("refuse_" + name, dict(bad, ies_use_prior_prec="true"), expect_fail=True)
+
+    # the default path, with the option absent and with it explicitly off
+    rec_b, phi_b, ens_b = run_case("base", {})
+    rec_o, phi_o, ens_o = run_case("base_off", {"ies_use_prior_prec": "false"})
+    assert "ies_use_prior_prec" not in rec_b.split("pestpp-ies analysis")[-1] or \
+        "prior precision" not in rec_b, "base: the precision path ran without the option"
+    d = np.abs(phi_b["mean"].values - phi_o["mean"].values).max()
+    assert d == 0.0, "option off differs from option absent by {0}".format(d)
+
+    # the two Q sources
+    prec = {"ies_use_prior_prec": "true", "ies_use_approx": "false"}
+    rec_c, phi_c, ens_c = run_case("cov", prec)
+    rec_g, phi_g, ens_g = run_case("graph", dict(prec, ies_enif_graph="graph_chain.jcb"))
+    assert "inverse of the diagonal parcov" in rec_c, "cov: Q source not reported"
+    assert "estimated on graph" in rec_g, "graph: Q source not reported"
+    for tag, phi in (("cov", phi_c), ("graph", phi_g)):
+        v = phi["mean"].values
+        print(tag, "mean phi by iteration:", np.round(v, 3))
+        assert v[-1] < v[0], "{0}: phi did not drop ({1} -> {2})".format(tag, v[0], v[-1])
+    # and they are not the same thing as each other or as the default
+    assert np.abs(phi_c["mean"].values[1] - phi_g["mean"].values[1]) > 1.0e-6, \
+        "cov and graph gave the same iteration 1 phi, Q is not being used"
+    assert np.abs(phi_c["mean"].values[1] - phi_b["mean"].values[1]) > 1.0e-6, \
+        "cov and default gave the same iteration 1 phi, the option did nothing"
+
+    # numpy transcription of the iteration 1 step on the parcov path.  everything comes
+    # off disk: prior ensemble, iteration 0 sim, obs+noise, weights, the lambda from the
+    # control file, and Q = inverse of the diagonal parcov pest++ builds from the bounds
+    p = pyemu.Pst(os.path.join(model_d, "master_prior_prec_cov", "pest.pst"))
+    onames = p.nnz_obs_names
+    pe0, pe1, oe0 = ens_c[("pe", 0)], ens_c[("pe", 1)], ens_c[("oe", 0)]
+    reals = [r for r in pe0.index if r in pe1.index and r in oe0.index]
+    islog = (p.parameter_data.loc[pnames, "partrans"] == "log").values
+
+    def solve_space(df):
+        v = df.loc[reals, pnames].values.astype(float).copy()
+        v[:, islog] = np.log10(v[:, islog])
+        return v.T
+    M0, M1 = solve_space(pe0), solve_space(pe1)
+    D = oe0.loc[reals, onames].values.T
+    noise = ens_c["noise"].loc[reals, onames].values.T
+    w = p.observation_data.loc[onames, "weight"].values[:, None]
+    nreal = len(reals)
+    sc = 1.0 / np.sqrt(nreal - 1)
+    dM = (M0 - M0.mean(axis=1, keepdims=True)) * sc
+    dD = (D - D.mean(axis=1, keepdims=True)) * sc * w
+    r = (D - noise) * w
+    Q = np.linalg.inv(pyemu.Cov.from_parameter_data(p, sigma_range=4.0).get(pnames, pnames).as_2d)
+    lam = float(p.pestpp_options["ies_initial_lambda"])
+    eigthresh = p.svd_data.eigthresh
+    U, s, Vt = np.linalg.svd(dD, full_matrices=False)
+    keep = (s / s[0]) > eigthresh
+    U, s, V = U[:, keep], s[keep], Vt[keep].T
+    H = (1.0 + lam) * (dM.T @ Q @ dM) + V @ np.diag(s ** 2) @ V.T
+    g = V @ (s[:, None] * (U.T @ r))
+    ev, EV = np.linalg.eigh(H)
+    inv = np.where(ev > eigthresh * ev.max(), 1.0 / np.where(ev > 0, ev, 1.0), 0.0)
+    step = dM @ (-EV @ (inv[:, None] * (EV.T @ g)))
+    actual = M1 - M0
+    rel = np.linalg.norm(actual - step) / np.linalg.norm(actual)
+    print("cov: iteration 1 step vs numpy, relative diff {0:.2e}, step norm {1:.4f}".format(
+        rel, np.linalg.norm(actual)))
+    assert np.linalg.norm(actual) > 1.0e-6, "cov: iteration 1 did not move the ensemble"
+    assert rel < 1.0e-5, "cov: iteration 1 step differs from the numpy transcription by {0}".format(rel)
+    return phi_b, phi_c, phi_g
+
+
+def tenpar_reg_factor_default_test():
+    """trap for the ies_reg_factor default.  with ies_use_approx false the prior pull
+    (upgrade_2) goes in with weight |ies_reg_factor|, and the default 0 has to mean
+    weight 1 - for about a year the guard was >= 0 instead of > 0, so the default
+    multiplied the pull by zero and the full solution was bit-identical to the approx
+    one.  serial runs on the 10 par xsec, with and without the prior precision option:
+    default reg_factor == reg_factor -1 (both weight 1, no reg phi), both differ from
+    approx, and a positive reg_factor shows up in the regul phi file"""
+    model_d = "ies_10par_xsec"
+    template_d = scratch_template(os.path.join(model_d, "test_template"), suffix="_regfac_default")
+    pst = pyemu.Pst(os.path.join(template_d, "pest.pst"))
+    pnames = pst.adj_par_names
+    n = len(pnames)
+    adj = np.eye(n)
+    for i in range(n - 1):
+        adj[i, i + 1] = adj[i + 1, i] = 1.0
+    pyemu.Matrix(x=adj, row_names=pnames, col_names=pnames).to_coo(
+        os.path.join(template_d, "graph_chain.jcb"))
+
+    def run_case(name, options, noptmax=3):
+        test_d = os.path.join(model_d, "master_regfac_default_" + name)
+        if os.path.exists(test_d):
+            shutil.rmtree(test_d)
+        shutil.copytree(template_d, test_d)
+        p = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        p.model_command = ["mfnwt 10par_xsec.nam"]
+        p.observation_data.loc[:, "weight"] = 10.0
+        p.svd_data.maxsing = 100
+        p.svd_data.eigthresh = 1.0e-7
+        # one lambda, always accepted, no bounds: the saved ensembles are the raw step
+        p.pestpp_options = {"ies_num_reals": 10, "ies_lambda_mults": 1.0,
+                            "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0,
+                            "ies_initial_lambda": 10.0, "ies_enforce_bounds": "false",
+                            "ies_subset_size": 100}
+        p.pestpp_options.update(options)
+        p.control_data.noptmax = noptmax
+        p.write(os.path.join(test_d, "pest.pst"), version=2)
+        pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=test_d)
+        phi = pd.read_csv(os.path.join(test_d, "pest.phi.actual.csv"))
+        pe = pd.read_csv(os.path.join(test_d, "pest.{0}.par.csv".format(noptmax)), index_col=0)
+        regul = pd.read_csv(os.path.join(test_d, "pest.phi.regul.csv"))
+        return phi, pe, regul
+
+    for tag, base in (("ies", {}), ("prec", {"ies_use_prior_prec": "true",
+                                             "ies_enif_graph": "graph_chain.jcb"})):
+        full = dict(base, ies_use_approx="false")
+        phi_d, pe_d, reg_d = run_case(tag + "_default", full)
+        phi_n, pe_n, reg_n = run_case(tag + "_neg1", dict(full, ies_reg_factor=-1.0))
+        phi_a, pe_a, reg_a = run_case(tag + "_approx", dict(base, ies_use_approx="true"))
+        phi_p, pe_p, reg_p = run_case(tag + "_pos1", dict(full, ies_reg_factor=1.0))
+        print(tag, "default", np.round(phi_d["mean"].values, 3))
+        print(tag, "approx ", np.round(phi_a["mean"].values, 3))
+        print(tag, "neg1   ", np.round(phi_n["mean"].values, 3))
+        print(tag, "pos1   ", np.round(phi_p["mean"].values, 3))
+        # the pull is off at iteration 1 either way, so full and approx have to agree there
+        d1 = abs(phi_d["mean"].values[1] - phi_a["mean"].values[1])
+        assert d1 < 1.0e-6, "{0}: full and approx differ at iteration 1 by {1}".format(tag, d1)
+        # and disagree after, or the pull is dead
+        d = np.abs(pe_d.loc[pe_a.index, pnames].values - pe_a.loc[:, pnames].values).max()
+        assert d > 1.0e-6, "{0}: default full solution is the approx one, the prior pull is dead".format(tag)
+        # default and -1 are both weight 1 with no reg phi, so bit identical
+        d = np.abs(pe_d.loc[pe_n.index, pnames].values - pe_n.loc[:, pnames].values).max()
+        assert d == 0.0, "{0}: default and reg_factor -1 differ by {1}".format(tag, d)
+        # reg phi only gets added for a positive reg_factor
+        rcols = [c for c in reg_p.columns if c not in phi_p.columns[:6]]
+        assert reg_p[rcols].iloc[-1].abs().sum() > 0.0, tag + ": positive reg_factor left the regul phi at zero"
+        for r, nm in ((reg_d, "default"), (reg_n, "neg1")):
+            tot = r[rcols].iloc[-1].abs().sum() if len(r) > 0 else 0.0
+            assert tot == 0.0, "{0} {1}: regul phi is {2} but should be zero".format(tag, nm, tot)
+
+
+def tenpar_enif_inflate_test():
+    """enif reports what the unexplained-variance noise inflation did: a per-observation
+    csv each iteration (case.N.enif_obs_inflate.csv) and a per-group summary in the rec.
+    serial runs on the 10 par xsec, covariance path and graph path, inflation on and
+    off.  checks the csv arithmetic against the control file weights, that the rec
+    section is there once per iteration, and that with the inflation off the effective
+    weight is the control file weight while the would-be ratio is still reported"""
+    model_d = "ies_10par_xsec"
+    template_d = scratch_template(os.path.join(model_d, "test_template"), suffix="_enif_inflate")
+    pst = pyemu.Pst(os.path.join(template_d, "pest.pst"))
+    pnames = pst.adj_par_names
+    n = len(pnames)
+    adj = np.eye(n)
+    for i in range(n - 1):
+        adj[i, i + 1] = adj[i + 1, i] = 1.0
+    pyemu.Matrix(x=adj, row_names=pnames, col_names=pnames).to_coo(
+        os.path.join(template_d, "graph_chain.jcb"))
+
+    def run_case(name, options, noptmax=2):
+        test_d = os.path.join(model_d, "master_enif_inflate_" + name)
+        if os.path.exists(test_d):
+            shutil.rmtree(test_d)
+        shutil.copytree(template_d, test_d)
+        p = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        p.model_command = ["mfnwt 10par_xsec.nam"]
+        # two groups with different weights so the group summary has something to sort
+        obs = p.observation_data
+        obs.loc[:, "weight"] = 10.0
+        half = obs.obsnme.values[: len(obs) // 2]
+        obs.loc[half, "weight"] = 2.0
+        obs.loc[half, "obgnme"] = "grpa"
+        obs.loc[obs.obgnme != "grpa", "obgnme"] = "grpb"
+        # more realizations than parameters, so the regressed H is overdetermined and
+        # leaves something unexplained.  with fewer, H interpolates the ensemble and
+        # the unexplained variance is roundoff, which is a real finding but a useless test
+        p.pestpp_options = {"ies_num_reals": 30, "ies_lambda_mults": 1.0,
+                            "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0,
+                            "ies_use_enif": "true"}
+        p.pestpp_options.update(options)
+        p.control_data.noptmax = noptmax
+        p.write(os.path.join(test_d, "pest.pst"), version=2)
+        pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=test_d)
+        rec = open(os.path.join(test_d, "pest.rec")).read()
+        dfs = {}
+        for i in range(1, noptmax + 1):
+            f = os.path.join(test_d, "pest.{0}.enif_obs_inflate.csv".format(i))
+            assert os.path.exists(f), name + ": missing " + f
+            df = pd.read_csv(f, index_col=0)
+            # pest++ writes names as they are in the control file, pyemu lower-cases them
+            df.index = df.index.str.lower()
+            df.loc[:, "group"] = df.group.str.lower()
+            dfs[i] = df
+        return p, rec, dfs
+
+    cols = ["group", "weight", "noise_var", "unexplained_var", "inflated_var",
+            "inflate_ratio", "effective_weight"]
+    for path, extra in [("cov", {}), ("graph", {"ies_enif_graph": "graph_chain.jcb"})]:
+        for tag, applied in (("on", True), ("off", False)):
+            p, rec, dfs = run_case(path + "_" + tag,
+                                   dict(extra, ies_enif_resid_inflate=str(applied).lower()))
+            header = "enif observation noise inflation summary, iteration"
+            assert rec.count(header) == len(dfs), "{0} {1}: rec has {2} summaries for {3} iterations".format(
+                path, tag, rec.count(header), len(dfs))
+            expect = "applied to the update: yes" if applied else "applied to the update: no"
+            assert expect in rec, "{0} {1}: rec does not say whether the inflation was applied".format(path, tag)
+            for it, df in dfs.items():
+                assert list(df.columns) == cols, "{0} {1}: unexpected columns {2}".format(path, tag, df.columns)
+                assert set(df.index) == set(p.nnz_obs_names), "{0} {1}: csv rows are not the nonzero obs".format(path, tag)
+                w = p.observation_data.loc[df.index, "weight"].values
+                g = p.observation_data.loc[df.index, "obgnme"].values
+                assert (df.group.values == g).all(), "{0} {1}: groups dont match the control file".format(path, tag)
+                assert np.allclose(df.weight.values, w), "{0} {1}: weights dont match the control file".format(path, tag)
+                assert np.allclose(df.noise_var.values, 1.0 / w ** 2), "{0} {1}: noise var is not 1/w^2".format(path, tag)
+                assert (df.unexplained_var.values >= 0.0).all(), "{0} {1}: negative unexplained variance".format(path, tag)
+                assert np.allclose(df.inflate_ratio.values, (df.noise_var + df.unexplained_var) / df.noise_var), \
+                    "{0} {1}: ratio is not (noise+unexp)/noise".format(path, tag)
+                if applied:
+                    assert np.allclose(df.inflated_var.values, df.noise_var + df.unexplained_var), \
+                        "{0} {1}: inflated var is not noise + unexplained".format(path, tag)
+                    assert (df.effective_weight.values <= w + 1.0e-12).all(), \
+                        "{0} {1}: inflation increased a weight".format(path, tag)
+                else:
+                    assert np.allclose(df.inflated_var.values, df.noise_var), \
+                        "{0} {1}: inflation off but the used variance is not the noise variance".format(path, tag)
+                    assert np.allclose(df.effective_weight.values, w), \
+                        "{0} {1}: inflation off but the effective weight is not the weight".format(path, tag)
+                assert np.allclose(df.effective_weight.values, 1.0 / np.sqrt(df.inflated_var)), \
+                    "{0} {1}: effective weight is not 1/sqrt(inflated var)".format(path, tag)
+                # the rec group summary should list both groups
+                for grp in ("grpa", "grpb"):
+                    assert grp in rec, "{0} {1}: group {2} missing from the rec summary".format(path, tag, grp)
+            print(path, tag, "iteration 1 mean ratio by group:",
+                  dfs[1].groupby("group").inflate_ratio.mean().round(3).to_dict())
+            # something has to be unexplained, or the report is checking zeros
+            assert dfs[1].inflate_ratio.max() > 1.001, path + ": H explains every observation to roundoff, nothing to report"
+
+
 if __name__ == "__main__":
 
+    #synth2d_enif_test()
     #chenoliver_test()
     #multimodal_test()
     #mm_weight_beta_experiment()

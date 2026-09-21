@@ -61,9 +61,9 @@ pestpp-da  = "pestpp._exe:da"
 notebook = ["ipython"]
 
 [project.urls]
-Homepage = "https://github.com/usgs/pestpp"
+Homepage = "https://github.com/pestpp/pestpp"
 Documentation = "https://pestpp.readthedocs.io"
-Source = "https://github.com/usgs/pestpp"
+Source = "https://github.com/pestpp/pestpp"
 
 [tool.setuptools]
 # _binaries/ holds the compiled C ABI library. It is EMPTY in the source tree and in an sdist -

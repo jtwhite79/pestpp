@@ -237,23 +237,34 @@ jobs:
               exit 1
           fi
 
-          # Strict fallback, not both: when a benchmark repo ships its own binaries they must
-          # be the ones used, exactly as before. benchmarks/test_bin is consulted only when
-          # the test directory has nothing for this platform, which is every macOS job except
-          # the one whose test_dir is benchmarks itself.
+          # BOTH directories go on the path, the test repo's own one first. A repo that
+          # ships its own binaries still wins for those binaries, but now by ORDER rather
+          # than by exclusion.
+          #
+          # This used to pick exactly one of the two, and that meant a repo shipping ANY
+          # test_bin hid every binary this repo has. pestpp-ies_benchmarks ships mfnwt and
+          # mp6 but no mf6, so the 2-D synthetic test found no model to run and died on a
+          # bogus ~/bin/mf6 path - on linux and windows both, while the mf6 it needed was
+          # sitting in benchmarks/test_bin the whole time.
           own="$GITHUB_WORKSPACE/${test_dir}/test_bin/$plat"
           fallback="$GITHUB_WORKSPACE/benchmarks/test_bin/$plat"
-          if [[ -d "$own" ]]; then
-              model_bin="$own"
-          elif [[ -d "$fallback" ]]; then
-              model_bin="$fallback"
-          else
+          cands=("$own")
+          if [[ "$fallback" != "$own" ]]; then
+              cands+=("$fallback")
+          fi
+          found=0
+          for d in "${cands[@]}"; do
+              if [[ -d "$d" ]]; then
+                  echo "model binary path: $d"
+                  ls "$d"
+                  echo "$d" >> $GITHUB_PATH
+                  found=1
+              fi
+          done
+          if [[ "$found" -eq 0 ]]; then
               echo "::error::no test_bin/$plat found for test_dir '${test_dir}' (looked in $own and $fallback)"
               exit 1
           fi
-          echo "model binary path: $model_bin"
-          ls "$model_bin"
-          echo "$model_bin" >> $GITHUB_PATH
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: run test script ${{ env.test_script }} in ${{ env.test_dir }}

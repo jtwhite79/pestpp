@@ -313,6 +313,10 @@ public:
 	void set_glm_debug_real_fail(bool _flag) { glm_debug_real_fail = _flag; }
 	bool get_glm_accept_mc_phi() const { return glm_accept_mc_phi; }
 	void set_glm_accept_mc_phi(bool _flag) { glm_accept_mc_phi = _flag; }
+	double get_glm_irls_eps() const { return glm_irls_eps; }
+	void set_glm_irls_eps(double _eps) { glm_irls_eps = _eps; }
+	int get_glm_irls_start_iter() const { return glm_irls_start_iter; }
+	void set_glm_irls_start_iter(int _iter) { glm_irls_start_iter = _iter; }
     bool get_glm_iter_mc() const { return glm_iter_mc; }
     void set_glm_iter_mc(bool _flag) { glm_iter_mc = _flag; }
     bool get_glm_debug_high_2nd_iter_phi() const {return glm_debug_high_2nd_iter_phi;}
@@ -684,6 +688,26 @@ public:
 	void set_ies_upgrades_in_memory(bool _flag) { ies_upgrades_in_memory = _flag; }
 	bool get_ies_ordered_binary() const { return ies_ordered_binary; }
 	void set_ies_ordered_binary(bool _flag) { ies_ordered_binary = _flag; }
+    bool get_ies_use_enif() const { return ies_use_enif; }
+    void set_ies_use_enif(bool _flag) { ies_use_enif = _flag; }
+    double get_ies_enif_ridge() const { return ies_enif_ridge; }
+    void set_ies_enif_ridge(double _flag) { ies_enif_ridge = _flag; }
+    bool get_ies_enif_resid_inflate() const { return ies_enif_resid_inflate; }
+    void set_ies_enif_resid_inflate(bool _flag) { ies_enif_resid_inflate = _flag; }
+    string get_ies_enif_graph() const { return ies_enif_graph; }
+    void set_ies_enif_graph(string _s) { ies_enif_graph = _s; }
+    double get_ies_enif_h_lasso() const { return ies_enif_h_lasso; }
+    void set_ies_enif_h_lasso(double _f) { ies_enif_h_lasso = _f; }
+    int get_ies_enif_h_cv_folds() const { return ies_enif_h_cv_folds; }
+    void set_ies_enif_h_cv_folds(int _n) { ies_enif_h_cv_folds = _n; }
+    double get_ies_enif_shrink() const { return ies_enif_shrink; }
+    void set_ies_enif_shrink(double _f) { ies_enif_shrink = _f; }
+    string get_ies_enif_order() const { return ies_enif_order; }
+    void set_ies_enif_order(string _s) { ies_enif_order = _s; }
+    bool get_ies_enif_save_h() const { return ies_enif_save_h; }
+    void set_ies_enif_save_h(bool _f) { ies_enif_save_h = _f; }
+    bool get_ies_use_prior_prec() const { return ies_use_prior_prec; }
+    void set_ies_use_prior_prec(bool _flag) { ies_use_prior_prec = _flag; }
     double get_ies_multimodal_alpha() const { return ies_multimodal_alpha; }
     void set_ies_multimodal_alpha(double _flag) { ies_multimodal_alpha = _flag; }
     double get_ies_multimodal_weight_exponent() const { return ies_multimodal_weight_exponent; }
@@ -696,6 +720,8 @@ public:
     vector<int> get_ies_n_iter_reinflate() const {return ies_n_iter_reinflate;}
     void set_ies_reinflate_factor(vector<double> reinflate_factor)  { ies_reinflate_factor = reinflate_factor;}
     vector<double> get_ies_reinflate_factor() const {return ies_reinflate_factor;}
+    void set_ies_reinflate_solver(vector<string> solvers)  { ies_reinflate_solver = solvers;}
+    vector<string> get_ies_reinflate_solver() const {return ies_reinflate_solver;}
     void set_ies_aal_indicator_pars(vector<string> pars)  { ies_aal_indicator_pars = pars;}
     vector<string> get_ies_aal_indicator_pars() const {return ies_aal_indicator_pars;}
     void set_ies_run_realname(string name) {ies_run_realname = name;}
@@ -864,6 +890,10 @@ private:
 	bool glm_debug_lamb_fail;
 	bool glm_debug_real_fail;
 	bool glm_accept_mc_phi;
+	//irls (l1) reweighting of the regularization prior info: eps > 0 turns it on and is the
+	//residual floor, start_iter is the first iteration whose end gets reweighted
+	double glm_irls_eps;
+	int glm_irls_start_iter;
 	bool glm_iter_mc;
 	bool glm_debug_high_2nd_iter_phi;
 	bool glm_hp_lambdas;
@@ -1068,6 +1098,16 @@ private:
 	string ies_loc_type;
 	bool ies_upgrades_in_memory;
 	bool ies_ordered_binary;
+	bool ies_use_enif;
+	double ies_enif_ridge;
+	bool ies_enif_resid_inflate;
+	string ies_enif_graph;
+	double ies_enif_h_lasso;
+	int ies_enif_h_cv_folds;
+	double ies_enif_shrink;
+	string ies_enif_order;
+	bool ies_enif_save_h;
+	bool ies_use_prior_prec;
 	double ies_multimodal_alpha;
 	double ies_multimodal_weight_exponent;
 	double ies_multimodal_phi_weight;
@@ -1076,6 +1116,7 @@ private:
 	bool ies_phi_factors_by_real;
 	vector<int> ies_n_iter_reinflate;
     vector<double> ies_reinflate_factor;
+    vector<string> ies_reinflate_solver;
     bool ies_updatebyreals;
     vector<string> ies_aal_indicator_pars;
     string ies_run_realname;

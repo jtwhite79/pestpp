@@ -15,6 +15,8 @@
  *    opt_std_weights and their effect on use_chance/use_robust/use_fosm/get_risk)
  */
 #include <iostream>
+#include <csignal>
+#include <random>
 #include <sstream>
 #include <fstream>
 #include <limits>
@@ -34,6 +36,7 @@
 #include "utilities.h"
 #include "RunStorage.h"
 #include "SVDSolver.h"
+#include "SVDPackage.h"
 #include "Regularization.h"
 
 using namespace std;
@@ -71,6 +74,8 @@ struct SqpProbe : public SeqQuadProgram
 
 static int g_fail = 0;
 static int g_total = 0;
+// the test being run, so a crash handler can say where it died
+static const char* g_current_test = "(none)";
 static void CHK(bool cond, const string& msg)
 {
     ++g_total;
@@ -2494,41 +2499,586 @@ static void test_regul_weight_search_edges()
     }
 }
 
+/* ies prior scaling must not change the answer.
+ *
+ * chen and oliver (2013) eq 5 makes the parameter deviations dimensionless with
+ * C_sc^-1/2, and eq 15 pre-multiplies the update by C_sc^1/2.  since
+ * C_sc^1/2 * delta_m IS the raw deviation, the two cancel: prior scaling is a
+ * conditioning device for the svd, not a change to the update.  the scaling
+ * matrix is diagonal and holds prior variances, so with a non-unit parcov the
+ * upgrade computed with ies_use_prior_scaling must equal the one computed
+ * without it.
+ *
+ * it did not.  the back-transform in ensemble_solution was commented out, so
+ * every parameter's update came out divided by its prior standard deviation -
+ * dimensionally wrong, and silently so, because nothing compared the two paths.
+ */
+static void test_ies_prior_scaling_is_neutral()
+{
+    cout << "[ies prior scaling: C_sc cancels, so it cannot change the upgrade]" << endl;
+
+    const int npar = 4, nobs = 3, nreal = 5;
+    // fixed, arbitrary, nothing special about the values beyond being non-degenerate
+    Eigen::MatrixXd par_diff0(npar, nreal), obs_diff0(nobs, nreal), obs_resid0(nobs, nreal);
+    for (int i = 0; i < npar; i++)
+        for (int j = 0; j < nreal; j++)
+            par_diff0(i, j) = 0.3 * (i + 1) - 0.11 * (j + 1) + 0.05 * (i * j);
+    for (int i = 0; i < nobs; i++)
+        for (int j = 0; j < nreal; j++)
+        {
+            obs_diff0(i, j) = 0.7 * (i + 1) + 0.13 * (j + 1) - 0.04 * (i * j);
+            obs_resid0(i, j) = 0.2 * (i + 1) - 0.09 * (j + 1);
+        }
+    Eigen::MatrixXd par_resid0 = 0.5 * par_diff0;
+    Eigen::MatrixXd obs_err0 = 0.1 * obs_diff0;
+    Eigen::MatrixXd Am(npar, 1);
+    Am.setZero();
+
+    Eigen::VectorXd wvec(nobs);
+    wvec << 1.0, 2.0, 0.5;
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> weights(wvec);
+
+    // prior variances deliberately far from 1 and from each other - if the
+    // scaling leaks into the answer this is what makes it visible
+    Eigen::VectorXd pvar(npar);
+    pvar << 0.01, 1.0, 100.0, 4.0;
+    Eigen::VectorXd pinv_vec = pvar.cwiseSqrt().cwiseInverse();   // C_sc^-1/2
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> parcov_inv(pinv_vec);
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> parcov_identity(
+        Eigen::VectorXd::Ones(npar));
+
+    vector<string> onames{"o1", "o2", "o3"}, pnames{"p1", "p2", "p3", "p4"};
+
+    auto solve = [&](bool use_prior_scaling,
+                     const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& pcinv)
+    {
+        // ensemble_solution mutates what it is handed, so every call gets copies
+        Eigen::MatrixXd par_resid = par_resid0, par_diff = par_diff0;
+        Eigen::MatrixXd obs_resid = obs_resid0, obs_diff = obs_diff0, obs_err = obs_err0;
+        Eigen::MatrixXd upgrade;
+        // use_approx = true and iter = 1 keep this to the data term, which is
+        // where the cancellation is exact and unconditional
+        UpgradeThread::ensemble_solution(1, 0, 1000, 0, 0, use_prior_scaling, true, true,
+                                         0.0, 1.0e-7, par_resid, par_diff, Am, obs_resid,
+                                         obs_diff, upgrade, obs_err, weights, pcinv,
+                                         onames, pnames, -1.0, 0.0);
+        return upgrade;
+    };
+
+    Eigen::MatrixXd off = solve(false, parcov_inv);
+    Eigen::MatrixXd on = solve(true, parcov_inv);
+
+    CHK(off.rows() == on.rows() && off.cols() == on.cols(),
+        "prior scaling on/off give the same shaped upgrade");
+    double dnorm = (off - on).norm();
+    double scale = max(1.0, off.norm());
+    bool same = (dnorm / scale) < 1.0e-8;
+    if (!same)
+        cout << "  scaled/unscaled upgrades differ: relative norm "
+             << (dnorm / scale) << " (off " << off.norm() << ", on " << on.norm() << ")"
+             << endl;
+    CHK(same, "ies_use_prior_scaling does not change the upgrade (C_sc cancels)");
+
+    // and the guard against a fix that merely makes the option inert: with a unit
+    // parcov the scaled path must still reproduce the unscaled one
+    Eigen::MatrixXd on_unit = solve(true, parcov_identity);
+    CHK(((off - on_unit).norm() / scale) < 1.0e-8,
+        "prior scaling with unit parcov matches the unscaled upgrade");
+
+    // the upgrade must actually be doing something, or the checks above are vacuous
+    CHK(off.norm() > 1.0e-8, "the unscaled upgrade is non-zero");
+}
+
+/* the scaling that puts prior anomalies into the space chen and oliver eq 5 works
+ * in: delta_m_pr = C_sc^-1/2 (m_pr - mbar) / sqrt(Ne-1).  C_sc is diagonal and
+ * holds prior variances, so this is a row scaling by 1/sqrt(var).
+ *
+ * get_Am() feeds the result to a tsvd, and the whole reason the paper scales
+ * before that svd is that the truncation then happens in scaled space - a
+ * different set of directions survives.  get_Am used to skip this entirely while
+ * the residual it multiplies WAS scaled, so the model-mismatch term straddled
+ * two spaces.
+ */
+static void test_prior_anomaly_scaling()
+{
+    cout << "[ies prior scaling: prior anomalies scaled into C_sc^-1/2 space]" << endl;
+
+    const int npar = 4, nreal = 6;
+    Eigen::MatrixXd anom(npar, nreal);
+    for (int i = 0; i < npar; i++)
+        for (int j = 0; j < nreal; j++)
+            anom(i, j) = 0.4 * (i + 1) - 0.17 * (j + 1) + 0.03 * (i * j);
+
+    // spread over four orders of magnitude: if a row is missed it shows up loudly
+    Eigen::VectorXd var(npar);
+    var << 0.01, 1.0, 100.0, 4.0;
+
+    Eigen::MatrixXd scaled = scale_prior_anomalies(anom, var);
+
+    bool rows_ok = true;
+    for (int i = 0; i < npar; i++)
+        rows_ok &= ((scaled.row(i) - anom.row(i) / sqrt(var[i])).norm() < 1.0e-12);
+    CHK(rows_ok, "each row divided by its own prior standard deviation");
+
+    CHK((scale_prior_anomalies(anom, Eigen::VectorXd::Ones(npar)) - anom).norm() < 1.0e-12,
+        "unit prior variance leaves the anomalies untouched");
+
+    // fixed/tied parameters can arrive with no variance; that must not become inf
+    Eigen::VectorXd degenerate(npar);
+    degenerate << 0.0, -1.0, 100.0, 4.0;
+    Eigen::MatrixXd sd = scale_prior_anomalies(anom, degenerate);
+    CHK(sd.allFinite(), "zero or negative prior variance does not produce inf or nan");
+    CHK((sd.row(0) - anom.row(0)).norm() < 1.0e-12,
+        "a zero-variance row passes through unscaled");
+
+    bool threw = false;
+    try { scale_prior_anomalies(anom, Eigen::VectorXd::Ones(npar + 1)); }
+    catch (const exception&) { threw = true; }
+    CHK(threw, "a prior variance vector of the wrong length is rejected");
+
+    // the point of scaling before the svd: the singular directions change.  if
+    // this ever stops holding, the scaling has become decorative
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd_raw(anom, Eigen::ComputeThinU);
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd_scaled(scaled, Eigen::ComputeThinU);
+    double lead_align = fabs(svd_raw.matrixU().col(0).dot(svd_scaled.matrixU().col(0)));
+    CHK(lead_align < 0.99,
+        "scaling changes the leading singular direction, so the tsvd truncates differently");
+}
+
+/*
+ * the scaling VECTOR the solve paths hand to ensemble_solution().
+ *
+ * three call sites used to build this inline and they drifted.  the multimodal
+ * path handed over a plain reciprocal - C_sc^-1 where the solve wants C_sc^-1/2 -
+ * and the other two branched on isdiagonal() with opposite conditions and
+ * identical bodies in both arms.  that second one was harmless, but only by
+ * accident: every MatType stores a square matrix, so .diagonal() was right
+ * either way.  this pins down all of it so the sites cannot drift again.
+ */
+static void test_prior_inv_sqrt_diag()
+{
+    cout << "[ies prior scaling: the C_sc^-1/2 vector handed to the solve]" << endl;
+
+    vector<string> pnames{ "p1", "p2", "p3", "p4" };
+    const int npar = (int)pnames.size();
+    Eigen::VectorXd var(npar);
+    var << 0.01, 1.0, 100.0, 4.0;
+
+    // a full (correlated) prior: only the diagonal may be used
+    vector<Eigen::Triplet<double>> trips;
+    for (int i = 0; i < npar; i++)
+        trips.push_back(Eigen::Triplet<double>(i, i, var[i]));
+    trips.push_back(Eigen::Triplet<double>(0, 1, 0.005));
+    trips.push_back(Eigen::Triplet<double>(1, 0, 0.005));
+    Eigen::SparseMatrix<double> full(npar, npar);
+    full.setFromTriplets(trips.begin(), trips.end());
+    Covariance cov_full(pnames, full, Mat::MatType::SPARSE);
+
+    Eigen::VectorXd s = prior_inv_sqrt_diag(cov_full);
+    bool ok = true;
+    for (int i = 0; i < npar; i++)
+        ok &= (fabs(s[i] - 1.0 / sqrt(var[i])) < 1.0e-12);
+    CHK(ok, "one over the square root of each prior variance");
+
+    // the multimodal bug: a plain reciprocal is 100 where the right answer is 10
+    CHK(fabs(s[0] - 1.0 / var[0]) > 1.0,
+        "the inverse square root, not the plain reciprocal");
+
+    // same numbers whatever the storage flag says - the isdiagonal() branch that
+    // used to guard this was a coin flip
+    vector<Eigen::Triplet<double>> dtrips;
+    for (int i = 0; i < npar; i++)
+        dtrips.push_back(Eigen::Triplet<double>(i, i, var[i]));
+    Eigen::SparseMatrix<double> diag(npar, npar);
+    diag.setFromTriplets(dtrips.begin(), dtrips.end());
+    Covariance cov_diag(pnames, diag, Mat::MatType::DIAGONAL);
+    CHK((prior_inv_sqrt_diag(cov_diag) - s).norm() < 1.0e-12,
+        "diagonal storage and sparse storage give the same scaling vector");
+
+    // fixed and tied parameters arrive with no variance
+    vector<Eigen::Triplet<double>> ztrips;
+    ztrips.push_back(Eigen::Triplet<double>(0, 0, 0.0));
+    for (int i = 1; i < npar; i++)
+        ztrips.push_back(Eigen::Triplet<double>(i, i, var[i]));
+    Eigen::SparseMatrix<double> zero(npar, npar);
+    zero.setFromTriplets(ztrips.begin(), ztrips.end());
+    Covariance cov_zero(pnames, zero, Mat::MatType::DIAGONAL);
+    Eigen::VectorXd sz = prior_inv_sqrt_diag(cov_zero);
+    CHK(sz.allFinite(), "a zero prior variance does not produce inf or nan");
+    CHK(fabs(sz[0] - 1.0) < 1.0e-12, "a zero-variance parameter is left unscaled");
+
+    // the vector form and the matrix form must agree - get_Am() uses the latter
+    // while the solve paths use the former, on the same prior
+    Eigen::MatrixXd anom(npar, 5);
+    for (int i = 0; i < npar; i++)
+        for (int j = 0; j < 5; j++)
+            anom(i, j) = 0.3 * (i + 1) - 0.11 * (j + 1);
+    CHK((Eigen::MatrixXd(s.asDiagonal() * anom) - scale_prior_anomalies(anom, var)).norm() < 1.0e-12,
+        "agrees with scale_prior_anomalies() on the same prior");
+}
+
+/* ies_use_prior_prec: the glm step with an explicit prior precision Q in both the
+ * hessian and the gradient.  when Q is the (untruncated) Am Am^T of the same
+ * ensemble - the pseudo-inverse of the prior anomaly covariance that the existing
+ * path uses - the two forms are the same thing written differently, so the
+ * upgrades have to agree to roundoff, at iteration 1 (data term only) and at
+ * iteration 2 with the prior pull switched on.  the obs anomalies are kept full
+ * rank (nobs >= N-1) so the existing path's V-subspace projection is the whole
+ * centred subspace; with fewer obs the two forms legitimately differ.
+ */
+static void test_ies_prior_prec_reduces_to_am()
+{
+    cout << "[ies prior precision: Q = Am Am^T reproduces the existing glm step]" << endl;
+
+    const int npar = 30, nobs = 40, nreal = 12;
+    // seeded pseudo-random so the anomalies are full rank (N-1): a smooth formula
+    // like sin(a i + b j) is rank 2 and then the obs svd spans only part of the
+    // centred subspace, which is exactly the case where the two forms differ
+    std::mt19937 gen(20260919);
+    std::uniform_real_distribution<double> unif(-1.0, 1.0);
+    Eigen::MatrixXd par_diff0(npar, nreal), obs_diff0(nobs, nreal), obs_resid0(nobs, nreal),
+        par_resid0(npar, nreal);
+    for (int i = 0; i < npar; i++)
+        for (int j = 0; j < nreal; j++)
+        {
+            par_diff0(i, j) = unif(gen);
+            par_resid0(i, j) = 0.3 * unif(gen);
+        }
+    for (int i = 0; i < nobs; i++)
+        for (int j = 0; j < nreal; j++)
+        {
+            obs_diff0(i, j) = unif(gen);
+            obs_resid0(i, j) = 0.2 * unif(gen) + 0.1;
+        }
+    par_diff0 = par_diff0.colwise() - par_diff0.rowwise().mean();
+    obs_diff0 = obs_diff0.colwise() - obs_diff0.rowwise().mean();
+    Eigen::MatrixXd obs_err0 = 0.1 * obs_diff0;
+
+    Eigen::VectorXd wvec(nobs);
+    for (int i = 0; i < nobs; i++)
+        wvec[i] = 0.5 + 0.1 * (i % 4);
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> weights(wvec);
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> parcov_identity(Eigen::VectorXd::Ones(npar));
+    vector<string> onames, pnames;
+    for (int i = 0; i < nobs; i++) onames.push_back("o" + to_string(i));
+    for (int i = 0; i < npar; i++) pnames.push_back("p" + to_string(i));
+
+    // Am exactly as get_Am builds it: tsvd of the scaled prior anomalies, U S^-1
+    const double eigthresh = 1.0e-10;
+    const int maxsing = 1000;
+    Eigen::MatrixXd Am;
+    {
+        Eigen::MatrixXd pd = par_diff0 / sqrt(double(nreal - 1));
+        Eigen::MatrixXd s, U, V;
+        SVD_REDSVD rsvd;
+        rsvd.solve_ip(pd, s, U, V, eigthresh, maxsing);
+        Eigen::MatrixXd sinv = s.asDiagonal().inverse();
+        Am = U * sinv;
+    }
+    Eigen::MatrixXd Qd = Am * Am.transpose();
+    Eigen::SparseMatrix<double> Q = Qd.sparseView();
+
+    auto solve_old = [&](int iter, double lam, double reg)
+    {
+        Eigen::MatrixXd par_resid = par_resid0, par_diff = par_diff0;
+        Eigen::MatrixXd obs_resid = obs_resid0, obs_diff = obs_diff0, obs_err = obs_err0;
+        Eigen::MatrixXd upgrade;
+        UpgradeThread::ensemble_solution(iter, 0, maxsing, 0, 0, false, false, true, lam, eigthresh,
+                                         par_resid, par_diff, Am, obs_resid, obs_diff, upgrade,
+                                         obs_err, weights, parcov_identity, onames, pnames, reg, -1.0);
+        return upgrade;
+    };
+    auto solve_new = [&](int iter, double lam, double reg, const Eigen::SparseMatrix<double>& q)
+    {
+        Eigen::MatrixXd par_resid = par_resid0, par_diff = par_diff0;
+        Eigen::MatrixXd obs_resid = obs_resid0, obs_diff = obs_diff0;
+        Eigen::MatrixXd upgrade;
+        UpgradeThread::ensemble_solution_prec(iter, 0, maxsing, false, lam, eigthresh, par_resid,
+                                              par_diff, q, obs_resid, obs_diff, upgrade, weights, reg);
+        return upgrade;
+    };
+    auto rel = [](const Eigen::MatrixXd& a, const Eigen::MatrixXd& b)
+    { return (a - b).norm() / max(1.0e-30, a.norm()); };
+
+    // iteration 1: data term only, at two lambdas
+    for (double lam : {0.0, 3.0})
+    {
+        Eigen::MatrixXd o = solve_old(1, lam, 1.0), n = solve_new(1, lam, 1.0, Q);
+        CHK(o.rows() == n.rows() && o.cols() == n.cols(), "prec form gives an N x p upgrade");
+        double d = rel(o, n);
+        if (d > 1.0e-8)
+            cout << "  iteration 1, lambda " << lam << ": relative diff " << d << endl;
+        CHK(d < 1.0e-8, "iteration 1 upgrade matches the existing glm step (lambda " + to_string(lam) + ")");
+        CHK(o.norm() > 1.0e-8, "the iteration 1 upgrade is non-zero");
+    }
+    // iteration 2 with reg_factor 1: the prior pull is in on both sides
+    {
+        Eigen::MatrixXd o = solve_old(2, 2.0, 1.0), n = solve_new(2, 2.0, 1.0, Q);
+        double d = rel(o, n);
+        if (d > 1.0e-8)
+            cout << "  iteration 2, prior pull on: relative diff " << d << endl;
+        CHK(d < 1.0e-8, "iteration 2 upgrade with the prior pull matches the existing full solution");
+        // and the pull did something, or the check above is the iteration 1 check again
+        CHK(rel(solve_old(1, 2.0, 1.0), o) > 1.0e-6, "the prior pull changes the iteration 2 upgrade");
+        // reg_factor 0 (the default) means weight 1 on the pull, on both sides.  this
+        // used to multiply the pull by 0 and quietly turn the full solution into the
+        // approx one - the guard was >= 0 instead of > 0
+        CHK(rel(solve_old(2, 2.0, 0.0), o) < 1.0e-12, "reg_factor 0 (default) is weight 1 on the existing full solution");
+        CHK(rel(solve_new(2, 2.0, 0.0, Q), n) < 1.0e-12, "reg_factor 0 (default) is weight 1 on the prec full solution");
+        // and a fractional weight really scales it, so the > 0 branch is live too
+        Eigen::MatrixXd half_o = solve_old(2, 2.0, 0.5), half_n = solve_new(2, 2.0, 0.5, Q);
+        CHK(rel(half_o, o) > 1.0e-6, "reg_factor 0.5 scales the pull on the existing full solution");
+        CHK(rel(half_o, half_n) < 1.0e-8, "reg_factor 0.5 matches on both sides");
+    }
+    // the two readings of ies_reg_factor: the upgrade takes |r| (negative = full
+    // solution with the magnitude on the pull, no reg phi), the phi handler max(0,r)
+    {
+        CHK(L2PhiHandler::upgrade_reg_factor(-1.0) == 1.0, "upgrade reg factor of -1 is 1");
+        CHK(L2PhiHandler::upgrade_reg_factor(0.0) == 0.0, "upgrade reg factor of 0 is 0");
+        CHK(L2PhiHandler::upgrade_reg_factor(0.5) == 0.5, "upgrade reg factor of 0.5 is 0.5");
+        CHK(L2PhiHandler::phi_reg_factor(-1.0) == 0.0, "phi reg factor of -1 is 0");
+        CHK(L2PhiHandler::phi_reg_factor(0.0) == 0.0, "phi reg factor of 0 is 0");
+        CHK(L2PhiHandler::phi_reg_factor(0.5) == 0.5, "phi reg factor of 0.5 is 0.5");
+    }
+    // a different Q must give a different answer, or none of this proves Q is used
+    {
+        Eigen::SparseMatrix<double> Qdiag(npar, npar);
+        Qdiag.setIdentity();
+        Qdiag *= 4.0;
+        CHK(rel(solve_new(1, 1.0, 1.0, Q), solve_new(1, 1.0, 1.0, Qdiag)) > 1.0e-4,
+            "a diagonal Q gives a different upgrade than Am Am^T");
+        CHK(solve_new(1, 1.0, 1.0, Qdiag).allFinite(), "the singular ones direction is dropped, not inverted");
+    }
+}
+
+static void test_enif_inflation_report()
+{
+    cout << "[enif inflation report: per-obs csv and per-group rec summary]" << endl;
+    // five obs in two groups, hand-picked so the numbers are easy to check
+    vector<string> names = {"h1", "h2", "h3", "q1", "q2"};
+    vector<string> groups = {"head", "head", "head", "flux", "flux"};
+    Eigen::VectorXd w(5), u(5);
+    w << 10.0, 10.0, 5.0, 0.1, 0.1;      // noise var 0.01, 0.01, 0.04, 100, 100
+    u << 0.01, 0.03, 0.0, 100.0, 300.0;  // ratios 2, 4, 1, 2, 4
+    // written in the working directory like selftest_viol.rec above.  this test
+    // killed the whole selftest on every windows ci job (exit 127 = an msvc
+    // fail-fast abort under msys bash) with nothing printed: the rec ifstream was
+    // still open when remove() ran, which windows refuses.  the checkpoints
+    // below are what found it, so they stay
+    string csv = "selftest_enif_inflate.csv";
+    string rec = "selftest_enif_inflate.rec";
+    ofstream frec(rec);
+    cout << "  writing " << csv << " and " << rec << " in " << std::filesystem::current_path().string() << endl;
+    map<string, EnifInflateGroupStats> st = enif_inflation_report(names, groups, w, u, true, 3, csv, frec);
+    frec.close();
+    cout << "  report written, " << st.size() << " groups" << endl;
+
+    CHK(st.size() == 2, "two groups summarized");
+    CHK(st.at("head").count == 3 && st.at("flux").count == 2, "group counts");
+    CHK(fabs(st.at("head").noise_var - 0.02) < 1.0e-12, "head mean noise var 0.02");
+    CHK(fabs(st.at("head").unexp_var - 0.04 / 3.0) < 1.0e-12, "head mean unexplained var");
+    CHK(fabs(st.at("head").ratio_mean - 7.0 / 3.0) < 1.0e-12, "head mean ratio (2+4+1)/3");
+    CHK(fabs(st.at("head").ratio_min - 1.0) < 1.0e-12 && fabs(st.at("head").ratio_max - 4.0) < 1.0e-12, "head ratio min/max");
+    CHK(fabs(st.at("flux").ratio_mean - 3.0) < 1.0e-12, "flux mean ratio 3");
+    CHK(fabs(st.at("flux").weight_mean - 0.1) < 1.0e-12, "flux mean weight");
+    // effective weight = 1/sqrt(noise + unexp): q1 -> 1/sqrt(200), q2 -> 1/sqrt(400) = 0.05
+    CHK(fabs(st.at("flux").eff_weight_mean - 0.5 * (1.0 / sqrt(200.0) + 0.05)) < 1.0e-12, "flux mean effective weight");
+
+    // the csv: header plus one row per obs, inflated = noise + unexp when applied
+    cout << "  reading back " << csv << endl;
+    ifstream fin(csv);
+    string line;
+    getline(fin, line);
+    CHK(line == "obs_name,group,weight,noise_var,unexplained_var,inflated_var,inflate_ratio,effective_weight", "csv header");
+    int nrow = 0;
+    bool q2_ok = false;
+    while (getline(fin, line))
+    {
+        nrow++;
+        if (line.rfind("q2,flux,", 0) == 0)
+        {
+            vector<string> tok;
+            stringstream ss(line);
+            string t;
+            while (getline(ss, t, ',')) tok.push_back(t);
+            q2_ok = (tok.size() == 8) && (fabs(stod(tok[5]) - 400.0) < 1.0e-6) && (fabs(stod(tok[6]) - 4.0) < 1.0e-9)
+                && (fabs(stod(tok[7]) - 0.05) < 1.0e-9);
+        }
+    }
+    fin.close();
+    CHK(nrow == 5, "csv has one row per observation");
+    CHK(q2_ok, "q2 row: inflated var 400, ratio 4, effective weight 0.05");
+
+    // the rec section, sorted by mean ratio so flux (3) comes before head (2.33)
+    cout << "  reading back " << rec << endl;
+    ifstream rin(rec);
+    stringstream rs;
+    rs << rin.rdbuf();
+    string r = rs.str();
+    // closed before the remove() below: windows wont delete a file that is still
+    // open, posix will, and this is exactly what killed every windows ci job
+    rin.close();
+    CHK(r.find("enif observation noise inflation summary, iteration 3") != string::npos, "rec section header carries the iteration");
+    CHK(r.find("inflation applied to the update: yes") != string::npos, "rec says the inflation was applied");
+    CHK(r.find("flux") < r.find("head"), "rec groups sorted by mean ratio, largest first");
+    CHK(r.find(csv) != string::npos, "rec names the csv");
+
+    // not applied: the csv still carries the would-be ratio but the effective weight is the weight
+    cout << "  second pass, inflation not applied" << endl;
+    st = enif_inflation_report(names, groups, w, u, false, 4, csv, frec);
+    CHK(fabs(st.at("flux").eff_weight_mean - 0.1) < 1.0e-12, "not applied: effective weight is the control file weight");
+    CHK(fabs(st.at("flux").ratio_mean - 3.0) < 1.0e-12, "not applied: the would-be ratio is still reported");
+    std::filesystem::remove(csv);
+    std::filesystem::remove(rec);
+}
+
+static void test_irls_reweight()
+{
+    cout << "[irls prior info reweighting]" << endl;
+    // three regul equations and one non-regul one, in the pest pi line form.  p1 is log
+    // transformed so its residual is in log10 units, the others are native
+    PriorInformation pi;
+    pi.AddRecord("zo1 1.0 * log(p1) = 0.0 2.0 regul_zo");
+    pi.AddRecord("zo2 1.0 * p2 = 1.0 1.0 regul_zo");
+    pi.AddRecord("fo1 1.0 * p2 - 1.0 * p3 = 0.0 1.0 regul_fo");
+    pi.AddRecord("fo0 1.0 * p2 - 1.0 * p3 = 0.0 0.0 regul_fo");
+    pi.AddRecord("ob1 1.0 * p3 = 5.0 3.0 obsgrp");
+    Parameters pars;
+    pars.insert("P1", 100.0);   // resid = log10(100) - 0 = 2
+    pars.insert("P2", 1.0);     // resid = 0 -> at the floor
+    pars.insert("P3", 0.9);     // fo1 resid = 0.1
+    map<string, double> w0;
+    double eps = 0.01;
+    PriorInformation::IrlsStats st = pi.irls_reweight(pars, eps, w0);
+    CHK(st.n == 3, "irls: three nonzero regul equations reweighted");
+    CHK(st.n_floor == 1, "irls: one equation at the floor");
+    CHK(abs(pi.get_pi_rec("ZO1").get_weight() - 2.0 / sqrt(2.0)) < 1e-12, "irls: w = w0/sqrt(|r|)");
+    CHK(abs(pi.get_pi_rec("ZO2").get_weight() - 1.0 / sqrt(eps)) < 1e-12, "irls: zero residual gets w0/sqrt(eps)");
+    CHK(abs(pi.get_pi_rec("FO1").get_weight() - 1.0 / sqrt(0.1)) < 1e-12, "irls: difference equation reweighted from its own residual");
+    CHK(pi.get_pi_rec("FO0").get_weight() == 0.0, "irls: zero weight equation stays zero");
+    CHK(pi.get_pi_rec("OB1").get_weight() == 3.0, "irls: non-regul equation untouched");
+    CHK(abs(st.fmin - 1.0 / sqrt(2.0)) < 1e-12 && abs(st.fmax - 1.0 / sqrt(eps)) < 1e-12, "irls: min/max factor");
+    CHK(abs(st.fmed - 1.0 / sqrt(0.1)) < 1e-12, "irls: median factor");
+    // the point of the convention: the quadratic penalty (w r)^2 now equals w0^2 |r|
+    double r = pi.get_pi_rec("ZO1").calc_residual(pars);
+    double w = pi.get_pi_rec("ZO1").get_weight();
+    CHK(abs(w * w * r * r - 2.0 * 2.0 * abs(r)) < 1e-12, "irls: (w r)^2 == w0^2 |r|");
+    // a second pass at different parameters starts from w0 again, not from the last weights
+    pars.update_rec("P1", 10.0);  // resid = 1
+    pi.irls_reweight(pars, eps, w0);
+    CHK(abs(pi.get_pi_rec("ZO1").get_weight() - 2.0) < 1e-12, "irls: second pass reweights from w0, no compounding");
+    CHK(w0.size() == 5 && w0.at("ZO1") == 2.0, "irls: w0 holds the control file weights");
+}
+
+// a test that throws should count as a failure that names itself, not take the
+// whole selftest down with it - which is what happened on the windows ci runners,
+// where an uncaught exception is a silent exit 127.  every test goes through here
+// so the log says which test is running, how many checks it made, and which of
+// them failed, with the total so far
+static void run_test(void (*fn)(), const char* name)
+{
+    g_current_test = name;
+    int total0 = g_total, fail0 = g_fail;
+    cout << "\n>>> " << name << endl;
+    try
+    {
+        fn();
+    }
+    catch (const exception& e)
+    {
+        CHK(false, string(name) + " threw: " + e.what());
+    }
+    catch (...)
+    {
+        CHK(false, string(name) + " threw something that is not a std::exception");
+    }
+    int n = g_total - total0, f = g_fail - fail0;
+    cout << "<<< " << name << ": " << (n - f) << "/" << n << " checks passed"
+         << (f > 0 ? "  ***FAILED***" : "") << "  (running total " << (g_total - g_fail) << "/" << g_total << ")" << endl;
+    g_current_test = "(none)";
+}
+
+// last words for the two ways a test can die without going through run_test's
+// catch: std::terminate (an exception thrown while another is in flight, or from
+// a destructor) and a hard signal.  both print the test name and flush, because
+// on the windows runners nothing at all was printed and the process just vanished
+static void on_terminate()
+{
+    cout << "\n*** std::terminate called during " << g_current_test;
+    try
+    {
+        exception_ptr ep = current_exception();
+        if (ep) rethrow_exception(ep);
+        cout << " (no active exception)";
+    }
+    catch (const exception& e)
+    {
+        cout << ": " << e.what();
+    }
+    catch (...)
+    {
+        cout << ": non-std exception";
+    }
+    cout << endl << flush;
+    abort();
+}
+
+static void on_signal(int sig)
+{
+    // keep this to plain writes - nothing fancy is safe in a signal handler
+    cout << "\n*** fatal signal " << sig << " during " << g_current_test << endl << flush;
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
 int main()
 {
-    test_registry_equivalence();
-    test_generic_access();
-    test_mutability();
-    test_control_info();
-    test_tool_defaults();
-    test_constraints_live();
-    test_ies_reinflate_reset();
-    test_ies_ensemble_reset();
-    test_ies_iteration_controls();
-    test_mou_generation_controls();
-    test_sqp_controls();
-    test_tool_objects_track_live_options();
-    test_ensemble_zero_copy_view();
-    test_run_map_survives_resize();
-    test_subset_names_survive_membership_change();
-    test_read_file_tail();
-    test_instruction_file_tolerant_read();
-    test_parse_double_policy();
-    test_instruction_file_extreme_doubles();
-    test_fixed_instruction_misreads();
-    test_file_availability_checks();
-    test_partial_capability_handshake();
-    test_instruction_file_partial_reads_are_never_wrong();
-    test_model_interface_partial_across_files();
-    test_instruction_file_partial_real_case();
-    test_instruction_file_partial_remaining_branches();
-    test_quit_file_tokens();
-    test_run_storage_error_diagnostics();
-    test_run_storage_partial_update();
-    test_external_values_are_results();
-    test_partial_read_refuses_stale_outputs();
-    test_violation_single_run_matches_ensemble();
-    test_regul_weight_search_edges();
+    // unbuffered so a hard crash cannot eat the lines that say where it happened
+    cout.setf(ios::unitbuf);
+    set_terminate(on_terminate);
+    signal(SIGSEGV, on_signal);
+    signal(SIGABRT, on_signal);
+    signal(SIGFPE, on_signal);
+    signal(SIGILL, on_signal);
+    run_test(test_registry_equivalence, "test_registry_equivalence");
+    run_test(test_irls_reweight, "test_irls_reweight");
+    run_test(test_enif_inflation_report, "test_enif_inflation_report");
+    run_test(test_generic_access, "test_generic_access");
+    run_test(test_mutability, "test_mutability");
+    run_test(test_control_info, "test_control_info");
+    run_test(test_tool_defaults, "test_tool_defaults");
+    run_test(test_constraints_live, "test_constraints_live");
+    run_test(test_ies_reinflate_reset, "test_ies_reinflate_reset");
+    run_test(test_ies_ensemble_reset, "test_ies_ensemble_reset");
+    run_test(test_ies_iteration_controls, "test_ies_iteration_controls");
+    run_test(test_mou_generation_controls, "test_mou_generation_controls");
+    run_test(test_sqp_controls, "test_sqp_controls");
+    run_test(test_tool_objects_track_live_options, "test_tool_objects_track_live_options");
+    run_test(test_ensemble_zero_copy_view, "test_ensemble_zero_copy_view");
+    run_test(test_run_map_survives_resize, "test_run_map_survives_resize");
+    run_test(test_subset_names_survive_membership_change, "test_subset_names_survive_membership_change");
+    run_test(test_read_file_tail, "test_read_file_tail");
+    run_test(test_instruction_file_tolerant_read, "test_instruction_file_tolerant_read");
+    run_test(test_parse_double_policy, "test_parse_double_policy");
+    run_test(test_instruction_file_extreme_doubles, "test_instruction_file_extreme_doubles");
+    run_test(test_fixed_instruction_misreads, "test_fixed_instruction_misreads");
+    run_test(test_file_availability_checks, "test_file_availability_checks");
+    run_test(test_partial_capability_handshake, "test_partial_capability_handshake");
+    run_test(test_instruction_file_partial_reads_are_never_wrong, "test_instruction_file_partial_reads_are_never_wrong");
+    run_test(test_model_interface_partial_across_files, "test_model_interface_partial_across_files");
+    run_test(test_instruction_file_partial_real_case, "test_instruction_file_partial_real_case");
+    run_test(test_instruction_file_partial_remaining_branches, "test_instruction_file_partial_remaining_branches");
+    run_test(test_quit_file_tokens, "test_quit_file_tokens");
+    run_test(test_run_storage_error_diagnostics, "test_run_storage_error_diagnostics");
+    run_test(test_run_storage_partial_update, "test_run_storage_partial_update");
+    run_test(test_external_values_are_results, "test_external_values_are_results");
+    run_test(test_partial_read_refuses_stale_outputs, "test_partial_read_refuses_stale_outputs");
+    run_test(test_violation_single_run_matches_ensemble, "test_violation_single_run_matches_ensemble");
+    run_test(test_regul_weight_search_edges, "test_regul_weight_search_edges");
+    run_test(test_ies_prior_scaling_is_neutral, "test_ies_prior_scaling_is_neutral");
+    run_test(test_prior_anomaly_scaling, "test_prior_anomaly_scaling");
+    run_test(test_prior_inv_sqrt_diag, "test_prior_inv_sqrt_diag");
+    run_test(test_ies_prior_prec_reduces_to_am, "test_ies_prior_prec_reduces_to_am");
     cout << "\npestpp-selftest: " << (g_fail == 0 ? "PASS" : "FAIL")
          << " (" << (g_total - g_fail) << "/" << g_total << " checks)" << endl;
     return g_fail == 0 ? 0 : 1;

@@ -101,6 +101,21 @@ void GLM::check_scenario()
 			file_manager.rec_ofstream() << ss.str();
 		}
 	}
+
+	if (pest_scenario.get_pestpp_options().get_glm_irls_eps() > 0.0)
+	{
+		//irls needs regularization prior info to reweight and the weight factor search to
+		//balance it against the data, so it asks for the same things regul mode does
+		if (!regul_mode)
+			throw_glm_error("'GLM_IRLS_EPS' > 0 requires 'PESTMODE' = 'REGULARIZATION'");
+		int n_reg_pi = 0;
+		for (const auto& pi : pest_scenario.get_prior_info())
+			if (pi.second.is_regularization() && (pi.second.get_weight() > 0.0))
+				n_reg_pi++;
+		if (n_reg_pi == 0)
+			throw_glm_error("'GLM_IRLS_EPS' > 0 requires at least one non-zero weighted "
+				"prior info equation in a regularization group");
+	}
 }
 
 int GLM::initialize_prepare()

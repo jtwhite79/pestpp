@@ -16,6 +16,7 @@
 #include "RunManagerAbstract.h"
 #include "ObjectiveFunc.h"
 #include "Localizer.h"
+#include "EnifGraph.h"
 #include "network_package.h"
 
 enum chancePoints { ALL, SINGLE };
@@ -151,6 +152,14 @@ class L2PhiHandler
 {
 public:
 
+	//ies_reg_factor means two different things depending on who is asking.  the phi
+	//handler wants max(0,r): a negative value is the "full solution" signal and adds no
+	//reg phi.  the upgrade calc (EnsembleMethod::get_reg_factor) wants |r|: negative
+	//means use the magnitude on the prior pull without it showing up in phi.  both live
+	//here as statics so the selftest can pin the arithmetic without building anything
+	static double phi_reg_factor(double r) { return r < 0.0 ? 0.0 : r; }
+	static double upgrade_reg_factor(double r) { return r < 0.0 ? -r : r; }
+
 	enum phiType { MEAS, COMPOSITE, REGUL, ACTUAL, NOISE };
 	L2PhiHandler() { ; }
 	L2PhiHandler(Pest *_pest_scenario, FileManager *_file_manager,
@@ -268,10 +277,7 @@ private:
 	void write_group_csv(int iter_num, int total_runs, ofstream &csv,
 		vector<double> extra = vector<double>());
 
-	// live reg factor for phi: negative option value means 'full solution', for which the
-	// phi handler must ignore regularization (0.0); otherwise the option value. Was cached in
-	// org_reg_factor after the option got mutated to 0.0 at init.
-	double get_reg_factor() const { double r = pest_scenario->get_pestpp_options().get_ies_reg_factor(); return r < 0.0 ? 0.0 : r; }
+	double get_reg_factor() const { return phi_reg_factor(pest_scenario->get_pestpp_options().get_ies_reg_factor()); }
 	vector<string> oreal_names,preal_names;
 	Pest* pest_scenario;
 	FileManager* file_manager;
@@ -363,8 +369,16 @@ public:
 		double _reg_factor);
 
 	void solve(int num_threads, double cur_lam, bool use_glm_form, ParameterEnsemble& pe_upgrade, unordered_map<string, pair<vector<string>, vector<string>>>& loc_map);
+    //ensemble information filter upgrade: builds the gain from the supplied prior
+    //covariance and an ensemble-regressed observation operator, instead of from
+    //sample cross-covariances.  cur_lam damps the PRIOR precision.
+    void solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade);
     void solve_multimodal(int num_threads, double cur_lam, bool use_glm_form, ParameterEnsemble& pe_upgrade, unordered_map<string,pair<vector<string>, vector<string>>>& loc_map, double mm_alpha);
     void update_multimodal_components(const double mm_alpha);
+    //ies_use_prior_prec: the p x p prior precision the glm solve should use in place of
+    //the ensemble pseudo-inverse.  owned by EnsembleMethod (it outlives this solver, which
+    //is rebuilt every iteration) and null when the option is off
+    void set_prior_prec(const Eigen::SparseMatrix<double>* q) { prior_prec = q; }
 
 
 private:
@@ -378,7 +392,18 @@ private:
 	ObservationEnsemble& oe, base_oe, weights;
 	Localizer& localizer;
 	Covariance& parcov;
+	//conditional-independence graph and the sparse prior precision estimated on
+	//it; empty unless ies_enif_graph is supplied
+	EnifGraph enif_graph;
+	//the sparse H and its unexplained variance depend only on the ensemble, not on
+	//lambda, and one solver serves every lambda of an iteration - so fit them once
+	bool enif_h_ready = false;
+	Eigen::SparseMatrix<double> enif_H;
+	Eigen::VectorXd enif_unexp;
+	//the noise inflation report is the same for every lambda too, so once per iteration
+	bool enif_inflate_reported = false;
 	Eigen::MatrixXd& Am;
+	const Eigen::SparseMatrix<double>* prior_prec = nullptr;
 	L2PhiHandler& ph;
 	unordered_map<string, Eigen::VectorXd> par_resid_map, obs_resid_map, Am_map;
 	unordered_map<string, Eigen::VectorXd> par_diff_map, obs_diff_map, obs_err_map;
@@ -477,6 +502,15 @@ public:
                            const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& parcov_inv,
                            const vector<string>& act_obs_names,const vector<string>& act_par_names, double _reg_factor,
                            double mm_weight_sum = -1.0);
+    //the same glm step with an explicit prior precision Q in both the hessian and the
+    //gradient (ies_use_prior_prec).  par_diff, par_resid are raw (unscaled) p x N, obs_diff,
+    //obs_resid n x N; upgrade_1 comes back N x p like ensemble_solution
+    static void ensemble_solution_prec(const int iter, const int verbose_level, const int maxsing,
+                           const bool use_approx, const double cur_lam, const double eigthresh,
+                           Eigen::MatrixXd& par_resid, Eigen::MatrixXd& par_diff,
+                           const Eigen::SparseMatrix<double>& Q, Eigen::MatrixXd& obs_resid,
+                           Eigen::MatrixXd& obs_diff, Eigen::MatrixXd& upgrade_1,
+                           const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights, double _reg_factor);
 protected:
 	PerformanceLog* performance_log;
 	Localizer::How how;
@@ -542,11 +576,16 @@ public:
 	int get_num_reals() const { return current_num_reals; }
 	/// is reinflation in use at this point in the schedule?
 	bool is_active() const { return current_n_iter != 0; }
+	/// solver for the current reinflation cycle: "ies", "esmda" or "enif", or empty when
+	/// ies_reinflate_solver was not given and ies_use_mda / ies_use_enif decide as before
+	string get_solver() const { return current_solver; }
 
 private:
 	vector<int> n_iter_reinflate;
 	vector<double> reinflate_factor;
 	vector<int> reinflate_num_reals;
+	vector<string> reinflate_solver;
+	string current_solver;
 	int iters_since = 0;
 	int idx = 0;
 	int current_n_iter = 0;
@@ -650,6 +689,32 @@ struct UpgradeContext
 	 */
 	bool defer_candidate_release = false;
 };
+
+/* Put prior parameter anomalies into the space Chen and Oliver (2013) eq 5 works
+in: delta_m_pr = C_sc^-1/2 (m_pr - mean) / sqrt(Ne-1).  C_sc is diagonal and holds
+the prior variance of each parameter, so this is a row scaling by 1/sqrt(var).
+
+This matters because of what happens NEXT: get_Am() takes a truncated SVD of the
+result, and the truncation keeps different directions in scaled space than in raw
+space.  That is the whole reason the paper scales before the SVD.  A parameter
+with no prior variance - fixed or tied - passes through unscaled rather than
+becoming inf. */
+Eigen::MatrixXd scale_prior_anomalies(const Eigen::MatrixXd& anomalies,
+	const Eigen::VectorXd& prior_var);
+
+
+/* C_sc^-1/2 as a plain vector: one over the square root of each prior variance.
+
+This is what UpgradeThread::ensemble_solution() means by its parcov_inv argument,
+and it is worth having in ONE place.  Three call sites used to build it inline and
+they drifted: the multimodal path handed over a plain reciprocal (C_sc^-1) instead,
+so its scaling never cancelled against the C_sc^1/2 back-transform.  Two of the
+others branched on isdiagonal() with opposite conditions and identical bodies,
+which was harmless only because every MatType stores a square matrix.
+
+A parameter with no prior variance - fixed or tied - gets 1.0 rather than inf. */
+Eigen::VectorXd prior_inv_sqrt_diag(Covariance& parcov);
+
 
 class EnsembleMethod
 {
@@ -811,6 +876,15 @@ public:
     void reinflate_par_ensemble(double reinflate_factor,int reinflate_num_reals,
                                 int center_on_min_phi = -1);
 
+	/// pick the solver for the solves that follow: "ies", "esmda", "enif", or empty to go back
+	/// to what ies_use_mda / ies_use_enif say.  set by the ies loop from ies_reinflate_solver
+	void set_active_solver(const string& solver) { active_solver = solver; }
+	string get_active_solver() const { return active_solver; }
+	/// start a fresh esmda inflation schedule at the next esmda solve, spread over seg_len
+	/// iterations.  used when the loop switches into esmda from another solver or after a
+	/// reinflation, so the schedule is not indexed from iteration 1 of the whole run
+	void begin_mda_segment(int seg_len) { mda_restart = true; mda_seg_len = seg_len; }
+
 protected:
 	string alg_tag;
 	Pest& pest_scenario;
@@ -825,7 +899,8 @@ protected:
 	Covariance parcov, obscov;
 	// live reg factor magnitude for the upgrade calc (abs of the option; a negative option
 	// value signals 'full solution' but still uses the magnitude). Was a cached member.
-	double get_reg_factor() const { double r = pest_scenario.get_pestpp_options().get_ies_reg_factor(); return r < 0.0 ? -r : r; }
+	//|ies_reg_factor|, the weight on the prior pull in the upgrade (0 means 1, see ensemble_solution)
+	double get_reg_factor() const { return L2PhiHandler::upgrade_reg_factor(pest_scenario.get_pestpp_options().get_ies_reg_factor()); }
 	// live verbosity - was cached at initialize(), so bumping it mid-run did nothing
 	int get_verbose_level() const { return pest_scenario.get_pestpp_options().get_ies_verbose_level(); }
 	// live thread count - each solve() spins its own pool, so this is safe to change per iteration
@@ -847,6 +922,28 @@ protected:
 	vector<double> best_mean_phis;
 	double best_phi_yet;
 	vector<double> mda_lambdas;
+	// esmda schedule segment: the schedule is built over mda_seg_len iterations starting at
+	// iteration mda_seg_start.  the defaults (start 1, length noptmax) are the whole run, which
+	// is what every run without ies_reinflate_solver gets
+	int mda_seg_start = 1;
+	int mda_seg_len = -1;
+	bool mda_restart = false;
+	// empty means the solver comes from ies_use_mda / ies_use_enif
+	string active_solver;
+	// true when the enif solve should be used for this iteration
+	bool use_enif_solve() const {
+		if (active_solver.empty())
+			return pest_scenario.get_pestpp_options().get_ies_use_enif();
+		return active_solver == "enif";
+	}
+	// true when any stage of the run uses esmda, either through ies_use_mda or the solver list
+	bool any_mda_solve() const {
+		if (pest_scenario.get_pestpp_options().get_ies_reinflate_solver().empty())
+			return pest_scenario.get_pestpp_options().get_ies_use_mda();
+		for (auto& s : pest_scenario.get_pestpp_options().get_ies_reinflate_solver())
+			if (s == "esmda") return true;
+		return false;
+	}
 	vector<string> obs_dyn_state_names, par_dyn_state_names;
 	map<string,string> final2init_par_state_names;
 	int consec_bad_lambda_cycles;
@@ -894,6 +991,11 @@ protected:
 	vector<int> resolve_subset_idxs(const vector<string>& names, const vector<string>& current_names) const;
 
 	Eigen::MatrixXd get_Am(const vector<string>& real_names, const vector<string>& par_names);
+	//ies_use_prior_prec: the prior precision, built once (graph estimate from the prior
+	//ensemble, or the parcov inverse) and handed to every EnsembleSolver after that
+	Eigen::SparseMatrix<double> prior_prec;
+	bool prior_prec_ready = false;
+	void initialize_prior_prec();
 
 
 	void zero_weight_obs(vector<string>& obs_to_zero_weight, bool update_obscov = true, bool update_oe_base = true);
