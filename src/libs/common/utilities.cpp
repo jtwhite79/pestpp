@@ -2308,6 +2308,20 @@ bool try_remove_quit_file()
 }
 
 
+bool CmdLine::version_only(int argc, char* argv[])
+{
+	if (argc != 2)
+		return false;
+	string arg = argv[1];
+	transform(arg.begin(), arg.end(), arg.begin(), ::tolower);
+	if ((arg != "-v") && (arg != "--version"))
+		return false;
+	//just the number - no banner, no "processing command line" - so it can be captured
+	cout << string(PESTPP_VERSION) << endl;
+	return true;
+}
+
+
 CmdLine::CmdLine(int argc, char* argv[]) :
 	ctl_file_name(""), panther_host_name(""), panther_port(""), 
 	runmanagertype(RunManagerType::SERIAL),org_cmdline_str(""),
@@ -2323,6 +2337,14 @@ CmdLine::CmdLine(int argc, char* argv[]) :
 #ifdef OS_MAC
     opersys = "apple";
 #endif
+	//a version request is answered before anything is echoed, so stdout carries the version
+	//number alone.  the mains check version_only() themselves ahead of their banners and
+	//never get here with one - this is for anything else that builds a CmdLine directly
+	if (version_only(argc, argv))
+	{
+		version_requested = true;
+		return;
+	}
 for (int i = 0; i < argc; ++i)
 	{
 		org_cmdline_str.append(" ");
@@ -2335,15 +2357,6 @@ for (int i = 0; i < argc; ++i)
 	for (vector<string>::iterator it = lower_cmdline_vec.begin(); it != lower_cmdline_vec.end(); ++it)
 	{
 		transform(it->begin(), it->end(), it->begin(), ::tolower);
-	}
-
-	// check for version flag before anything else
-	if (org_cmdline_vec.size() == 2 && (lower_cmdline_vec[1] == "-v" || lower_cmdline_vec[1] == "--version"))
-	{
-		string version = PESTPP_VERSION;
-		cout << version << endl;
-		version_requested = true;
-		return;
 	}
 
 	if (org_cmdline_vec.size() >= 2)

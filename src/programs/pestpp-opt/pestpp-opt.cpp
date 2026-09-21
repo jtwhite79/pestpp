@@ -56,6 +56,9 @@ int main(int argc, char* argv[])
 	try
 	{
 #endif
+		//-v / --version: the version number alone on stdout, before any banner
+		if (CmdLine::version_only(argc, argv))
+			return 0;
 		string version = PESTPP_VERSION;
 		cout << endl << endl;
 		cout << "             pestpp-opt - a tool for chance-constrained linear programming" << endl << endl;// , version " << version << endl << endl;

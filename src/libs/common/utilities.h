@@ -510,6 +510,12 @@ public:
 	bool version_requested = false;
 	RunManagerType runmanagertype;
 
+	/// true when the command line is just `-v` or `--version`.  when it is, the version
+	/// number and nothing else has been written to stdout, so `pestpp-ies --version` can be
+	/// captured by a script.  each main() calls this before it prints its banner and returns
+	/// 0 if it answers true - that ordering is the whole point, the constructor is too late.
+	static bool version_only(int argc, char* argv[]);
+
 	void startup_report(ostream& s,string start_string);
 private:
 	void throw_cmdline_error(string message);

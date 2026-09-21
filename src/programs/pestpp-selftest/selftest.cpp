@@ -21,6 +21,7 @@
 #include <fstream>
 #include <limits>
 #include <filesystem>
+#include "config_os.h"
 #include "pest_data_structs.h"
 #include "Pest.h"
 #include "FileManager.h"
@@ -2970,6 +2971,48 @@ static void test_irls_reweight()
     CHK(w0.size() == 5 && w0.at("ZO1") == 2.0, "irls: w0 holds the control file weights");
 }
 
+static void test_cmdline_version_only()
+{
+    cout << "[command line: -v / --version answers with the version alone]" << endl;
+    // version_only() writes the version to stdout when it says yes, so capture cout to
+    // check that the number - and nothing else - is what comes out
+    auto ask = [](vector<string> args, string& out)
+    {
+        vector<char*> argv;
+        for (auto& a : args) argv.push_back(&a[0]);
+        stringstream cap;
+        streambuf* old = cout.rdbuf(cap.rdbuf());
+        bool yes = pest_utils::CmdLine::version_only((int)argv.size(), argv.data());
+        cout.rdbuf(old);
+        out = cap.str();
+        return yes;
+    };
+    string out;
+    for (string flag : {"-v", "--version", "-V", "--VERSION"})
+    {
+        CHK(ask({"pestpp-ies", flag}, out), "version_only says yes to " + flag);
+        CHK(out == string(PESTPP_VERSION) + "\n", "and writes the version number alone for " + flag);
+    }
+    CHK(!ask({"pestpp-ies", "pest.pst"}, out) && out.empty(), "a control file name is not a version request, and nothing is written");
+    CHK(!ask({"pestpp-ies", "--version", "pest.pst"}, out) && out.empty(), "the flag with anything else after it is not a version request");
+    CHK(!ask({"pestpp-ies", "pest.pst", "-v"}, out) && out.empty(), "nor is a trailing -v");
+    CHK(!ask({"pestpp-ies"}, out) && out.empty(), "nor is no argument at all");
+
+    // the constructor answers the same way for anything that builds a CmdLine directly:
+    // version alone on stdout, flag set, and no echo of the command line
+    {
+        vector<string> args = {"pestpp-ies", "--version"};
+        vector<char*> argv;
+        for (auto& a : args) argv.push_back(&a[0]);
+        stringstream cap;
+        streambuf* old = cout.rdbuf(cap.rdbuf());
+        pest_utils::CmdLine cl((int)argv.size(), argv.data());
+        cout.rdbuf(old);
+        CHK(cl.version_requested, "the constructor sets version_requested");
+        CHK(cap.str() == string(PESTPP_VERSION) + "\n", "the constructor writes the version alone, no 'processing command line' echo");
+    }
+}
+
 // a test that throws should count as a failure that names itself, not take the
 // whole selftest down with it - which is what happened on the windows ci runners,
 // where an uncaught exception is a silent exit 127.  every test goes through here
@@ -3041,6 +3084,7 @@ int main()
     signal(SIGFPE, on_signal);
     signal(SIGILL, on_signal);
     run_test(test_registry_equivalence, "test_registry_equivalence");
+    run_test(test_cmdline_version_only, "test_cmdline_version_only");
     run_test(test_irls_reweight, "test_irls_reweight");
     run_test(test_enif_inflation_report, "test_enif_inflation_report");
     run_test(test_generic_access, "test_generic_access");

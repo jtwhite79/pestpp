@@ -2334,6 +2334,8 @@ def version_flag_test():
     """test that all pestpp executables support -v and --version flags"""
     exe_names = ["pestpp-ies", "pestpp-glm", "pestpp-sen", "pestpp-swp",
                  "pestpp-opt", "pestpp-da", "pestpp-mou", "pestpp-sqp"]
+    import re
+    versions = set()
     for flag in ["-v", "--version"]:
         for exe_name in exe_names:
             ep = exe_path.replace("pestpp-ies", exe_name)
@@ -2343,10 +2345,25 @@ def version_flag_test():
             result = subprocess.run([ep, flag], capture_output=True, text=True)
             assert result.returncode == 0, \
                 "{0} {1} returned non-zero exit code: {2}".format(exe_name, flag, result.returncode)
-            version_str = result.stdout.strip().split('\n')[-1].strip()
-            assert len(version_str) > 0, \
-                "{0} {1} produced no version output".format(exe_name, flag)
+            # the version number and nothing else: no banner, no "processing command line",
+            # so that `pestpp-ies --version` can be captured by a script
+            lines = [l for l in result.stdout.splitlines() if len(l.strip()) > 0]
+            assert len(lines) == 1, \
+                "{0} {1} wrote {2} lines to stdout, expected the version alone: {3}".format(
+                    exe_name, flag, len(lines), lines)
+            version_str = lines[0].strip()
+            assert re.match(r"^\d+\.\d+\.\d+\S*$", version_str), \
+                "{0} {1} -> '{2}' does not look like a version".format(exe_name, flag, version_str)
+            versions.add(version_str)
             print("{0} {1} -> '{2}'".format(exe_name, flag, version_str))
+    assert len(versions) <= 1, "executables disagree on the version: {0}".format(versions)
+    # and it is the one in config_os.h, the single place it is defined
+    cfg = os.path.join("..", "src", "libs", "common", "config_os.h")
+    if os.path.exists(cfg) and len(versions) == 1:
+        m = re.search(r'#define\s+PESTPP_VERSION\s+"([^"]+)"', open(cfg).read())
+        assert m is not None, "PESTPP_VERSION not found in " + cfg
+        assert m.group(1) == list(versions)[0], \
+            "--version says {0} but config_os.h says {1}".format(list(versions)[0], m.group(1))
 
 
 # ------------------------------------------------------------------------------------------

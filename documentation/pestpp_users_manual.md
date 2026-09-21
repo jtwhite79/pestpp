@@ -3,7 +3,7 @@
 
 # <a id='s1' />PEST++ Users Manual
 
-Version 6.0.0a2
+Version 6.0.0a4
 
 <img src="./media/image2.png" style="width:6.26806in;height:3.05972in" />
 

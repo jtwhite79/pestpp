@@ -51,6 +51,9 @@ int main(int argc, char* argv[])
 #ifndef _DEBUG
 	try {
 #endif
+        //-v / --version: the version number alone on stdout, before any banner
+        if (CmdLine::version_only(argc, argv))
+        	return 0;
         string version = PESTPP_VERSION;
         cout << endl << endl;
         cout << "             pestpp-ies: a GLM iterative ensemble smoother" << endl << endl;
