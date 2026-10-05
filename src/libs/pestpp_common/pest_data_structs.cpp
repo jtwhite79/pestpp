@@ -526,6 +526,10 @@ PestppOptions::ARG_STATUS PestppOptions::assign_value_by_key_legacy(string key, 
 	{
 		convert_ip(value, glm_irls_start_iter);
 	}
+	else if (key == "GLM_IRLS_MAX_DEV")
+	{
+		convert_ip(value, glm_irls_max_dev);
+	}
 	else if (key == "GLM_REBASE_SUPER")
 	{
 		cout << "++GLM_REBASE_SUPER is deprecated and no longer supported (svd-assist has been "
@@ -2155,6 +2159,7 @@ void PestppOptions::summary_legacy(ostream& os) const
 	os << "glm_accept_mc_phi: " << glm_accept_mc_phi << endl;
 	os << "glm_irls_eps: " << glm_irls_eps << endl;
 	os << "glm_irls_start_iter: " << glm_irls_start_iter << endl;
+	os << "glm_irls_max_dev: " << glm_irls_max_dev << endl;
 	os << "glm_iter_mc: " << glm_iter_mc << endl;
 	os << "glm_high_2nd_iter_phi: " << glm_debug_high_2nd_iter_phi << endl;
 
@@ -2434,6 +2439,7 @@ void PestppOptions::set_defaults_legacy()
 	set_glm_accept_mc_phi(false);
 	set_glm_irls_eps(-1.0);
 	set_glm_irls_start_iter(1);
+	set_glm_irls_max_dev(-1);
 	set_glm_iter_mc(false);
     set_glm_debug_high_2nd_iter_phi(false);
 	set_glm_hp_lambdas(false);
@@ -3051,8 +3057,8 @@ void ControlInfo::set_defaults()
 		phiredstp(0.0), nphistp(0), nphinored(0), relparstp(0.0), nrelpar(0), noptswitch(0),
 		splitswh(0.0), pestmode(PestMode::ESTIMATION) {}*/
 
-	facparmax = 1.1;
-	relparmax = 1.0;
+	facparmax = 10.0;
+	relparmax = 10.0;
 	facorig = 0.001;
 	phiredswh = 0.1;
 	noptmax = 0;

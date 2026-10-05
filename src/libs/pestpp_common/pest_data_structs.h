@@ -317,6 +317,8 @@ public:
 	void set_glm_irls_eps(double _eps) { glm_irls_eps = _eps; }
 	int get_glm_irls_start_iter() const { return glm_irls_start_iter; }
 	void set_glm_irls_start_iter(int _iter) { glm_irls_start_iter = _iter; }
+	int get_glm_irls_max_dev() const { return glm_irls_max_dev; }
+	void set_glm_irls_max_dev(int _n) { glm_irls_max_dev = _n; }
     bool get_glm_iter_mc() const { return glm_iter_mc; }
     void set_glm_iter_mc(bool _flag) { glm_iter_mc = _flag; }
     bool get_glm_debug_high_2nd_iter_phi() const {return glm_debug_high_2nd_iter_phi;}
@@ -891,9 +893,12 @@ private:
 	bool glm_debug_real_fail;
 	bool glm_accept_mc_phi;
 	//irls (l1) reweighting of the regularization prior info: eps > 0 turns it on and is the
-	//residual floor, start_iter is the first iteration whose end gets reweighted
+	//residual floor, start_iter is the first iteration whose end gets reweighted.  max_dev >= 0
+	//solves for the floor each reweight so at most that many equations sit above it, with eps
+	//as the minimum floor
 	double glm_irls_eps;
 	int glm_irls_start_iter;
+	int glm_irls_max_dev;
 	bool glm_iter_mc;
 	bool glm_debug_high_2nd_iter_phi;
 	bool glm_hp_lambdas;

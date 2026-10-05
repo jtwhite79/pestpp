@@ -2971,6 +2971,114 @@ static void test_irls_reweight()
     CHK(w0.size() == 5 && w0.at("ZO1") == 2.0, "irls: w0 holds the control file weights");
 }
 
+static void test_irls_max_dev()
+{
+    cout << "[irls: solving the floor for a cap on deviations]" << endl;
+    // six regul equations with distinct residuals 0, 0.1 .. 0.5, plus a tie pair, a zero weight
+    // one and a non-regul one that must never count
+    auto build = [](PriorInformation& pi, Parameters& pars)
+    {
+        pi.clear();
+        pi.AddRecord("e0 1.0 * p0 = 0.0 1.0 regul");
+        pi.AddRecord("e1 1.0 * p1 = 0.0 1.0 regul");
+        pi.AddRecord("e2 1.0 * p2 = 0.0 2.0 regul");
+        pi.AddRecord("e3 1.0 * p3 = 0.0 1.0 regul");
+        pi.AddRecord("e4 1.0 * p4 = 0.0 1.0 regul");
+        pi.AddRecord("e5 1.0 * p5 = 0.0 1.0 regul");
+        pi.AddRecord("ez 1.0 * p5 = 0.0 0.0 regul");
+        pi.AddRecord("ob 1.0 * p5 = 0.0 3.0 obsgrp");
+        pars.clear();
+        for (int i = 0; i < 6; i++)
+            pars.insert("P" + to_string(i), 0.1 * i);
+    };
+    PriorInformation pi;
+    Parameters pars;
+    map<string, double> w0;
+    double eps_min = 0.01;
+
+    // cap 2: floor rises to the third largest |r| = 0.3, so 0.4 and 0.5 are active
+    build(pi, pars); w0.clear();
+    PriorInformation::IrlsStats st = pi.irls_reweight(pars, eps_min, w0, 2);
+    CHK(abs(st.eps - 0.3) < 1e-12, "cap 2: floor is the 3rd largest residual");
+    CHK(st.n_active == 2, "cap 2: two equations active");
+    CHK(st.n_floor == 3, "cap 2: three strictly below the floor (0, 0.1, 0.2)");
+    CHK(st.n == 6, "cap 2: six eligible equations, zero weight and non-regul excluded");
+    CHK(abs(pi.get_pi_rec("E5").get_weight() - 1.0 / sqrt(0.5)) < 1e-12, "cap 2: active equation keeps w0/sqrt(|r|)");
+    CHK(abs(pi.get_pi_rec("E3").get_weight() - 1.0 / sqrt(0.3)) < 1e-12, "cap 2: the equation at the floor gets w0/sqrt(eps)");
+    CHK(abs(pi.get_pi_rec("E0").get_weight() - 1.0 / sqrt(0.3)) < 1e-12, "cap 2: zero residual shares the floor weight");
+    CHK(abs(pi.get_pi_rec("E2").get_weight() - 2.0 / sqrt(0.3)) < 1e-12, "cap 2: floor weight scales with w0");
+    CHK(pi.get_pi_rec("EZ").get_weight() == 0.0 && pi.get_pi_rec("OB").get_weight() == 3.0, "cap 2: zero weight and non-regul untouched");
+    // weights are monotone: bigger residual never gets a bigger weight
+    bool mono = true;
+    for (int i = 0; i < 5; i++)
+        if (pi.get_pi_rec("E" + to_string(i)).get_weight() / w0.at("E" + to_string(i)) <
+            pi.get_pi_rec("E" + to_string(i + 1)).get_weight() / w0.at("E" + to_string(i + 1)) - 1e-12)
+            mono = false;
+    CHK(mono, "cap 2: reweight factor never increases with |r|");
+
+    // cap 0: everything at the floor, floor = largest residual, all factors equal -> plain l2
+    build(pi, pars); w0.clear();
+    st = pi.irls_reweight(pars, eps_min, w0, 0);
+    CHK(abs(st.eps - 0.5) < 1e-12 && st.n_active == 0, "cap 0: floor is the largest residual, nothing active");
+    CHK(abs(st.fmin - st.fmax) < 1e-12, "cap 0: one common factor, the penalty is quadratic again");
+
+    // cap >= n: the floor stays at the minimum, same as no cap
+    build(pi, pars); w0.clear();
+    st = pi.irls_reweight(pars, eps_min, w0, 6);
+    CHK(abs(st.eps - eps_min) < 1e-12 && st.n_active == 5, "cap 6 of 6: floor stays at eps, five above it");
+    build(pi, pars); w0.clear();
+    PriorInformation::IrlsStats st_off = pi.irls_reweight(pars, eps_min, w0, -1);
+    CHK(abs(st_off.eps - st.eps) < 1e-12 && st_off.n_active == st.n_active && st_off.n_floor == st.n_floor, "cap off (-1) matches a cap the equations never reach");
+    build(pi, pars); w0.clear();
+    st = pi.irls_reweight(pars, eps_min, w0, 60);
+    CHK(abs(st.eps - eps_min) < 1e-12, "cap far above n: floor stays at eps");
+
+    // the minimum floor wins when the cap would set a smaller one
+    build(pi, pars); w0.clear();
+    st = pi.irls_reweight(pars, 0.35, w0, 2);
+    CHK(abs(st.eps - 0.35) < 1e-12 && st.n_active == 2, "cap 2 with eps 0.35: minimum floor above the order statistic wins");
+    build(pi, pars); w0.clear();
+    st = pi.irls_reweight(pars, 0.45, w0, 2);
+    CHK(abs(st.eps - 0.45) < 1e-12 && st.n_active == 1, "cap 2 with eps 0.45: fewer than the cap active, never more");
+
+    // ties at the cut: equal residuals all land at the floor, so active stays under the cap
+    build(pi, pars); w0.clear();
+    pars.update_rec("P3", 0.4);  // now 0.4 twice
+    st = pi.irls_reweight(pars, eps_min, w0, 2);
+    CHK(abs(st.eps - 0.4) < 1e-12 && st.n_active == 1, "tie at the cut: floor is the tied value, one active");
+    st = pi.irls_reweight(pars, eps_min, w0, 1);
+    CHK(abs(st.eps - 0.4) < 1e-12 && st.n_active == 1, "cap 1 with a tie just below: one active");
+
+    // all residuals zero (the zeroth order start): floor stays at eps, nothing active, all equal
+    build(pi, pars); w0.clear();
+    for (int i = 0; i < 6; i++)
+        pars.update_rec("P" + to_string(i), 0.0);
+    st = pi.irls_reweight(pars, eps_min, w0, 2);
+    CHK(abs(st.eps - eps_min) < 1e-12 && st.n_active == 0 && st.n_floor == 6, "all zero residuals: floor at eps, all six at floor");
+    CHK(abs(pi.get_pi_rec("E1").get_weight() - 1.0 / sqrt(eps_min)) < 1e-12, "all zero residuals: every weight is w0/sqrt(eps)");
+
+    // a second pass at new parameters solves a new floor from w0, not from the last weights
+    build(pi, pars); w0.clear();
+    pi.irls_reweight(pars, eps_min, w0, 2);
+    for (int i = 0; i < 6; i++)
+        pars.update_rec("P" + to_string(i), 0.2 * i);
+    st = pi.irls_reweight(pars, eps_min, w0, 2);
+    CHK(abs(st.eps - 0.6) < 1e-12, "second pass: floor re-solved from the new residuals");
+    CHK(abs(pi.get_pi_rec("E5").get_weight() - 1.0 / sqrt(1.0)) < 1e-12, "second pass: weight from w0, no compounding");
+    // and the same parameters twice give the same weights
+    st = pi.irls_reweight(pars, eps_min, w0, 2);
+    CHK(abs(st.eps - 0.6) < 1e-12 && abs(pi.get_pi_rec("E5").get_weight() - 1.0) < 1e-12, "repeat at the same parameters: identical");
+
+    // huge residual spread and a non-finite one: the bad one is skipped, the rest still solve
+    build(pi, pars); w0.clear();
+    pars.update_rec("P5", 1e12);
+    pars.update_rec("P4", numeric_limits<double>::quiet_NaN());
+    st = pi.irls_reweight(pars, eps_min, w0, 1);
+    CHK(st.n == 5, "nan residual: that equation is skipped");
+    CHK(abs(st.eps - 0.3) < 1e-12 && st.n_active == 1, "nan residual: cap solved over the finite ones (floor 0.3, 1e12 active)");
+    CHK(std::isfinite(pi.get_pi_rec("E5").get_weight()) && pi.get_pi_rec("E5").get_weight() > 0.0, "huge residual: finite positive weight");
+}
+
 static void test_cmdline_version_only()
 {
     cout << "[command line: -v / --version answers with the version alone]" << endl;
@@ -3086,6 +3194,7 @@ int main()
     run_test(test_registry_equivalence, "test_registry_equivalence");
     run_test(test_cmdline_version_only, "test_cmdline_version_only");
     run_test(test_irls_reweight, "test_irls_reweight");
+    run_test(test_irls_max_dev, "test_irls_max_dev");
     run_test(test_enif_inflation_report, "test_enif_inflation_report");
     run_test(test_generic_access, "test_generic_access");
     run_test(test_mutability, "test_mutability");
