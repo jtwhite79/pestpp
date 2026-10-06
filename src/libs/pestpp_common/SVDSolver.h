@@ -135,6 +135,13 @@ public:
 		double lambda, Parameters& active_ctl_upgrade_pars, Parameters& upgrade_active_ctl_del_pars,
 		Parameters& grad_active_ctl_del_pars);
 
+	//the column scaling for GLM_NORMAL_FORM=JACOBI: 1/sqrt(diag(JtQJ)) per parameter, with the
+	//scale set to zero - the parameter held fixed for this upgrade - when its diagonal is zero
+	//or its relative sensitivity is below rel_sen_thresh times the ref_quantile quantile of the
+	//nonzero relative sensitivities.  split out so the selftest can reach it without a model
+	static Eigen::VectorXd jacobi_scaling(const Eigen::VectorXd& jtqj_diag, const Eigen::VectorXd& rel_sen,
+		double rel_sen_thresh, double ref_quantile, int& num_frozen);
+
 protected:
 	class Upgrade {
 	public:

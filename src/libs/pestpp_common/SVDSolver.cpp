@@ -466,6 +466,35 @@ VectorXd SVDSolver::calc_residual_corrections(const Jacobian &jacobian, const Pa
 }
 
 
+Eigen::VectorXd SVDSolver::jacobi_scaling(const Eigen::VectorXd& jtqj_diag, const Eigen::VectorXd& rel_sen,
+	double rel_sen_thresh, double ref_quantile, int& num_frozen)
+{
+	if (rel_sen.size() != jtqj_diag.size())
+		throw runtime_error("SVDSolver::jacobi_scaling(): diag and relative sensitivity vectors differ in length");
+	vector<double> pos_rel_sen;
+	for (int i = 0; i < rel_sen.size(); i++)
+		if ((rel_sen(i) > 0.0) && (jtqj_diag(i) > 0.0))
+			pos_rel_sen.push_back(rel_sen(i));
+	double ref_rel_sen = 0.0;
+	if (!pos_rel_sen.empty())
+	{
+		size_t k = (size_t)(ref_quantile * (pos_rel_sen.size() - 1));
+		nth_element(pos_rel_sen.begin(), pos_rel_sen.begin() + k, pos_rel_sen.end());
+		ref_rel_sen = pos_rel_sen[k];
+	}
+	Eigen::VectorXd S_diag = Eigen::VectorXd::Zero(jtqj_diag.size());
+	num_frozen = 0;
+	for (int i = 0; i < jtqj_diag.size(); i++)
+	{
+		if ((jtqj_diag(i) > 0.0) && (rel_sen(i) >= rel_sen_thresh * ref_rel_sen))
+			S_diag(i) = 1.0 / sqrt(jtqj_diag(i));
+		else
+			num_frozen++;
+	}
+	return S_diag;
+}
+
+
 void SVDSolver::calc_lambda_upgrade_vec_JtQJ(const Jacobian &jacobian, const QSqrtMatrix &Q_sqrt, const DynamicRegularization &regul,
 	const Eigen::VectorXd &Residuals, const vector<string> &obs_name_vec,
 	const Parameters &base_active_ctl_pars, const Parameters &prev_frozen_active_ctl_pars,
@@ -524,22 +553,18 @@ void SVDSolver::calc_lambda_upgrade_vec_JtQJ(const Jacobian &jacobian, const QSq
 		}
 		else
 		{
-			//Jacobi column scaling: S = diag(1/sqrt(diag(JtQJ))) computed directly.
-			//works with severe ill-conditioning; dead columns (zero diagonal) get S=1.
+			//Jacobi column scaling: S = diag(1/sqrt(diag(JtQJ))) computed directly.  parameters with
+			//a zero diagonal are held fixed (S = 0): a zero-sensitivity column carries no gradient, and
+			//leaving it in the solve with S = 1 let it drift at round-off (4e-7 on the ten-par fixture).
+			//parameters whose relative sensitivity is negligible this iteration are held fixed too,
+			//otherwise their huge S produces steps that overflow on back-transformation.  relative
+			//sensitivity is diag(JtQJ)_i * p_i^2 for untransformed pars and diag(JtQJ)_i for log pars
+			//(already unitless), so parameters that are only small in absolute terms because of their
+			//units are kept.  the threshold is relative to the 90th percentile of the nonzero relative
+			//sensitivities, not the maximum: a few dominant parameters can exceed the rest by orders of
+			//magnitude and would otherwise freeze most of a large parameter set.
 			performance_log->log_event("computing Jacobi scaling directly from diag(JtQJ)");
 			VectorXd jtqj_diag = JtQJ.diagonal();
-			S_diag = VectorXd::Ones(jtqj_diag.size());
-			for (int i = 0; i < jtqj_diag.size(); i++)
-				if (jtqj_diag(i) > 0.0)
-					S_diag(i) = 1.0 / sqrt(jtqj_diag(i));
-
-			//freeze (S=0) parameters whose relative sensitivity is negligible this iteration, otherwise
-			//their huge S produces steps that overflow on back-transformation. relative sensitivity is
-			//diag(JtQJ)_i * p_i^2 for untransformed pars and diag(JtQJ)_i for log pars (already unitless),
-			//so parameters that are only small in absolute terms because of their units are kept.
-			//the threshold is relative to the 90th percentile of the nonzero relative sensitivities, not
-			//the maximum: a few dominant parameters can exceed the rest by orders of magnitude and would
-			//otherwise freeze most of a large parameter set.
 			const double rel_sen_thresh = 1.0e-6;
 			const double rel_sen_ref_quantile = 0.9;
 			const ParameterInfo &pi = pest_scenario.get_ctl_parameter_info();
@@ -556,28 +581,13 @@ void SVDSolver::calc_lambda_upgrade_vec_JtQJ(const Jacobian &jacobian, const QSq
 				}
 				rel_sen(i) = jtqj_diag(i) * w;
 			}
-			vector<double> pos_rel_sen;
-			for (int i = 0; i < rel_sen.size(); i++)
-				if (rel_sen(i) > 0.0)
-					pos_rel_sen.push_back(rel_sen(i));
-			double ref_rel_sen = 0.0;
-			if (!pos_rel_sen.empty())
-			{
-				size_t k = (size_t)(rel_sen_ref_quantile * (pos_rel_sen.size() - 1));
-				nth_element(pos_rel_sen.begin(), pos_rel_sen.begin() + k, pos_rel_sen.end());
-				ref_rel_sen = pos_rel_sen[k];
-			}
 			int num_frozen = 0;
-			for (int i = 0; i < jtqj_diag.size(); i++)
-				if ((jtqj_diag(i) > 0.0) && (rel_sen(i) < rel_sen_thresh * ref_rel_sen))
-				{
-					S_diag(i) = 0.0;
-					num_frozen++;
-				}
+			S_diag = jacobi_scaling(jtqj_diag, rel_sen, rel_sen_thresh, rel_sen_ref_quantile, num_frozen);
 			if (num_frozen > 0)
 			{
 				stringstream ss;
-				ss << "JACOBI: " << num_frozen << " parameters with relative sensitivity below " << rel_sen_thresh << " x its 90th percentile held fixed for this upgrade";
+				ss << "JACOBI: " << num_frozen << " parameters with zero or negligible relative sensitivity (below " << rel_sen_thresh
+					<< " x its 90th percentile) held fixed for this upgrade";
 				performance_log->log_event(ss.str());
 			}
 		}

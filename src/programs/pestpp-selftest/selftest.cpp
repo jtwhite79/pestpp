@@ -2851,6 +2851,33 @@ static void test_ies_prior_prec_reduces_to_am()
     }
 }
 
+static void test_jacobi_scaling()
+{
+    cout << "[glm normal form jacobi: column scaling and freezes]" << endl;
+    int nf = 0;
+    // equal column norms: every scale is the same, nothing frozen - jacobi then matches diag
+    Eigen::VectorXd d = Eigen::VectorXd::Constant(5, 4.0), r = Eigen::VectorXd::Constant(5, 4.0);
+    Eigen::VectorXd S = SVDSolver::jacobi_scaling(d, r, 1.0e-6, 0.9, nf);
+    CHK((S.array() - 0.5).abs().maxCoeff() < 1e-15 && nf == 0, "equal norms: S = 1/sqrt(d) everywhere, nothing frozen");
+    // a zero diagonal is held fixed (S = 0), not given S = 1
+    d << 1.0, 4.0, 0.0, 9.0, 16.0; r = d;
+    S = SVDSolver::jacobi_scaling(d, r, 1.0e-6, 0.9, nf);
+    CHK(S(2) == 0.0 && nf == 1, "zero-sensitivity column: S = 0 and counted as frozen");
+    CHK(abs(S(0) - 1.0) < 1e-15 && abs(S(3) - 1.0 / 3.0) < 1e-15, "the others keep 1/sqrt(d)");
+    // negligible relative sensitivity against the 90th percentile is frozen; the percentile, not
+    // the max, is the reference, so one dominant parameter cannot freeze the rest
+    d = Eigen::VectorXd::Constant(12, 1.0); r = Eigen::VectorXd::Constant(12, 1.0);
+    r(0) = 1.0e12;      // one dominant parameter
+    r(11) = 1.0e-9;     // one negligible one
+    S = SVDSolver::jacobi_scaling(d, r, 1.0e-6, 0.9, nf);
+    CHK(nf == 1 && S(11) == 0.0, "only the negligible parameter is frozen");
+    CHK(S(1) == 1.0 && S(0) == 1.0, "the dominant one does not drag the rest below the threshold");
+    // a mismatch in lengths is an error, not a silent misalignment
+    bool threw = false;
+    try { SVDSolver::jacobi_scaling(d, r.head(3), 1.0e-6, 0.9, nf); } catch (...) { threw = true; }
+    CHK(threw, "length mismatch throws");
+}
+
 static void test_enif_inflation_report()
 {
     cout << "[enif inflation report: per-obs csv and per-group rec summary]" << endl;
@@ -3041,6 +3068,7 @@ int main()
     signal(SIGFPE, on_signal);
     signal(SIGILL, on_signal);
     run_test(test_registry_equivalence, "test_registry_equivalence");
+    run_test(test_jacobi_scaling, "test_jacobi_scaling");
     run_test(test_irls_reweight, "test_irls_reweight");
     run_test(test_enif_inflation_report, "test_enif_inflation_report");
     run_test(test_generic_access, "test_generic_access");
