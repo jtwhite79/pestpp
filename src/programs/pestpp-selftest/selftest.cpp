@@ -2852,6 +2852,261 @@ static void test_ies_prior_prec_reduces_to_am()
     }
 }
 
+static void test_enif_woodbury_step()
+{
+    cout << "[enif: woodbury step with an explicit sparse H matches the dense normal equations]" << endl;
+    // small enough to check against the dense form
+    //   delta = -[(1+lam) C^-1 + H^T R^-1 H]^-1 [C^-1 e + H^T R^-1 r]
+    int p = 6, n = 4, N = 3;
+    std::mt19937 gen(11);
+    std::normal_distribution<double> nd(0.0, 1.0);
+    Eigen::MatrixXd Hd = Eigen::MatrixXd::Zero(n, p);
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < p; j++)
+            if (((i + j) % 2) == 0)
+                Hd(i, j) = nd(gen);
+    Eigen::SparseMatrix<double> H = Hd.sparseView();
+    Eigen::VectorXd cdiag(p), var(n);
+    for (int j = 0; j < p; j++) cdiag[j] = 0.5 + j;
+    for (int i = 0; i < n; i++) var[i] = 0.1 * (i + 1);
+    Eigen::SparseMatrix<double> C(p, p);
+    {
+        vector<Eigen::Triplet<double>> t;
+        for (int j = 0; j < p; j++) t.push_back(Eigen::Triplet<double>(j, j, cdiag[j]));
+        C.setFromTriplets(t.begin(), t.end());
+    }
+    Eigen::MatrixXd e(p, N), r(n, N);
+    for (int j = 0; j < N; j++) { for (int i = 0; i < p; i++) e(i, j) = nd(gen); for (int i = 0; i < n; i++) r(i, j) = nd(gen); }
+    for (double lam : {0.0, 0.7, 25.0})
+    {
+        Eigen::MatrixXd got = enif_woodbury_step(H, var, C, e, r, lam);
+        Eigen::MatrixXd Cinv = cdiag.cwiseInverse().asDiagonal();
+        Eigen::MatrixXd Rinv = var.cwiseInverse().asDiagonal();
+        Eigen::MatrixXd lam_post = (1.0 + lam) * Cinv + Hd.transpose() * Rinv * Hd;
+        Eigen::MatrixXd g = Cinv * e + Hd.transpose() * Rinv * r;
+        Eigen::MatrixXd want = -lam_post.ldlt().solve(g);
+        CHK((got - want).cwiseAbs().maxCoeff() < 1e-9, "woodbury step == dense normal equations, lambda " + to_string(lam));
+    }
+    // one column at a time gives the same answer as all at once
+    Eigen::MatrixXd all = enif_woodbury_step(H, var, C, e, r, 0.7);
+    Eigen::MatrixXd one = enif_woodbury_step(H, var, C, e.col(1), r.col(1), 0.7);
+    CHK((all.col(1) - one.col(0)).cwiseAbs().maxCoeff() < 1e-12, "a single column solve matches its column of the batch solve");
+    // an empty H row (observation carries nothing) must not break the step
+    Eigen::MatrixXd Hz = Hd; Hz.row(2).setZero();
+    Eigen::SparseMatrix<double> Hzs = Hz.sparseView();
+    Eigen::MatrixXd got = enif_woodbury_step(Hzs, var, C, e, r, 0.7);
+    CHK(got.allFinite(), "an empty H row still gives a finite step");
+    bool threw = false;
+    try { enif_woodbury_step(H, var.head(2), C, e, r, 0.7); } catch (...) { threw = true; }
+    CHK(threw, "mismatched noise length throws");
+}
+
+static void test_estimate_sparse_h_divisor()
+{
+    cout << "[enif: unexplained variance divisor and stream parameter]" << endl;
+    int p = 5, n = 3, N = 8;
+    std::mt19937 gen(3);
+    std::normal_distribution<double> nd(0.0, 1.0);
+    Eigen::MatrixXd A(p, N), B(n, N);
+    for (int i = 0; i < p; i++) for (int j = 0; j < N; j++) A(i, j) = nd(gen);
+    Eigen::MatrixXd Htrue = Eigen::MatrixXd::Zero(n, p);
+    Htrue(0, 0) = 1.0; Htrue(1, 2) = -2.0; Htrue(2, 4) = 0.5;
+    B = Htrue * A;
+    for (int i = 0; i < n; i++) for (int j = 0; j < N; j++) B(i, j) += 0.05 * nd(gen);
+    stringstream s1, s2, s3;
+    Eigen::VectorXd u1, u2, u3;
+    Eigen::SparseMatrix<double> H1 = estimate_sparse_H(A, B, 0.05, 1, u1, s1);
+    Eigen::SparseMatrix<double> H2 = estimate_sparse_H(A, B, 0.05, 1, u2, s2, 0, double(N));
+    Eigen::SparseMatrix<double> H3 = estimate_sparse_H(A, B, 0.05, 2, u3, s3, 0, 2.0 * double(N));
+    CHK((Eigen::MatrixXd(H1) - Eigen::MatrixXd(H2)).cwiseAbs().maxCoeff() == 0.0, "divisor N is the default");
+    CHK((u1 - u2).cwiseAbs().maxCoeff() < 1e-14, "and gives the same unexplained variance");
+    CHK((Eigen::MatrixXd(H1) - Eigen::MatrixXd(H3)).cwiseAbs().maxCoeff() == 0.0, "the divisor does not touch H (two threads either)");
+    CHK((u3 * 2.0 - u1).cwiseAbs().maxCoeff() < 1e-12, "doubling the divisor halves the unexplained variance");
+    CHK(s1.str().find("sparse H") != string::npos, "the summary went to the stringstream, not a file");
+    // residual energy can never exceed the row's own energy, so an empty row reports the full variance
+    Eigen::VectorXd u4; stringstream s4;
+    Eigen::SparseMatrix<double> H4 = estimate_sparse_H(A, B, 1.0, 1, u4, s4);
+    CHK(H4.nonZeros() == 0, "lasso fraction 1 zeroes every row");
+    Eigen::VectorXd full = B.array().square().rowwise().sum() * double(N - 1) / double(N);
+    CHK((u4 - full).cwiseAbs().maxCoeff() < 1e-12, "empty rows report the full output variance as unexplained");
+}
+
+static void test_enif_mm_inflation_csv()
+{
+    cout << "[enif-mm: per-realization inflation csv]" << endl;
+    vector<string> reals = {"R0", "R1"}, obs = {"o1", "o2", "o3"}, groups = {"g", "g", "h"};
+    Eigen::VectorXd w0(3), w1(3), u0(3), u1(3);
+    w0 << 1.0, 2.0, 0.5;  w1 << 1.0, 1.0, 1.0;
+    u0 << 0.0, 0.25, 4.0; u1 << 1.0, 1.0, -0.5;   // a negative one is clamped to zero
+    Eigen::SparseMatrix<double> H0(3, 2), H1(3, 2);
+    {
+        vector<Eigen::Triplet<double>> t = {{0, 0, 1.0}, {0, 1, 2.0}, {2, 1, 3.0}};
+        H0.setFromTriplets(t.begin(), t.end());
+        vector<Eigen::Triplet<double>> t1 = {{1, 0, 1.0}};
+        H1.setFromTriplets(t1.begin(), t1.end());
+    }
+    auto split = [](const string& line) {
+        vector<string> out; string cur; stringstream in(line);
+        while (getline(in, cur, ',')) out.push_back(cur);
+        return out;
+    };
+    string fname = "selftest_enif_mm_inflate.csv";
+    map<string, double> mr = enif_mm_inflation_csv(reals, obs, groups, {w0, w1}, {u0, u1}, {&H0, &H1}, true, fname);
+    // R0: noise 1, 0.25, 4 ; inflated 1, 0.5, 8 ; ratios 1, 2, 2 -> mean 5/3
+    CHK(abs(mr.at("R0") - 5.0 / 3.0) < 1e-12, "mean ratio for R0");
+    // R1: noise 1,1,1 ; unexplained 1,1,0 ; ratios 2,2,1 -> mean 5/3
+    CHK(abs(mr.at("R1") - 5.0 / 3.0) < 1e-12, "mean ratio for R1 with the negative clamped");
+    ifstream f(fname);
+    string line; vector<string> lines;
+    while (getline(f, line)) lines.push_back(line);
+    CHK(lines.size() == 7, "header plus one row per (realization, observation)");
+    CHK(lines[0] == "real_name,obs_name,group,weight,noise_var,unexplained_var,inflated_var,inflate_ratio,effective_weight,h_row_nnz", "header");
+    // R0 o3: weight 0.5 -> noise 4, +4 -> 8, ratio 2, eff 1/sqrt(8), H row 2 has one entry
+    vector<string> tok = split(lines[3]);
+    CHK(tok[0] == "R0" && tok[1] == "o3" && tok[2] == "h", "row order is realization-major, observation-minor");
+    CHK(abs(stod(tok[6]) - 8.0) < 1e-9 && abs(stod(tok[7]) - 2.0) < 1e-9, "inflated variance and ratio");
+    CHK(abs(stod(tok[8]) - 1.0 / sqrt(8.0)) < 1e-9, "effective weight when applied");
+    CHK(tok[9] == "1", "h_row_nnz counts that realization's H row");
+    tok = split(lines[5]);
+    CHK(tok[0] == "R1" && tok[1] == "o2" && tok[9] == "1", "R1 o2 has the single H entry");
+    tok = split(lines[4]);
+    CHK(tok[9] == "0", "R1 o1: empty H row reported as 0");
+    // not applied: effective weight is the weight itself
+    enif_mm_inflation_csv(reals, obs, groups, {w0, w1}, {u0, u1}, {&H0, &H1}, false, fname);
+    ifstream f2(fname); lines.clear();
+    while (getline(f2, line)) lines.push_back(line);
+    tok = split(lines[3]);
+    CHK(abs(stod(tok[8]) - 0.5) < 1e-12, "effective weight is the weight when inflation is not applied");
+    remove(fname.c_str());
+    bool threw = false;
+    try { enif_mm_inflation_csv(reals, obs, groups, {w0}, {u0, u1}, {&H0, &H1}, true, fname); } catch (...) { threw = true; }
+    CHK(threw, "misaligned per-realization vectors throw");
+}
+
+static void test_enif_current_prec()
+{
+    cout << "[enif: ies_enif_current_prec option, and the precision tracking the ensemble spread]" << endl;
+    // the option parses, defaults to off, and the registry agrees with the legacy chain (self_verify
+    // runs elsewhere; here just the two ends)
+    PO o; o.set_defaults();
+    CHK(!o.get_ies_enif_current_prec(), "ies_enif_current_prec defaults to false");
+    CHK(o.assign_value_by_key("IES_ENIF_CURRENT_PREC", "true") == PO::ARG_STATUS::ARG_ACCEPTED, "parses");
+    CHK(o.get_ies_enif_current_prec(), "and is true after parsing 'true'");
+    // a 4-node chain graph in the pest ascii matrix format
+    string gf = "selftest_chain_graph.mat";
+    {
+        ofstream f(gf);
+        f << " 4 4 1\n";
+        f << " 0 1 0 0\n 1 0 1 0\n 0 1 0 1\n 0 0 1 0\n";
+        f << "* row and column names\nP1\nP2\nP3\nP4\n";
+    }
+    ofstream frec("selftest_enif_current_prec.rec");
+    vector<string> names = {"P1", "P2", "P3", "P4"};
+    EnifGraph g;
+    g.from_file(gf, names, frec);
+    CHK(g.is_initialized() && g.num_nodes() == 4 && g.num_edges() == 3, "chain graph read: 4 nodes, 3 edges");
+    // anomalies with unit spread, then the same anomalies shrunk tenfold: the precision must grow
+    // a hundredfold, which is the shrinking trust region the current-ensemble hessian relies on
+    std::mt19937 gen(5);
+    std::normal_distribution<double> nd(0.0, 1.0);
+    int N = 60;
+    Eigen::MatrixXd A(4, N);
+    for (int i = 0; i < 4; i++) for (int j = 0; j < N; j++) A(i, j) = nd(gen);
+    // give the chain some correlation so the off-diagonals are not pure noise
+    for (int j = 0; j < N; j++) { A(1, j) += 0.7 * A(0, j); A(2, j) += 0.7 * A(1, j); A(3, j) += 0.7 * A(2, j); }
+    A = (A.colwise() - A.rowwise().mean()) / sqrt(double(N - 1));
+    g.estimate_precision(A, 1.0e-3, frec);
+    Eigen::MatrixXd P1 = Eigen::MatrixXd(g.precision());
+    g.estimate_precision(0.1 * A, 1.0e-3, frec);
+    Eigen::MatrixXd P2 = Eigen::MatrixXd(g.precision());
+    CHK(P1.allFinite() && P2.allFinite(), "both precisions finite");
+    double ratio = P2.diagonal().mean() / P1.diagonal().mean();
+    CHK(abs(ratio - 100.0) / 100.0 < 0.05, "tenfold smaller spread -> hundredfold larger precision (got x" + to_string(ratio) + ")");
+    // the implied covariance of the unit-spread estimate reproduces the sample covariance on the chain
+    // the last fit was on 0.1 * A, whose covariance is 0.01 * (A A^T), so scale back up by 100
+    Eigen::MatrixXd Cimp = g.apply_cov(Eigen::MatrixXd::Identity(4, 4)) * 100.0;
+    Eigen::MatrixXd Cs = A * A.transpose();
+    // the neighbourhood regression with a stein pull is not the sample covariance, so this is a
+    // same-ballpark check, not an identity; the exact agreement is covered by the reference comparison
+    double vdev = (Cimp.diagonal() - Cs.diagonal()).cwiseAbs().maxCoeff() / Cs.diagonal().maxCoeff();
+    CHK(vdev < 0.5, "implied variances in the ballpark of the sample variances (max rel dev " + to_string(vdev) + ")");
+    // re-estimating with the same anomalies is deterministic
+    g.estimate_precision(0.1 * A, 1.0e-3, frec);
+    CHK((Eigen::MatrixXd(g.precision()) - P2).cwiseAbs().maxCoeff() == 0.0, "same anomalies, same precision");
+    // the automatic ridge (shrink < 0): finite, still scales with the spread, and a little
+    // weaker than a fixed heavy ridge, since k/(N-1) on this chain is well under 0.5
+    g.estimate_precision(A, -1.0, frec);
+    Eigen::MatrixXd Pa = Eigen::MatrixXd(g.precision());
+    g.estimate_precision(0.1 * A, -1.0, frec);
+    Eigen::MatrixXd Pa2 = Eigen::MatrixXd(g.precision());
+    CHK(Pa.allFinite() && Pa2.allFinite(), "automatic ridge: finite precisions");
+    double ratio_a = Pa2.diagonal().mean() / Pa.diagonal().mean();
+    CHK(abs(ratio_a - 100.0) / 100.0 < 0.05, "automatic ridge: tenfold smaller spread -> hundredfold precision (got x" + to_string(ratio_a) + ")");
+    PO od; od.set_defaults();
+    CHK(od.get_ies_enif_shrink() < 0.0, "ies_enif_shrink defaults to automatic");
+    // cross-validation: with 60 realizations on a 4-node chain the regressions are well
+    // determined, so the chosen ridge should be small and the precision close to the 1e-3 one
+    CHK((Pa - P1).cwiseAbs().maxCoeff() / P1.cwiseAbs().maxCoeff() < 0.25, "cv ridge on a well-determined chain stays close to the light fixed ridge");
+    // a noisy case: the same chain but only 24 realizations, where held-out error should
+    // call for more ridge than the clean case did.  read the chosen ridges off the rec
+    frec.close();
+    {
+        ofstream f2("selftest_enif_cv.rec");
+        Eigen::MatrixXd A24 = A.leftCols(24);
+        A24 = (A24.colwise() - A24.rowwise().mean()) / sqrt(23.0);
+        g.estimate_precision(A24, -1.0, f2);
+        g.estimate_precision(A, -1.0, f2);
+        f2.close();
+        ifstream r("selftest_enif_cv.rec"); string line; vector<double> medians;
+        while (getline(r, line))
+        {
+            size_t k = line.find("over nodes: ");
+            if (k == string::npos) continue;
+            // "min / median / max"
+            string rest = line.substr(k + 12);
+            double mn, md, mx; char s1, s2;
+            stringstream ss(rest); ss >> mn >> s1 >> md >> s2 >> mx;
+            medians.push_back(md);
+        }
+        CHK(medians.size() == 2, "two cv ridge report lines");
+        CHK(medians[0] >= medians[1], "fewer realizations -> cross-validation asks for at least as much ridge (24 reals " + to_string(medians[0]) + " vs 60 reals " + to_string(medians[1]) + ")");
+        remove("selftest_enif_cv.rec");
+    }
+    ofstream frec_tail("selftest_enif_current_prec.rec", ios::app);
+    // fewer than 20 realizations falls back to k/(N-1) and still gives a finite precision
+    Eigen::MatrixXd A12 = A.leftCols(12);
+    A12 = (A12.colwise() - A12.rowwise().mean()) / sqrt(11.0);
+    g.estimate_precision(A12, -1.0, frec_tail);
+    CHK(Eigen::MatrixXd(g.precision()).allFinite(), "12 realizations: k/(N-1) fallback gives a finite precision");
+    // direct neighbours only: a chain has no fill, so it must reproduce the fill-inclusive result
+    g.estimate_precision(A, 1.0e-3, frec_tail);
+    Eigen::MatrixXd Pf = Eigen::MatrixXd(g.precision());
+    g.estimate_precision(A, 1.0e-3, frec_tail, true);
+    Eigen::MatrixXd Pd = Eigen::MatrixXd(g.precision());
+    CHK((Pf - Pd).cwiseAbs().maxCoeff() == 0.0, "direct-only on a chain (no fill) matches the fill-inclusive estimate");
+    // a 4-cycle has fill (eliminating one node links its two neighbours), so direct-only
+    // uses smaller regressions and gives a different, still finite, precision
+    {
+        ofstream f(gf);
+        f << " 4 4 1\n 0 1 0 1\n 1 0 1 0\n 0 1 0 1\n 1 0 1 0\n* row and column names\nP1\nP2\nP3\nP4\n";
+    }
+    EnifGraph gc;
+    gc.from_file(gf, names, frec_tail);
+    CHK(gc.num_edges() == 4, "4-cycle read: 4 edges");
+    gc.estimate_precision(A, 1.0e-3, frec_tail);
+    Eigen::MatrixXd Pcf = Eigen::MatrixXd(gc.precision());
+    gc.estimate_precision(A, 1.0e-3, frec_tail, true);
+    Eigen::MatrixXd Pcd = Eigen::MatrixXd(gc.precision());
+    CHK(Pcf.allFinite() && Pcd.allFinite(), "4-cycle: both estimates finite");
+    CHK((Pcf - Pcd).cwiseAbs().maxCoeff() > 1e-8, "4-cycle: ignoring the fill changes the estimate");
+    frec_tail.close();
+    PO o2; o2.set_defaults();
+    CHK(!o2.get_ies_enif_direct_nbrs(), "ies_enif_direct_nbrs defaults to false");
+    CHK(o2.assign_value_by_key("IES_ENIF_DIRECT_NBRS", "true") == PO::ARG_STATUS::ARG_ACCEPTED && o2.get_ies_enif_direct_nbrs(), "and parses");
+    frec.close();
+    remove(gf.c_str()); remove("selftest_enif_current_prec.rec");
+}
+
 static void test_enif_inflation_report()
 {
     cout << "[enif inflation report: per-obs csv and per-group rec summary]" << endl;
@@ -3196,6 +3451,10 @@ int main()
     run_test(test_irls_reweight, "test_irls_reweight");
     run_test(test_irls_max_dev, "test_irls_max_dev");
     run_test(test_enif_inflation_report, "test_enif_inflation_report");
+    run_test(test_enif_woodbury_step, "test_enif_woodbury_step");
+    run_test(test_estimate_sparse_h_divisor, "test_estimate_sparse_h_divisor");
+    run_test(test_enif_mm_inflation_csv, "test_enif_mm_inflation_csv");
+    run_test(test_enif_current_prec, "test_enif_current_prec");
     run_test(test_generic_access, "test_generic_access");
     run_test(test_mutability, "test_mutability");
     run_test(test_control_info, "test_control_info");

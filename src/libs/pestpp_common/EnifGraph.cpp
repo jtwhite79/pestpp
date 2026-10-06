@@ -145,11 +145,32 @@ void EnifGraph::from_file(const string& filename, const vector<string>& par_name
 		}
 	fill_edges = (lnnz - p) - (nnz_offdiag / 2);
 
+	//the same sets without the fill: direct graph neighbours that come earlier in the
+	//ordering.  pos_of_orig inverts solve_order
+	vector<int> pos_of_orig(p);
+	for (int pos = 0; pos < p; pos++)
+		pos_of_orig[orig_of_pos[pos]] = pos;
+	direct_pred_sets.assign(p, vector<int>());
+	int max_direct = 0;
+	for (int i = 0; i < p; i++)
+	{
+		for (Eigen::SparseMatrix<double>::InnerIterator it(adj, i); it; ++it)
+		{
+			int j = (int)it.row();
+			if ((j != i) && (pos_of_orig[j] < pos_of_orig[i]))
+				direct_pred_sets[i].push_back(j);
+		}
+		sort(direct_pred_sets[i].begin(), direct_pred_sets[i].end());
+		max_direct = max(max_direct, (int)direct_pred_sets[i].size());
+	}
+
 	initialized = true;
 	report(frec);
 	frec << "...solve ordering: " << order_method << "; cholesky factor carries "
 		<< (lnnz - p) << " off-diagonal entries, " << fill_edges << " of them fill "
 		<< "beyond the " << (nnz_offdiag / 2) << " graph edges" << endl;
+	frec << "...largest predecessor set with fill: " << [&]() { size_t m = 0; for (auto& v : pred_sets) m = max(m, v.size()); return m; }()
+		<< ", direct neighbours only: " << max_direct << endl;
 }
 
 
@@ -182,7 +203,7 @@ void EnifGraph::report(ofstream& frec) const
 
 
 void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shrink,
-	ofstream& frec)
+	ofstream& frec, bool direct_only)
 {
 	stringstream ss;
 	if (!initialized)
@@ -205,12 +226,26 @@ void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shri
 	vector<Eigen::Triplet<double>> ltrips;
 	ltrips.reserve(adj.nonZeros());
 	int n_shrunk = 0, max_pred = 0, n_floored = 0;
+	//the ridge each node's regression actually got, for the rec
+	vector<double> ridges;
+	//shrink < 0 is the default: pick each node's ridge by k-fold cross-validation over
+	//the realizations.  the ridge exists to stop the regression over-fitting the
+	//ensemble, and held-out prediction error measures exactly that, so it is chosen by
+	//the thing it is for rather than by a formula.  the candidates are relative to the
+	//mean diagonal of the local gram; folds are contiguous blocks of realizations.  too
+	//few realizations to hold any out falls back to k/(N-1) per node
+	const bool cv_ridge = (shrink < 0.0);
+	const int cv_min_reals = 20;
+	const int cv_folds = 5;
+	const vector<double> cv_cands = {1.0e-3, 3.0e-3, 1.0e-2, 3.0e-2, 1.0e-1, 3.0e-1, 1.0};
+	int n_cv_fallback = 0;
 
 	for (int pos = 0; pos < p; pos++)
 	{
 		//walk the elimination ordering, not the parameter ordering
 		int i = solve_order.empty() ? pos : solve_order[pos];
-		vector<int> pred = pred_sets.empty() ? vector<int>() : pred_sets[i];
+		vector<int> pred = direct_only ? (direct_pred_sets.empty() ? vector<int>() : direct_pred_sets[i])
+			: (pred_sets.empty() ? vector<int>() : pred_sets[i]);
 
 		//A neighbourhood anywhere near the ensemble size overfits: the regression
 		//interpolates in-sample, the residual variance collapses, and since
@@ -259,9 +294,72 @@ void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shri
 			//neighbourhood grows relative to the ensemble.  a fixed shrinkage is
 			//not enough: what matters is k/N, and the penalty has to bite hardest
 			//exactly where the local gram is worst conditioned.
+			//
+			//shrink < 0 (the default) means automatic: the ridge is k/(N-1) itself,
+			//the number of predictors over the samples, per node.  on the hkpp
+			//problem with the precision from the current ensemble a fixed 1e-3 let
+			//the regressions over-fit a contracted ensemble, the hessian claimed
+			//more certainty than the ensemble had, and only heavily damped steps
+			//still reduced phi; a sweep put the useful value near k/(N-1) (0.1 for
+			//the rook graph at N=50) with 0.5 already too much.  a positive shrink
+			//is the old behaviour: a user floor, with kfrac^2 underneath it.
 			double kfrac = (double)pred.size() / (double)max(1, nreal - 1);
-			double eff_shrink = max(shrink, kfrac * kfrac);
 			double tr = G.trace() / (double)pred.size();
+			double eff_shrink;
+			if (!cv_ridge)
+				eff_shrink = max(shrink, kfrac * kfrac);
+			else if (nreal < cv_min_reals)
+			{
+				eff_shrink = kfrac;
+				n_cv_fallback++;
+			}
+			else
+			{
+				//k-fold: for each candidate, fit on the other folds, score the held-out
+				//columns, keep the candidate with the smallest total held-out error
+				Eigen::VectorXd ai = anomalies.row(i).transpose();
+				double best_err = -1.0;
+				eff_shrink = kfrac;
+				for (double cand : cv_cands)
+				{
+					double err = 0.0;
+					for (int f = 0; f < cv_folds; f++)
+					{
+						int lo = (f * nreal) / cv_folds, hi = ((f + 1) * nreal) / cv_folds;
+						int ntr = nreal - (hi - lo);
+						if ((ntr < 2) || (hi <= lo))
+							continue;
+						Eigen::MatrixXd Atr(pred.size(), ntr), Ate(pred.size(), hi - lo);
+						Eigen::VectorXd btr(ntr), bte(hi - lo);
+						int c = 0;
+						for (int j = 0; j < nreal; j++)
+						{
+							if ((j >= lo) && (j < hi))
+							{
+								Ate.col(j - lo) = Ap.col(j);
+								bte[j - lo] = ai[j];
+							}
+							else
+							{
+								Atr.col(c) = Ap.col(j);
+								btr[c] = ai[j];
+								c++;
+							}
+						}
+						Eigen::MatrixXd Gtr = Atr * Atr.transpose();
+						double trtr = Gtr.trace() / (double)pred.size();
+						Gtr.diagonal().array() += max(cand * trtr, 1.0e-12 * max(trtr, 1.0));
+						Eigen::VectorXd btrial = Gtr.ldlt().solve(Atr * btr);
+						err += (bte - Ate.transpose() * btrial).squaredNorm();
+					}
+					if ((best_err < 0.0) || (err < best_err))
+					{
+						best_err = err;
+						eff_shrink = cand;
+					}
+				}
+			}
+			ridges.push_back(eff_shrink);
 			G.diagonal().array() += max(eff_shrink * tr, 1.0e-12 * max(tr, 1.0));
 			Eigen::VectorXd rhs = Ap * anomalies.row(i).transpose();
 			b = G.ldlt().solve(rhs);
@@ -301,7 +399,16 @@ void EnifGraph::estimate_precision(const Eigen::MatrixXd& anomalies, double shri
 		<< " non-zeros, density " << setprecision(4)
 		<< (100.0 * (double)prec.nonZeros() / ((double)p * (double)p)) << " percent" << endl;
 	frec << "...largest neighbourhood used: " << max_pred << " of " << nreal
-		<< " realizations" << endl;
+		<< " realizations" << (direct_only ? "  (direct graph neighbours only, fill ignored: the factor is "
+			"not exact, the regressions are sized to the ensemble)" : "") << endl;
+	if (!ridges.empty())
+	{
+		sort(ridges.begin(), ridges.end());
+		string how = cv_ridge ? (n_cv_fallback > 0 ? "k/(N-1), too few realizations to cross-validate"
+			: "cross-validated, " + to_string(cv_folds) + " folds") : "user floor " + to_string(shrink);
+		frec << "...regression ridge (" << how << ") min / median / max over nodes: " << setprecision(3)
+			<< ridges.front() << " / " << ridges[ridges.size() / 2] << " / " << ridges.back() << endl;
+	}
 	if (n_shrunk > 0)
 		frec << "...WARNING: " << n_shrunk << " nodes had more neighbours than the "
 		<< "ensemble can support and were truncated to " << ((nreal - 1) / 2)
@@ -328,7 +435,7 @@ Eigen::MatrixXd EnifGraph::apply_cov(const Eigen::MatrixXd& M) const
 
 Eigen::MatrixXd EnifGraph::information_step(const Eigen::SparseMatrix<double>& H,
 	const Eigen::VectorXd& rinv, const Eigen::MatrixXd& e,
-	const Eigen::MatrixXd& resid, double lam, ofstream& frec) const
+	const Eigen::MatrixXd& resid, double lam, ostream& frec) const
 {
 	if (!prec_ready)
 		throw runtime_error("EnifGraph::information_step(): precision not estimated");
@@ -430,12 +537,14 @@ static void lasso_cd(const Eigen::MatrixXd& X, const Eigen::VectorXd& cnorm,
 //k-fold cross-validation, then a refit on every realization
 static Eigen::SparseMatrix<double> estimate_sparse_H_cv(const Eigen::MatrixXd& A,
 	const Eigen::MatrixXd& B, int cv_folds, int num_threads,
-	Eigen::VectorXd& unexplained, ofstream& frec)
+	Eigen::VectorXd& unexplained, ostream& frec, double unexp_divisor)
 {
 	int p = (int)A.rows();
 	int nreal = (int)A.cols();
 	int nobs = (int)B.rows();
 	unexplained.setZero(nobs);
+	if (unexp_divisor <= 0.0)
+		unexp_divisor = (double)nreal;
 	int nfold = max(2, min(cv_folds, nreal));
 	const int n_alphas = 50;
 	const double alpha_eps = 1.0e-3;
@@ -529,7 +638,7 @@ static Eigen::SparseMatrix<double> estimate_sparse_H_cv(const Eigen::MatrixXd& A
 			if ((x[j] != 0.0) && (asd[j] > 0.0))
 				h[j] = x[j] * bsd / asd[j];
 		Eigen::VectorXd res = B.row(i).transpose() - A.transpose() * h;
-		unexplained[i] = res.squaredNorm() * (double)(nreal - 1) / (double)nreal;
+		unexplained[i] = res.squaredNorm() * (double)(nreal - 1) / unexp_divisor;
 		for (int j = 0; j < p; j++)
 			if (h[j] != 0.0)
 				row_trips[i].push_back(Eigen::Triplet<double>(i, j, h[j]));
@@ -579,15 +688,17 @@ static Eigen::SparseMatrix<double> estimate_sparse_H_cv(const Eigen::MatrixXd& A
 
 Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
 	const Eigen::MatrixXd& B, double lasso_frac, int num_threads,
-	Eigen::VectorXd& unexplained, ofstream& frec, int cv_folds)
+	Eigen::VectorXd& unexplained, ostream& frec, int cv_folds, double unexp_divisor)
 {
 	if (cv_folds > 0)
-		return estimate_sparse_H_cv(A, B, cv_folds, num_threads, unexplained, frec);
+		return estimate_sparse_H_cv(A, B, cv_folds, num_threads, unexplained, frec, unexp_divisor);
 
 	int p = (int)A.rows();
 	int nreal = (int)A.cols();
 	int nobs = (int)B.rows();
 	unexplained.setZero(nobs);
+	if (unexp_divisor <= 0.0)
+		unexp_divisor = (double)nreal;
 
 	//squared norms of each parameter's anomaly vector - the coordinate descent
 	//denominators, computed once
@@ -634,8 +745,9 @@ Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
 			if (max_chg < 1.0e-10)
 				break;
 		}
-		//residual variance is what the observation error gets inflated by
-		unexplained[i] = r.squaredNorm() * (double)(nreal - 1) / (double)nreal;
+		//residual variance is what the observation error gets inflated by.  the
+		//anomalies carry a 1/sqrt(nreal-1), so r^2 (nreal-1) is the raw sum of squares
+		unexplained[i] = r.squaredNorm() * (double)(nreal - 1) / unexp_divisor;
 		for (int j = 0; j < p; j++)
 			if (x[j] != 0.0)
 				row_trips[i].push_back(Eigen::Triplet<double>(i, j, x[j]));
@@ -675,6 +787,79 @@ Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
 	frec << "...mean unexplained variance per observation: "
 		<< unexplained.mean() << endl;
 	return H;
+}
+
+
+Eigen::MatrixXd enif_woodbury_step(const Eigen::SparseMatrix<double>& H,
+	const Eigen::VectorXd& noise_var, const Eigen::SparseMatrix<double>& C,
+	const Eigen::MatrixXd& e, const Eigen::MatrixXd& resid, double lam)
+{
+	int n = (int)H.rows();
+	int p = (int)H.cols();
+	if ((C.rows() != p) || (C.cols() != p))
+		throw runtime_error("enif_woodbury_step(): prior covariance is not p x p");
+	if ((noise_var.size() != n) || (resid.rows() != n) || (e.rows() != p))
+		throw runtime_error("enif_woodbury_step(): H, noise, e and resid sizes disagree");
+	double s = 1.0 / (1.0 + lam);
+	//C_lam H^T: only the non-zero rows of H touch C
+	Eigen::SparseMatrix<double> CHt_s = (C * H.transpose()).eval();
+	Eigen::MatrixXd CHt = s * Eigen::MatrixXd(CHt_s);
+	Eigen::MatrixXd G = Eigen::MatrixXd(H * CHt);
+	G.diagonal() += noise_var;
+	Eigen::LDLT<Eigen::MatrixXd> g_fact(G);
+	if (g_fact.info() != Eigen::Success)
+		throw runtime_error("enif_woodbury_step(): failed to factor the innovation covariance");
+	Eigen::MatrixXd He = H * e;
+	return -((s * (e - (CHt * g_fact.solve(He)))) + (CHt * g_fact.solve(resid)));
+}
+
+
+map<string, double> enif_mm_inflation_csv(const vector<string>& real_names,
+	const vector<string>& obs_names, const vector<string>& groups,
+	const vector<Eigen::VectorXd>& weights, const vector<Eigen::VectorXd>& unexplained,
+	const vector<const Eigen::SparseMatrix<double>*>& H, bool applied,
+	const string& csv_filename)
+{
+	int nreal = (int)real_names.size();
+	int nobs = (int)obs_names.size();
+	if (((int)weights.size() != nreal) || ((int)unexplained.size() != nreal) || ((int)H.size() != nreal))
+		throw runtime_error("enif_mm_inflation_csv(): per-realization vectors are not aligned with real_names");
+	if ((int)groups.size() != nobs)
+		throw runtime_error("enif_mm_inflation_csv(): groups not aligned with obs_names");
+	ofstream csv(csv_filename);
+	if (!csv.good())
+		throw runtime_error("enif_mm_inflation_csv(): error opening " + csv_filename);
+	csv << "real_name,obs_name,group,weight,noise_var,unexplained_var,inflated_var,inflate_ratio,effective_weight,h_row_nnz" << endl;
+	csv << setprecision(10);
+	map<string, double> mean_ratio;
+	for (int k = 0; k < nreal; k++)
+	{
+		const Eigen::VectorXd& w = weights[k];
+		const Eigen::VectorXd& u = unexplained[k];
+		if ((w.size() != nobs) || (u.size() != nobs) || (H[k] == nullptr) || (H[k]->rows() != nobs))
+			throw runtime_error("enif_mm_inflation_csv(): realization '" + real_names[k] + "' vectors not aligned with obs_names");
+		//row counts of a compressed row-major or column-major sparse matrix: walk the non-zeros once
+		vector<int> row_nnz(nobs, 0);
+		for (int oc = 0; oc < H[k]->outerSize(); oc++)
+			for (Eigen::SparseMatrix<double>::InnerIterator it(*H[k], oc); it; ++it)
+				if (it.value() != 0.0)
+					row_nnz[it.row()]++;
+		double rsum = 0.0;
+		for (int i = 0; i < nobs; i++)
+		{
+			double noise = (w[i] > 0.0) ? 1.0 / (w[i] * w[i]) : 0.0;
+			double uv = max(0.0, u[i]);
+			double inflated = noise + uv;
+			double ratio = (noise > 0.0) ? inflated / noise : 0.0;
+			double eff = applied ? ((inflated > 0.0) ? 1.0 / sqrt(inflated) : 0.0) : w[i];
+			csv << real_names[k] << "," << obs_names[i] << "," << groups[i] << "," << w[i] << "," << noise << ","
+				<< uv << "," << inflated << "," << ratio << "," << eff << "," << row_nnz[i] << endl;
+			rsum += ratio;
+		}
+		mean_ratio[real_names[k]] = (nobs > 0) ? rsum / (double)nobs : 0.0;
+	}
+	csv.close();
+	return mean_ratio;
 }
 
 

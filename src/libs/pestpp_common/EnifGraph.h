@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <ostream>
+#include <map>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/OrderingMethods>
@@ -56,7 +58,12 @@ public:
 	of the cholesky-like factor.  shrink is a stein-type pull toward the
 	diagonal, needed when a node's neighbourhood approaches the ensemble size. */
 	void estimate_precision(const Eigen::MatrixXd& anomalies, double shrink,
-		ofstream& frec);
+		ofstream& frec, bool direct_only = false);
+	//shrink < 0 (the default): ridge per node by 5-fold cross-validation over the
+	//realizations, k/(N-1) when there are fewer than 20.  direct_only regresses each
+	//node on its direct graph neighbours alone and ignores the fill the factorisation
+	//adds: the factor is then not exact, but every regression has a k the ensemble can
+	//support - on a 25x25 grid the fill turned a rook's 4 neighbours into 24
 
 	/* apply the implied prior covariance: returns C * M, computed as
 	solve(Lam, M) so the covariance is never formed */
@@ -73,7 +80,7 @@ public:
 	needs.  returns the upgrade (p x N). */
 	Eigen::MatrixXd information_step(const Eigen::SparseMatrix<double>& H,
 		const Eigen::VectorXd& rinv, const Eigen::MatrixXd& e,
-		const Eigen::MatrixXd& resid, double lam, ofstream& frec) const;
+		const Eigen::MatrixXd& resid, double lam, ostream& frec) const;
 
 	bool is_initialized() const { return initialized; }
 	bool has_precision() const { return prec_ready; }
@@ -97,6 +104,9 @@ private:
 	string order_method;
 	vector<int> solve_order;
 	vector<vector<int>> pred_sets;
+	//the direct graph neighbours that precede each node in the ordering: pred_sets
+	//without the fill
+	vector<vector<int>> direct_pred_sets;
 	int fill_edges = 0;
 	Eigen::SparseMatrix<double> adj;
 	Eigen::SparseMatrix<double> prec;
@@ -125,10 +135,33 @@ penalty for each observation is picked by cv_folds-fold cross-validation over th
 realizations, along a path of penalties with warm starts, then refit on all of
 them.  lasso_frac is not used then.  on raw anomalies a fixed penalty lets
 parameters whose spread has collapsed in, and H ends up interpolating the
-ensemble, which leaves the unexplained-variance inflation with nothing to do. */
+ensemble, which leaves the unexplained-variance inflation with nothing to do.
+
+unexp_divisor is what the raw residual sum of squares is divided by to get the
+unexplained variance.  the default (anything <= 0) is the number of columns,
+which is what the mean-centred fit wants.  the realization-centred fit passes
+the number of columns that actually carry a deviation (its centre column is
+identically zero), or the weight sum when the columns are weighted.
+
+frec is any ostream, so threads can each write to their own stringstream. */
 Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
 	const Eigen::MatrixXd& B, double lasso_frac, int num_threads,
-	Eigen::VectorXd& unexplained, ofstream& frec, int cv_folds = 0);
+	Eigen::VectorXd& unexplained, ostream& frec, int cv_folds = 0,
+	double unexp_divisor = -1.0);
+
+/* the enif update with an explicit sparse H and the supplied prior covariance C,
+by woodbury, so no p x p inverse is formed:
+
+    C_lam = C / (1 + lam),   G = diag(noise_var) + H C_lam H^T
+    delta = -[ (e - C_lam H^T G^-1 H e) / (1 + lam) + C_lam H^T G^-1 resid ]
+
+this is the same step solve_enif takes on its covariance path, with H given
+instead of carried implicitly as B M A^T.  e and resid are p x N and n x N, so
+one column gives one realization.  noise_var is the per-observation noise
+variance, already inflated if that is wanted. */
+Eigen::MatrixXd enif_woodbury_step(const Eigen::SparseMatrix<double>& H,
+	const Eigen::VectorXd& noise_var, const Eigen::SparseMatrix<double>& C,
+	const Eigen::MatrixXd& e, const Eigen::MatrixXd& resid, double lam);
 
 /* per observation group summary of the noise inflation */
 struct EnifInflateGroupStats
@@ -155,5 +188,19 @@ map<string, EnifInflateGroupStats> enif_inflation_report(
 	const vector<string>& obs_names, const vector<string>& groups,
 	const Eigen::VectorXd& weights, const Eigen::VectorXd& unexplained,
 	bool applied, int iter, const string& csv_filename, ofstream& frec);
+
+/* the per-realization version of that report, for the multimodal enif solve where
+every realization has its own H, its own weights and its own unexplained variance.
+one row per (realization, observation) in long form: real_name, obs_name, group,
+weight, noise_var, unexplained_var, inflated_var, inflate_ratio, effective_weight
+and h_row_nnz (how many parameters that realization's H row touches; 0 means the
+lasso left the row empty and the observation is all noise for that realization).
+weights, unexplained and H are aligned with real_names.  returns the mean inflate
+ratio per realization, which is what the rec summary and the selftest want. */
+map<string, double> enif_mm_inflation_csv(const vector<string>& real_names,
+	const vector<string>& obs_names, const vector<string>& groups,
+	const vector<Eigen::VectorXd>& weights, const vector<Eigen::VectorXd>& unexplained,
+	const vector<const Eigen::SparseMatrix<double>*>& H, bool applied,
+	const string& csv_filename);
 
 #endif // ENIFGRAPH_H_

@@ -704,6 +704,10 @@ public:
     void set_ies_enif_h_cv_folds(int _n) { ies_enif_h_cv_folds = _n; }
     double get_ies_enif_shrink() const { return ies_enif_shrink; }
     void set_ies_enif_shrink(double _f) { ies_enif_shrink = _f; }
+    bool get_ies_enif_current_prec() const { return ies_enif_current_prec; }
+    void set_ies_enif_current_prec(bool _f) { ies_enif_current_prec = _f; }
+    bool get_ies_enif_direct_nbrs() const { return ies_enif_direct_nbrs; }
+    void set_ies_enif_direct_nbrs(bool _f) { ies_enif_direct_nbrs = _f; }
     string get_ies_enif_order() const { return ies_enif_order; }
     void set_ies_enif_order(string _s) { ies_enif_order = _s; }
     bool get_ies_enif_save_h() const { return ies_enif_save_h; }
@@ -1110,6 +1114,13 @@ private:
 	double ies_enif_h_lasso;
 	int ies_enif_h_cv_folds;
 	double ies_enif_shrink;
+	//hessian built from the CURRENT ensemble (precision re-estimated on the graph each
+	//iteration, or the ensemble covariance in place of parcov) instead of the prior.  only
+	//meaningful with ies_use_approx, where the prior enters the step through the hessian alone
+	bool ies_enif_current_prec;
+	//regress each node on its direct graph neighbours only when estimating the precision,
+	//ignoring the fill of the factorisation
+	bool ies_enif_direct_nbrs;
 	string ies_enif_order;
 	bool ies_enif_save_h;
 	bool ies_use_prior_prec;
