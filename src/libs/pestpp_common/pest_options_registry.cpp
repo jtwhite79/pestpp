@@ -37,7 +37,7 @@ const std::vector<OptionSpec>& PestppOptions::get_option_registry()
     static const std::vector<OptionSpec> R = {
     OptionSpec{ "SVD_PACK", {}, OptType::CUSTOM, "general", false,
         [](PestppOptions& o,const string& value,const string& org_value)->PestppOptions::ARG_STATUS{ if(value=="PROPACK"){cout<<"++SVD_PACK(PROPACK) is deprecated, resorting to REDSVD"<<endl;o.set_svd_pack(PestppOptions::REDSVD);}else if(value=="REDSVD")o.set_svd_pack(PestppOptions::REDSVD);else if(value=="EIGEN"||value=="JACOBI")o.set_svd_pack(PestppOptions::EIGEN);else if(value=="BDCSVD")o.set_svd_pack(PestppOptions::BDCSVD);else return PestppOptions::ARG_STATUS::ARG_INVALID; return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
-        [](PestppOptions& o){ o.set_svd_pack(PestppOptions::SVD_PACK::REDSVD); },
+        [](PestppOptions& o){ o.set_svd_pack(PestppOptions::SVD_PACK::BDCSVD); },
         [](const PestppOptions& o)->string{ switch(o.get_svd_pack()){case PestppOptions::PROPACK:return "propack";case PestppOptions::REDSVD:return "redsvd";case PestppOptions::BDCSVD:return "bdcsvd";default:return "eigen";} } },
     OptionSpec{ "MAX_RUN_FAIL", {}, OptType::INT, "general", false,
         [](PestppOptions& o,const string& value,const string&)->PestppOptions::ARG_STATUS{ int x; convert_ip(value,x); o.set_max_run_fail(x); return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
