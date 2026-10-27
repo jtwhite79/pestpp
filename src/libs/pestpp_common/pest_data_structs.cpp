@@ -2454,7 +2454,7 @@ os << endl << "...pestpp-swp options:" << endl;
 void PestppOptions::set_defaults_legacy()
 {
 
-	set_svd_pack(PestppOptions::SVD_PACK::REDSVD);
+	set_svd_pack(PestppOptions::SVD_PACK::BDCSVD);
 
 	
 	set_iter_summary_flag(true);
