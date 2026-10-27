@@ -36,9 +36,9 @@ const std::vector<OptionSpec>& PestppOptions::get_option_registry()
 {
     static const std::vector<OptionSpec> R = {
     OptionSpec{ "SVD_PACK", {}, OptType::CUSTOM, "general", false,
-        [](PestppOptions& o,const string& value,const string& org_value)->PestppOptions::ARG_STATUS{ if(value=="PROPACK"){cout<<"++SVD_PACK(PROPACK) is deprecated, resorting to REDSVD"<<endl;o.set_svd_pack(PestppOptions::REDSVD);}else if(value=="REDSVD")o.set_svd_pack(PestppOptions::REDSVD);else if(value=="EIGEN"||value=="JACOBI")o.set_svd_pack(PestppOptions::EIGEN);else return PestppOptions::ARG_STATUS::ARG_INVALID; return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
+        [](PestppOptions& o,const string& value,const string& org_value)->PestppOptions::ARG_STATUS{ if(value=="PROPACK"){cout<<"++SVD_PACK(PROPACK) is deprecated, resorting to REDSVD"<<endl;o.set_svd_pack(PestppOptions::REDSVD);}else if(value=="REDSVD")o.set_svd_pack(PestppOptions::REDSVD);else if(value=="EIGEN"||value=="JACOBI")o.set_svd_pack(PestppOptions::EIGEN);else if(value=="BDCSVD")o.set_svd_pack(PestppOptions::BDCSVD);else return PestppOptions::ARG_STATUS::ARG_INVALID; return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
         [](PestppOptions& o){ o.set_svd_pack(PestppOptions::SVD_PACK::REDSVD); },
-        [](const PestppOptions& o)->string{ switch(o.get_svd_pack()){case PestppOptions::PROPACK:return "propack";case PestppOptions::REDSVD:return "redsvd";default:return "eigen";} } },
+        [](const PestppOptions& o)->string{ switch(o.get_svd_pack()){case PestppOptions::PROPACK:return "propack";case PestppOptions::REDSVD:return "redsvd";case PestppOptions::BDCSVD:return "bdcsvd";default:return "eigen";} } },
     OptionSpec{ "MAX_RUN_FAIL", {}, OptType::INT, "general", false,
         [](PestppOptions& o,const string& value,const string&)->PestppOptions::ARG_STATUS{ int x; convert_ip(value,x); o.set_max_run_fail(x); return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
         [](PestppOptions& o){ o.set_max_run_fail(3); },
@@ -588,6 +588,10 @@ const std::vector<OptionSpec>& PestppOptions::get_option_registry()
         [](PestppOptions& o,const string& value,const string&)->PestppOptions::ARG_STATUS{ o.set_ies_enif_hybrid_damp(pest_utils::parse_string_arg_to_bool(value)); return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
         [](PestppOptions& o){ o.set_ies_enif_hybrid_damp(false); },
         [](const PestppOptions& o)->string{ return std::to_string(o.get_ies_enif_hybrid_damp()?1:0); } },
+    OptionSpec{ "IES_LOCALIZER_COMBINE_COMMON", {}, OptType::BOOL, "ies", false,
+        [](PestppOptions& o,const string& value,const string&)->PestppOptions::ARG_STATUS{ o.set_ies_localizer_combine_common(pest_utils::parse_string_arg_to_bool(value)); return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
+        [](PestppOptions& o){ o.set_ies_localizer_combine_common(false); },
+        [](const PestppOptions& o)->string{ return std::to_string(o.get_ies_localizer_combine_common()?1:0); } },
     OptionSpec{ "IES_ENIF_GRAPH", {}, OptType::STRING, "ies", false,
         [](PestppOptions& o,const string& value,const string& org_value)->PestppOptions::ARG_STATUS{ o.set_ies_enif_graph(org_value); return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
         [](PestppOptions& o){ o.set_ies_enif_graph(""); },

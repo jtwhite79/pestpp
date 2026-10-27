@@ -567,7 +567,7 @@ public:
                            Eigen::MatrixXd& obs_err, const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights,
                            const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& parcov_inv,
                            const vector<string>& act_obs_names,const vector<string>& act_par_names, double _reg_factor,
-                           double mm_weight_sum = -1.0);
+                           double mm_weight_sum = -1.0, PestppOptions::SVD_PACK svd_pack = PestppOptions::REDSVD);
     //the same glm step with an explicit prior precision Q in both the hessian and the
     //gradient (ies_use_prior_prec).  par_diff, par_resid are raw (unscaled) p x N, obs_diff,
     //obs_resid n x N; upgrade_1 comes back N x p like ensemble_solution
@@ -576,7 +576,8 @@ public:
                            Eigen::MatrixXd& par_resid, Eigen::MatrixXd& par_diff,
                            const Eigen::SparseMatrix<double>& Q, Eigen::MatrixXd& obs_resid,
                            Eigen::MatrixXd& obs_diff, Eigen::MatrixXd& upgrade_1,
-                           const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights, double _reg_factor);
+                           const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights, double _reg_factor,
+                           PestppOptions::SVD_PACK svd_pack = PestppOptions::REDSVD);
 protected:
 	PerformanceLog* performance_log;
 	Localizer::How how;

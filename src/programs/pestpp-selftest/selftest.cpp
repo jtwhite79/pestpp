@@ -21,6 +21,9 @@
 #include <fstream>
 #include <limits>
 #include <filesystem>
+#include "../../libs/pestpp_common/Localizer.h"
+#include "../../libs/pestpp_common/SVDPackage.h"
+#include "../../libs/run_managers/yamr/RunManagerPanther.h"
 #include "config_os.h"
 #include "pest_data_structs.h"
 #include "Pest.h"
@@ -2852,6 +2855,161 @@ static void test_ies_prior_prec_reduces_to_am()
     }
 }
 
+static void test_svd_pack_bdcsvd()
+{
+    cout << "[svd_pack(bdcsvd): Eigen BDCSVD matches JacobiSVD through both SVD_EIGEN paths]" << endl;
+    PO o; o.set_defaults();
+    CHK(o.assign_value_by_key("SVD_PACK", "bdcsvd") == PO::ARG_STATUS::ARG_ACCEPTED, "svd_pack(bdcsvd) parses");
+    CHK(o.get_svd_pack() == PO::BDCSVD, "and selects BDCSVD");
+    PO o2; o2.set_defaults();   // a fresh object: a second assignment of one key is a duplicate
+    CHK(o2.assign_value_by_key("SVD_PACK", "eigen") == PO::ARG_STATUS::ARG_ACCEPTED && o2.get_svd_pack() == PO::EIGEN,
+        "eigen still selects the Jacobi package");
+    ofstream flog("selftest_svd_bdc.log");
+    PerformanceLog pfm(flog);
+    SVD_EIGEN jac(1000000, 1.0e-7, false), bdc(1000000, 1.0e-7, true);
+    jac.set_performance_log(&pfm);
+    bdc.set_performance_log(&pfm);
+    CHK(!jac.get_use_bdc() && bdc.get_use_bdc(), "the switch is set by the constructor");
+    CHK(bdc.description == "Eigen BDCSVD" && jac.description == "Eigen JacobiSVD", "descriptions name the factorization");
+    SVD_EIGEN copy(bdc);
+    CHK(copy.get_use_bdc(), "a copy keeps the switch");
+    // big enough that Eigen really uses divide and conquer (it falls back to Jacobi below 16 columns),
+    // rank deficient so truncation is exercised: 70 x 60 of rank 40
+    std::mt19937 gen(31);
+    std::normal_distribution<double> nd(0.0, 1.0);
+    Eigen::MatrixXd L(70, 40), R(40, 60);
+    for (int i = 0; i < 70; i++) for (int j = 0; j < 40; j++) L(i, j) = nd(gen);
+    for (int i = 0; i < 40; i++) for (int j = 0; j < 60; j++) R(i, j) = nd(gen);
+    Eigen::MatrixXd A = L * R;
+    // dense path
+    Eigen::MatrixXd Aj = A, Ab = A, Sj, Sb, Uj, Ub, Vj, Vb;
+    jac.solve_ip(Aj, Sj, Uj, Vj, 1.0e-10, 1000000);
+    bdc.solve_ip(Ab, Sb, Ub, Vb, 1.0e-10, 1000000);
+    CHK(Sj.size() == 40 && Sb.size() == 40, "dense path: both truncate to the rank, 40");
+    double ds = (Eigen::VectorXd(Sj) - Eigen::VectorXd(Sb)).cwiseAbs().maxCoeff() / Eigen::VectorXd(Sj)(0);
+    CHK(ds < 1.0e-10, "dense path: singular values agree (" + to_string(ds) + ")");
+    Eigen::MatrixXd Rb = Ub * Eigen::VectorXd(Sb).asDiagonal() * Vb.transpose();
+    double rb = (Rb - A).cwiseAbs().maxCoeff() / A.cwiseAbs().maxCoeff();
+    CHK(rb < 1.0e-10, "dense path: BDCSVD reconstructs A (" + to_string(rb) + ")");
+    // sparse path
+    Eigen::SparseMatrix<double> As = A.sparseView(), Uj2, Ub2, Vtj, Vtb;
+    Eigen::VectorXd sj, sb, tj, tb;
+    jac.solve_ip(As, sj, Uj2, Vtj, tj, 1.0e-10);
+    bdc.solve_ip(As, sb, Ub2, Vtb, tb, 1.0e-10);
+    CHK(sj.size() == sb.size() && sb.size() == 40, "sparse path: both keep 40");
+    CHK(tb.size() == 20, "sparse path: the 20 truncated values are returned");
+    double ds2 = (sj - sb).cwiseAbs().maxCoeff() / sj(0);
+    CHK(ds2 < 1.0e-10, "sparse path: singular values agree");
+    Eigen::MatrixXd Rs = Eigen::MatrixXd(Ub2) * sb.asDiagonal() * Eigen::MatrixXd(Vtb);
+    double rs = (Rs - A).cwiseAbs().maxCoeff() / A.cwiseAbs().maxCoeff();
+    CHK(rs < 1.0e-10, "sparse path: BDCSVD reconstructs A");
+}
+
+static void test_localizer_combine_common()
+{
+    cout << "[localizer: combine_common merges entries with the same nonzero pattern]" << endl;
+    typedef unordered_map<string, pair<vector<string>, vector<string>>> LMap;
+    PO o; o.set_defaults();
+    CHK(!o.get_ies_localizer_combine_common(), "ies_localizer_combine_common defaults to false");
+    CHK(o.assign_value_by_key("IES_LOCALIZER_COMBINE_COMMON", "true") == PO::ARG_STATUS::ARG_ACCEPTED, "parses");
+    CHK(o.get_ies_localizer_combine_common(), "and is true after 'true'");
+    // by parameters: three columns share {o1,o2} (one listed in the other order), one has {o1},
+    // one is a group column already holding two parameters with {o1,o2,o3}
+    LMap m;
+    m["p1"] = {{"o1", "o2"}, {"p1"}};
+    m["p2"] = {{"o2", "o1"}, {"p2"}};
+    m["p3"] = {{"o1", "o2"}, {"p3"}};
+    m["p4"] = {{"o1"}, {"p4"}};
+    m["grp"] = {{"o1", "o2", "o3"}, {"p5", "p6"}};
+    stringstream rec;
+    Localizer::CombineStats st = Localizer::combine_common(m, Localizer::How::PARAMETERS, rec);
+    CHK(st.n_in == 5 && st.n_out == 3, "five entries, three patterns -> three solves");
+    CHK(st.largest == 3, "largest combined set is three");
+    CHK(m.count("p1+2") == 1, "merged entry named after its first (sorted) member with +2");
+    CHK(m.count("p4") == 1 && m.count("grp") == 1, "singletons keep their names");
+    vector<string> want = {"p1", "p2", "p3"};
+    CHK(m["p1+2"].second == want, "merged parameters in sorted-member order");
+    CHK(m["p1+2"].first.size() == 2, "merged entry keeps one copy of the observation list");
+    CHK(rec.str().find("local solves before combining: 5") != string::npos, "summary reports the count before");
+    CHK(rec.str().find("local solves after combining:  3") != string::npos, "summary reports the count after");
+    CHK(rec.str().find("p1+2 (3 columns): p1 p2 p3") != string::npos, "summary lists the merged set and its members");
+    CHK(rec.str().find("3:1") != string::npos, "summary gives the size distribution");
+    // a near miss is not merged
+    LMap m2;
+    m2["p1"] = {{"o1", "o2"}, {"p1"}};
+    m2["p2"] = {{"o1", "o3"}, {"p2"}};
+    stringstream rec2;
+    st = Localizer::combine_common(m2, Localizer::How::PARAMETERS, rec2);
+    CHK(rec2.str().find("nothing was combined") != string::npos, "summary says so when nothing merges");
+    CHK(st.n_in == 2 && st.n_out == 2 && st.largest == 1, "different patterns stay separate");
+    // by observations: rows with the same parameter list merge their observation lists
+    LMap m3;
+    m3["o1"] = {{"o1"}, {"p1", "p2"}};
+    m3["o2"] = {{"o2"}, {"p2", "p1"}};
+    m3["o3"] = {{"o3"}, {"p1"}};
+    stringstream rec3;
+    st = Localizer::combine_common(m3, Localizer::How::OBSERVATIONS, rec3);
+    CHK(st.n_in == 3 && st.n_out == 2, "three rows, two patterns -> two solves");
+    vector<string> wobs = {"o1", "o2"};
+    CHK(m3.count("o1+1") == 1 && m3["o1+1"].first == wobs, "merged rows pool their observations");
+    // an empty map is left alone
+    LMap m4;
+    stringstream rec4;
+    st = Localizer::combine_common(m4, Localizer::How::PARAMETERS, rec4);
+    CHK(st.n_in == 0 && st.n_out == 0, "empty map -> nothing");
+    // hash-order independence: build the same map in another insertion order, same result
+    LMap m5;
+    m5["grp"] = {{"o1", "o2", "o3"}, {"p5", "p6"}};
+    m5["p4"] = {{"o1"}, {"p4"}};
+    m5["p3"] = {{"o1", "o2"}, {"p3"}};
+    m5["p2"] = {{"o2", "o1"}, {"p2"}};
+    m5["p1"] = {{"o1", "o2"}, {"p1"}};
+    stringstream rec5;
+    Localizer::combine_common(m5, Localizer::How::PARAMETERS, rec5);
+    CHK(m5.count("p1+2") == 1 && m5["p1+2"].second == want, "same merge from another insertion order");
+}
+
+static void test_overdue_decision()
+{
+    cout << "[panther: the overdue decision - giveup is per copy and unconditional, duplicates need a free agent]" << endl;
+    using A = RunManagerPanther::OverdueAction;
+    // giveup_minutes 0.25, fac 3, resched 1.15, max_run_fail 3, max concurrent 3, floor 0.01 min
+    auto dec = [](double dur, double avg, int nfail, int nconc, bool free_agent, double gmin = 0.25, double gfac = 3.0,
+                  int maxfail = 3, bool quit = false)
+    {
+        return RunManagerPanther::decide_overdue(dur, avg, nfail, nconc, free_agent, gmin, gfac, 1.15, maxfail, 3, 0.01, quit);
+    };
+    // past the minutes with agents free and a fast model: killed and requeued (this was the hang)
+    auto d = dec(0.3, 0.005, 0, 1, true);
+    CHK(d.action == A::KILL_COPY, "past giveup_minutes with free agents and a fast model -> kill this copy");
+    CHK(d.why == "giveup_minutes", "and the reason says so");
+    // same with no agents free: same answer, the gate is gone
+    CHK(dec(0.3, 0.005, 0, 1, false).action == A::KILL_COPY, "no free agents -> same kill");
+    // the failure that uses up max_run_fail kills every copy
+    CHK(dec(0.3, 0.005, 2, 1, true).action == A::KILL_ALL, "third failure -> kill all copies, run fails");
+    CHK(dec(0.3, 0.005, 0, 1, true, 0.25, 3.0, 1).action == A::KILL_ALL, "max_run_fail 1 -> first giveup kills all");
+    // the factor needs an average above the floor
+    CHK(dec(0.05, 0.004, 0, 1, true, 1.0e30, 3.0).action == A::NONE, "fac on a sub-floor average is inert");
+    d = dec(0.5, 0.1, 0, 1, true, 1.0e30, 3.0);
+    CHK(d.action == A::KILL_COPY && d.why == "giveup_fac", "3x a usable average -> giveup_fac kill");
+    CHK(dec(0.29, 0.1, 0, 1, false, 1.0e30, 3.0).action == A::NONE, "under 3x and no free agent -> nothing");
+    CHK(dec(0.29, 0.1, 0, 1, true, 1.0e30, 3.0).action == A::RESCHEDULE, "under 3x with a free agent -> only the duplicate");
+    // both bounds disabled: a long run is left alone
+    d = dec(100.0, 0.1, 0, 1, true, 1.0e30, 1.0e30);
+    CHK(d.action != A::KILL_COPY && d.action != A::KILL_ALL, "both giveups disabled -> never killed, however long");
+    // the precautionary duplicate
+    d = dec(0.13, 0.1, 0, 1, true, 1.0e30, 1.0e30);
+    CHK(d.action == A::RESCHEDULE && d.why == "resched_fac", "past 1.15x with a free agent -> duplicate");
+    CHK(dec(0.13, 0.1, 0, 1, false, 1.0e30, 1.0e30).action == A::NONE, "no free agent -> no duplicate");
+    CHK(dec(0.13, 0.1, 0, 3, true, 1.0e30, 1.0e30).action == A::NONE, "at the concurrency limit -> no duplicate");
+    CHK(dec(0.13, 0.005, 0, 1, true, 1.0e30, 1.0e30).action == A::NONE, "sub-floor average -> no duplicate");
+    // a quit file request is a giveup on every copy
+    d = dec(0.01, 0.1, 0, 1, true, 1.0e30, 1.0e30, 3, true);
+    CHK(d.action == A::KILL_COPY && d.why == "quit file", "quit file -> kill, reason quit file");
+    // the minutes bound wins the label when both are over
+    CHK(dec(0.5, 0.1, 0, 1, true, 0.25, 3.0).why == "giveup_minutes", "both over -> labelled giveup_minutes");
+}
+
 static void test_enif_woodbury_step()
 {
     cout << "[enif: woodbury step with an explicit sparse H matches the dense normal equations]" << endl;
@@ -3617,6 +3775,9 @@ int main()
     run_test(test_irls_reweight, "test_irls_reweight");
     run_test(test_irls_max_dev, "test_irls_max_dev");
     run_test(test_enif_inflation_report, "test_enif_inflation_report");
+    run_test(test_svd_pack_bdcsvd, "test_svd_pack_bdcsvd");
+    run_test(test_localizer_combine_common, "test_localizer_combine_common");
+    run_test(test_overdue_decision, "test_overdue_decision");
     run_test(test_enif_woodbury_step, "test_enif_woodbury_step");
     run_test(test_enif_lowrank_step, "test_enif_lowrank_step");
     run_test(test_enif_supplied_prec_hybrid, "test_enif_supplied_prec_hybrid");

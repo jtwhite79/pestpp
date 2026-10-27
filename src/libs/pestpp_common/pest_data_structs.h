@@ -213,7 +213,7 @@ struct OptionSpec;  // one option's metadata + accessors, defined in pest_option
 
 class PestppOptions {
 public:
-	enum SVD_PACK { EIGEN, PROPACK, REDSVD };
+	enum SVD_PACK { EIGEN, PROPACK, REDSVD, BDCSVD };
 	enum MAT_INV { Q12J, JTQJ };
 	enum class ToolType { GLM, IES, DA, MOU, SQP, OPT, SWEEP, GSA };
 	enum GLMNormalForm { IDENT,DIAG, PRIOR, HP };
@@ -712,6 +712,8 @@ public:
     void set_ies_enif_prec_file(string _s) { ies_enif_prec_file = _s; }
     bool get_ies_enif_hybrid_damp() const { return ies_enif_hybrid_damp; }
     void set_ies_enif_hybrid_damp(bool _f) { ies_enif_hybrid_damp = _f; }
+    bool get_ies_localizer_combine_common() const { return ies_localizer_combine_common; }
+    void set_ies_localizer_combine_common(bool _f) { ies_localizer_combine_common = _f; }
     string get_ies_enif_order() const { return ies_enif_order; }
     void set_ies_enif_order(string _s) { ies_enif_order = _s; }
     bool get_ies_enif_save_h() const { return ies_enif_save_h; }
@@ -1130,6 +1132,9 @@ private:
 	string ies_enif_prec_file;
 	//lambda on the current-ensemble precision instead of the prior one on the graph path
 	bool ies_enif_hybrid_damp;
+	//merge localizer columns (or rows) with the same nonzero pattern into one local solve,
+	//the way a parameter group column already is one
+	bool ies_localizer_combine_common;
 	string ies_enif_order;
 	bool ies_enif_save_h;
 	bool ies_use_prior_prec;

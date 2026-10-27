@@ -177,6 +177,27 @@ struct PantherRunTimeStats
 class RunManagerPanther : public RunManagerAbstract
 {
 public:
+	/* what to do about one copy of a run that an agent is working on, decided from the
+	numbers alone so the rule can be table-tested without sockets.
+
+	the giveup bound is per copy and unconditional: a copy past overdue_giveup_minutes, or past
+	overdue_giveup_fac times the average once there is an average worth using, is killed whether
+	or not other agents are idle.  that kill is one failure of the run; if it is the last failure
+	max_run_fail allows, every copy of the run is killed and the run fails, otherwise the run is
+	requeued.  the precautionary duplicate (overdue_resched_fac) only happens with an agent free,
+	fewer copies than the concurrency limit, and an average above the floor.  before this the
+	giveup kill needed an empty free-agent list (or max_run_fail 1), and with idle agents and a
+	fast model a hung run held the batch for ever. */
+	enum class OverdueAction { NONE, RESCHEDULE, KILL_COPY, KILL_ALL };
+	struct OverdueDecision
+	{
+		OverdueAction action = OverdueAction::NONE;
+		std::string why;
+	};
+	static OverdueDecision decide_overdue(double duration_min, double avg_min, int n_failures, int n_concurrent,
+		bool agent_free, double giveup_minutes, double giveup_fac, double resched_fac, int max_n_failure,
+		int max_concurrent, double min_avg_for_fac, bool quit_requested);
+
 	RunManagerPanther(const std::string &stor_filename, const std::string &port, std::ofstream &_f_rmr, int _max_n_failure,
 		double overdue_reched_fac, double overdue_giveup_fac, double overdue_giveup_minutes, bool _should_echo = true, const vector<string>& par_names=vector<string>(),
 		const vector<string>& obs_names=vector<string>(),int _timeout_milliseconds=10,int _echo_interval_milliseconds=10,
@@ -447,6 +468,9 @@ private:
 	string get_time_string_short();*/
 	void echo();
 	vector<int> get_overdue_runs_over_kill_threshold(int run_id);
+	//the overdue check used to run only on passes with no traffic; in a busy batch those are
+	//rare, so it also runs on a clock
+	std::chrono::steady_clock::time_point last_overdue_check;
 	bool all_runs_complete();
 	list<AgentInfoRec>::iterator get_active_run_iter(int socket);
 	std::list<std::list<AgentInfoRec>::iterator> get_free_agent_list();

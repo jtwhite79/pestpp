@@ -2258,9 +2258,10 @@ void SeqQuadProgram::dvcov_svd(const Eigen::MatrixXd& dv_anoms, Eigen::MatrixXd&
 	Eigen::MatrixXd dv_cov_matrix = 1.0 / (dv_anoms.rows() - 1.0) * (dv_anoms.transpose() * dv_anoms);
 	// honor the ++svd_pack option so a run can pin to the deterministic EIGEN (JacobiSVD)
 	// package; RedSVD is a randomized SVD and is not bit-reproducible across platforms.
-	if (pest_scenario.get_pestpp_options().get_svd_pack() == PestppOptions::EIGEN)
+	PestppOptions::SVD_PACK svd_choice = pest_scenario.get_pestpp_options().get_svd_pack();
+	if ((svd_choice == PestppOptions::EIGEN) || (svd_choice == PestppOptions::BDCSVD))
 	{
-		SVD_EIGEN svd;
+		SVD_EIGEN svd(1000000, 1.0e-7, svd_choice == PestppOptions::BDCSVD);
 		svd.set_performance_log(performance_log);
 		svd.solve_ip(dv_cov_matrix, s, U, V, pest_scenario.get_svd_info().eigthresh, pest_scenario.get_svd_info().maxsing);
 	}

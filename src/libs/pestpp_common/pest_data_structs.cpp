@@ -412,6 +412,8 @@ PestppOptions::ARG_STATUS PestppOptions::assign_value_by_key_legacy(string key, 
 			svd_pack = REDSVD;
 		else if ((value == "EIGEN") || (value == "JACOBI"))
 			svd_pack = EIGEN;
+		else if (value == "BDCSVD")
+			svd_pack = BDCSVD;
 		else
 		{
 			//throw PestParsingError(line, "Invalid ++svd_pack: \"" + value + "\"");
@@ -1235,6 +1237,11 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
     else if (key == "IES_ENIF_HYBRID_DAMP")
     {
         ies_enif_hybrid_damp = pest_utils::parse_string_arg_to_bool(value);
+        return true;
+    }
+    else if (key == "IES_LOCALIZER_COMBINE_COMMON")
+    {
+        ies_localizer_combine_common = pest_utils::parse_string_arg_to_bool(value);
         return true;
     }
     else if (key == "IES_ENIF_SHRINK")
@@ -2096,6 +2103,8 @@ void PestppOptions::summary_legacy(ostream& os) const
 		os << "redsvd" << endl;
 	if (svd_pack == EIGEN)
 		os << "eigen" << endl;
+	if (svd_pack == BDCSVD)
+		os << "bdcsvd" << endl;
 	os << "lambda_scale_fac: ";
 	for (auto s : lambda_scale_vec)
 		os << s << ",";
@@ -2384,6 +2393,7 @@ os << endl << "...pestpp-swp options:" << endl;
 	os << "ies_enif_direct_nbrs: " << ies_enif_direct_nbrs << endl;
 	os << "ies_enif_prec_file: " << ies_enif_prec_file << endl;
 	os << "ies_enif_hybrid_damp: " << ies_enif_hybrid_damp << endl;
+	os << "ies_localizer_combine_common: " << ies_localizer_combine_common << endl;
 	os << "ies_enif_order: " << ies_enif_order << endl;
 	os << "ies_enif_save_h: " << ies_enif_save_h << endl;
 	os << "ies_use_prior_prec: " << ies_use_prior_prec << endl;
@@ -2650,6 +2660,7 @@ void PestppOptions::set_defaults_legacy()
     set_ies_enif_direct_nbrs(false);
     set_ies_enif_prec_file("");
     set_ies_enif_hybrid_damp(false);
+    set_ies_localizer_combine_common(false);
     set_ies_enif_order("amd");
     set_ies_enif_save_h(false);
     set_ies_use_prior_prec(false);

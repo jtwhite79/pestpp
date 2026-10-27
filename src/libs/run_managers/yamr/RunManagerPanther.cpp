@@ -1828,14 +1828,20 @@ void RunManagerPanther::schedule_runs()
 		}
 	}
 
-	//check for overdue runs if there are no runs waiting to be processed
-	if (n_no_ops > 0)
+	//check for overdue runs when nothing arrived this pass, and in any case about once a
+	//second: in a busy batch quiet passes are rare and the hard bound would be late
+	auto now = std::chrono::steady_clock::now();
+	bool clock_due = (now - last_overdue_check) >= std::chrono::seconds(1);
+	if ((n_no_ops > 0) || clock_due)
 	{
+		last_overdue_check = now;
 		try
 		{
 			double duration, avg_runtime;
 			double global_avg_runtime = get_global_runtime_minute();
 			bool should_schedule = false;
+			int q = pest_utils::quit_file_found();
+			bool quit_requested = ((q == 1) || (q == 2) || (q == 4));
 
 			list<AgentInfoRec>::iterator it_agent, iter_e;
 			for (it_agent = agent_info_set.begin(), iter_e = agent_info_set.end();
@@ -1853,56 +1859,32 @@ void RunManagerPanther::schedule_runs()
 					avg_runtime = it_agent->get_runtime_minute();
 					if (avg_runtime <= 0) avg_runtime = global_avg_runtime;
 					if (avg_runtime <= 0) avg_runtime = 1.0E+300;
-					vector<int> overdue_kill_runs_vec = get_overdue_runs_over_kill_threshold(run_id);
-
-					if (failure_map.count(run_id) + overdue_kill_runs_vec.size() >= max_n_failure)
+					OverdueDecision decision = decide_overdue(duration, avg_runtime, (int)failure_map.count(run_id), n_concur,
+						!free_agent_list.empty(), overdue_giveup_minutes, overdue_giveup_fac, overdue_reched_fac,
+						max_n_failure, max_concurrent_runs, MIN_AVGRUNMINS_FOR_KILL, quit_requested);
+					stringstream ss;
+					ss << "overdue. duration:" << duration << ", avg:" << avg_runtime << " (" << decision.why << ")";
+					if (decision.action == OverdueAction::KILL_ALL)
 					{
-						// kill the overdue runs
-						//kill_runs(run_id, true, "overdue");
-						stringstream ss;
-						ss << "overdue. duration:" << duration << ", avg:" << avg_runtime;
-						//kill_run(it_slave, ss.str());
+						//the last attempt max_run_fail allows: every copy of this run dies and the run fails
 						record_timed_out(run_id);
 						kill_runs(run_id, true, ss.str());
 						should_schedule = false;
-						//update_run_failed(run_id, it_slave->get_socket_fd());
-						model_runs_timed_out += overdue_kill_runs_vec.size();
+						model_runs_timed_out += max(1, n_concur);
 					}
-					else if (overdue_kill_runs_vec.size() > max_concurrent_runs)
+					else if (decision.action == OverdueAction::KILL_COPY)
 					{
-						// kill the overdue runs
-						record_timed_out(run_id);
-						kill_runs(run_id, true, "overdue");
-						// reschedule runs as we still haven't reach the max failure threshold
-						// and there are not concurrent runs for this id because we just killed all of them
-						should_schedule = true;
-						model_runs_timed_out += overdue_kill_runs_vec.size();
-					}
-
-					else if (((duration > overdue_giveup_minutes) || ((duration > avg_runtime*overdue_giveup_fac) &&
-                                                                      (avg_runtime > MIN_AVGRUNMINS_FOR_KILL)))
-						&& free_agent_list.empty())
-					{
-						// If there are no free slaves kill the overdue ones
-						// This is necessary to keep runs with small numbers of slaves behaving
-						stringstream ss;
-						ss << "overdue. duration:" << duration << ", avg:" << avg_runtime;
+						//this copy dies, counted as a failure; the run goes back on the queue unless
+						//another copy of it is still running
 						record_timed_out(run_id);
 						kill_run(it_agent, ss.str());
 						update_run_failed(run_id, it_agent->get_socket_fd());
-
-						if (failure_map.count(run_id) + overdue_kill_runs_vec.size() <= max_n_failure)
-						{
-							should_schedule = true;
-						}
+						should_schedule = true;
 						model_runs_timed_out += 1;
 					}
-
-					else if ((duration > avg_runtime*overdue_reched_fac) && (avg_runtime > MIN_AVGRUNMINS_FOR_KILL))
+					else if (decision.action == OverdueAction::RESCHEDULE)
 					{
-						//check how many concurrent runs are going
-						if (n_concur < max_concurrent_runs) should_schedule = true;
-						else should_schedule = false;
+						should_schedule = true;
 					}
 
 					if ((!free_agent_list.empty()) && should_schedule)
@@ -2992,6 +2974,31 @@ void RunManagerPanther::kill_all_active_runs()
  *
  * @return Description.
  */
+RunManagerPanther::OverdueDecision RunManagerPanther::decide_overdue(double duration_min, double avg_min,
+	int n_failures, int n_concurrent, bool agent_free, double giveup_minutes, double giveup_fac,
+	double resched_fac, int max_n_failure, int max_concurrent, double min_avg_for_fac, bool quit_requested)
+{
+	OverdueDecision d;
+	bool have_avg = (avg_min > min_avg_for_fac);
+	bool over_minutes = (duration_min > giveup_minutes);
+	bool over_fac = have_avg && (duration_min > avg_min * giveup_fac);
+	if (quit_requested || over_minutes || over_fac)
+	{
+		d.why = quit_requested ? "quit file" : (over_minutes ? "giveup_minutes" : "giveup_fac");
+		//this copy dies and that is one failure of the run.  if max_run_fail allows no more
+		//attempts, the run is done; otherwise it goes back on the queue
+		d.action = (n_failures + 1 >= max_n_failure) ? OverdueAction::KILL_ALL : OverdueAction::KILL_COPY;
+		return d;
+	}
+	if (have_avg && (duration_min > avg_min * resched_fac) && agent_free && (n_concurrent < max_concurrent))
+	{
+		d.why = "resched_fac";
+		d.action = OverdueAction::RESCHEDULE;
+	}
+	return d;
+}
+
+
  vector<int> RunManagerPanther::get_overdue_runs_over_kill_threshold(int run_id)
  {
 	 vector<int> sock_id_vec;

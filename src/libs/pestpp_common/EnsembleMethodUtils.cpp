@@ -1180,11 +1180,13 @@ void EnsembleSolver::nonlocalized_solve(double cur_lam,bool use_glm_form, Parame
         //instead of the Am pseudo-inverse.  raw anomalies on purpose - see the note in
         //ensemble_solution_prec on why ies_use_prior_scaling has nothing to do here
         UpgradeThread::ensemble_solution_prec(iter,verbose_level,maxsing,use_approx,cur_lam,eigthresh,par_resid,
-                      par_diff,*prior_prec,obs_resid,obs_diff,upgrade_1,local_weights,reg_factor);
+                      par_diff,*prior_prec,obs_resid,obs_diff,upgrade_1,local_weights,reg_factor,
+                      pest_scenario.get_pestpp_options().get_svd_pack());
     }
     else
         UpgradeThread::ensemble_solution(iter,verbose_level,maxsing,0,0,use_prior_scaling,use_approx,use_glm_form,cur_lam,eigthresh,par_resid,
-                      par_diff,Am,obs_resid,obs_diff,upgrade_1,obs_err,local_weights,parcov_inv, act_obs_names,act_par_names,reg_factor,mm_weight_sum);
+                      par_diff,Am,obs_resid,obs_diff,upgrade_1,obs_err,local_weights,parcov_inv, act_obs_names,act_par_names,reg_factor,mm_weight_sum,
+                      pest_scenario.get_pestpp_options().get_svd_pack());
     pe_upgrade.add_2_cols_ip(act_par_names, upgrade_1);
 
 
@@ -2014,6 +2016,29 @@ void EnsembleSolver::message(int level, const string& _message, T extra)
 }
 
 
+//the svd of the ensemble solve, by ++svd_pack: eigen (JacobiSVD), bdcsvd (Eigen's divide and
+//conquer) or redsvd (randomized, the default).  all three truncate the same way, by eigthresh
+//relative to the largest value and by maxsing
+static void ens_svd(PestppOptions::SVD_PACK pack, Eigen::MatrixXd& A, Eigen::MatrixXd& s, Eigen::MatrixXd& U,
+	Eigen::MatrixXd& V, double eigthresh, int maxsing, PerformanceLog* plog = nullptr)
+{
+	if ((pack == PestppOptions::EIGEN) || (pack == PestppOptions::BDCSVD))
+	{
+		SVD_EIGEN svd(1000000, 1.0e-7, pack == PestppOptions::BDCSVD);
+		if (plog)
+			svd.set_performance_log(plog);
+		svd.solve_ip(A, s, U, V, eigthresh, (double)maxsing);
+	}
+	else
+	{
+		SVD_REDSVD svd;
+		if (plog)
+			svd.set_performance_log(plog);
+		svd.solve_ip(A, s, U, V, eigthresh, maxsing);
+	}
+}
+
+
 UpgradeThread::UpgradeThread(PerformanceLog* _performance_log, unordered_map<string, Eigen::VectorXd>& _par_resid_map, unordered_map<string, Eigen::VectorXd>& _par_diff_map,
                              unordered_map<string, Eigen::VectorXd>& _obs_resid_map, unordered_map<string, Eigen::VectorXd>& _obs_diff_map, unordered_map<string, Eigen::VectorXd>& _obs_err_map,
                              Localizer& _localizer, unordered_map<string, double>& _parcov_inv_map,
@@ -2044,7 +2069,7 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
                               Eigen::MatrixXd& obs_err, const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights,
                               const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& parcov_inv,
                               const vector<string>& act_obs_names,const vector<string>& act_par_names,double _reg_factor,
-                              double mm_weight_sum)
+                              double mm_weight_sum, PestppOptions::SVD_PACK svd_pack)
 {
     class local_utils
     {
@@ -2117,13 +2142,12 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
             obs_err = obs_err.colwise() - obs_err.rowwise().mean();
             obs_err = sqrt(cur_lam) * obs_err;
             Eigen::MatrixXd s0, V0, U0, s0_i;
-            SVD_REDSVD rsvd;
-            rsvd.solve_ip(obs_diff, s0, U0, V0, eigthresh, maxsing);
+            ens_svd(svd_pack, obs_diff, s0, U0, V0, eigthresh, maxsing);
             s0_i = s0.asDiagonal().inverse();
             Eigen::MatrixXd X0 = U0.transpose() * obs_err;
             X0 = s0_i * X0;
             Eigen::MatrixXd s1, V1, U1, s1_2, s1_2i;
-            rsvd.solve_ip(X0, s1, U1, V1, 0, maxsing);
+            ens_svd(svd_pack, X0, s1, U1, V1, 0, maxsing);
 
             s1_2 = s1.cwiseProduct(s1);
             s1_2i = (Eigen::VectorXd::Ones(s1_2.size()) + s1_2).asDiagonal().inverse();
@@ -2148,14 +2172,13 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
             obs_err = obs_err.colwise() - obs_err.rowwise().mean();
 
             Eigen::MatrixXd s2_, s, V, U, cum_sum;
-            SVD_REDSVD rsvd;
             Eigen::MatrixXd C;
             C = obs_diff + (sqrt(cur_lam) * obs_err); // curr_lam is the inflation factor
             local_utils::save_mat(verbose_level, thread_id, iter, t_count, "C", C);
             Eigen::VectorXd s2;
 
 
-            rsvd.solve_ip(C, s, U, V, eigthresh, maxsing);
+            ens_svd(svd_pack, C, s, U, V, eigthresh, maxsing);
             local_utils::save_mat(verbose_level, thread_id, iter, t_count, "s", s);
             local_utils::save_mat(verbose_level, thread_id, iter, t_count, "U", U);
             local_utils::save_mat(verbose_level, thread_id, iter, t_count, "V", V);
@@ -2224,9 +2247,7 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
         else
             par_diff = scale * par_diff;
         local_utils::save_mat(verbose_level, thread_id, iter, t_count, "scaled_par_diff", par_diff);
-        SVD_REDSVD rsvd;
-
-        rsvd.solve_ip(obs_diff, s, Ut, V, eigthresh, maxsing);
+        ens_svd(svd_pack, obs_diff, s, Ut, V, eigthresh, maxsing);
 
         Ut.transposeInPlace();
         //obs_diff.resize(0, 0);
@@ -2333,7 +2354,8 @@ void UpgradeThread::ensemble_solution_prec(const int iter, const int verbose_lev
                            Eigen::MatrixXd& par_resid, Eigen::MatrixXd& par_diff,
                            const Eigen::SparseMatrix<double>& Q, Eigen::MatrixXd& obs_resid,
                            Eigen::MatrixXd& obs_diff, Eigen::MatrixXd& upgrade_1,
-                           const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights, double _reg_factor)
+                           const Eigen::DiagonalMatrix<double, Eigen::Dynamic>& weights, double _reg_factor,
+                           PestppOptions::SVD_PACK svd_pack)
 {
     //the glm step of ensemble_solution with the prior written out as a precision Q.
     //in the existing form the prior enters the hessian as (1+lam) I in the anomaly
@@ -2360,8 +2382,7 @@ void UpgradeThread::ensemble_solution_prec(const int iter, const int verbose_lev
     par_diff = scale * par_diff;
 
     Eigen::MatrixXd s, Ut, V;
-    SVD_REDSVD rsvd;
-    rsvd.solve_ip(obs_diff, s, Ut, V, eigthresh, maxsing);
+    ens_svd(svd_pack, obs_diff, s, Ut, V, eigthresh, maxsing);
     Ut.transposeInPlace();
     Eigen::MatrixXd s2 = s.cwiseProduct(s);
 
@@ -2628,7 +2649,8 @@ void MmUpgradeThread::work(int thread_id, int iter, double cur_lam, bool use_glm
         //Eigen::MatrixXd upgrade_1;
         vector<string> empty_obs_names,empty_par_names;
         UpgradeThread::ensemble_solution(iter,verbose_level,maxsing,thread_id,t_count, use_prior_scaling,use_approx,use_glm_form,cur_lam,eigthresh,par_resid,par_diff,Am,obs_resid,
-                          obs_diff,upgrade_1,obs_err,weights,parcov_inv,empty_obs_names,empty_par_names,reg_factor,mm_weight_sum);
+                          obs_diff,upgrade_1,obs_err,weights,parcov_inv,empty_obs_names,empty_par_names,reg_factor,mm_weight_sum,
+                          pe_upgrade.get_pest_scenario_ptr()->get_pestpp_options().get_svd_pack());
 
 
         //assuming that the fist row is the realization we are after...
@@ -2960,7 +2982,8 @@ void LocalAnalysisUpgradeThread::work(int thread_id, int iter, double cur_lam, b
                                       Am, obs_resid,obs_diff, upgrade_1,
                                       obs_err, weights,
                                       parcov_inv,
-                                      obs_names,par_names,reg_factor,mm_weight_sum);
+                                      obs_names,par_names,reg_factor,mm_weight_sum,
+                                      pe_upgrade.get_pest_scenario_ptr()->get_pestpp_options().get_svd_pack());
 
 		
 		while (true)
@@ -6314,6 +6337,13 @@ int EnsembleMethod::initialize_prepare(int cycle, bool run, bool use_existing)
 			message(1, "using localization matrix " + localizer.get_filename());
 			localizer.report(file_manager.rec_ofstream());
 		}
+	}
+	{
+		PestppOptions::SVD_PACK pk = pest_scenario.get_pestpp_options().get_svd_pack();
+		ss.str("");
+		ss << "using svd package '" << ((pk == PestppOptions::BDCSVD) ? "bdcsvd" : ((pk == PestppOptions::EIGEN) ? "eigen" : "redsvd"))
+		   << "' for the ensemble solve (++svd_pack)";
+		message(1, ss.str());
 	}
 	if ((use_localizer) && (!localizer.get_autoadaloc()))
 	{
@@ -11188,11 +11218,8 @@ Eigen::MatrixXd EnsembleMethod::get_Am(const vector<string>& real_names, const v
 	}
 
 	Eigen::MatrixXd ivec, upgrade_1, s, V, U, st;
-	SVD_REDSVD rsvd;
-	//SVD_EIGEN rsvd;
-	rsvd.set_performance_log(performance_log);
-
-	rsvd.solve_ip(par_diff, s, U, V, pest_scenario.get_svd_info().eigthresh, pest_scenario.get_svd_info().maxsing);
+	ens_svd(pest_scenario.get_pestpp_options().get_svd_pack(), par_diff, s, U, V, pest_scenario.get_svd_info().eigthresh,
+		pest_scenario.get_svd_info().maxsing, performance_log);
 	par_diff.resize(0, 0);
 	Eigen::MatrixXd temp = s.asDiagonal().inverse();
 	Eigen::MatrixXd Am = U * temp;
