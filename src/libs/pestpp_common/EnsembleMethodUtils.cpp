@@ -1906,6 +1906,7 @@ void EnsembleSolver::solve(int num_threads, double cur_lam, bool use_glm_form, P
                                             _how, reg_factor);
     //pass the (possibly empty) multimodal realization weights for the localized multimodal path
     ut_ptr->set_real_weights(mm_current_weights);
+    ut_ptr->prepare_writeback();
     performance_log->log_event("using local analysis upgrade thread");
 
 	if ((num_threads < 1) || (loc_map.size() == 1))
@@ -2036,6 +2037,52 @@ static void ens_svd(PestppOptions::SVD_PACK pack, Eigen::MatrixXd& A, Eigen::Mat
 			svd.set_performance_log(plog);
 		svd.solve_ip(A, s, U, V, eigthresh, maxsing);
 	}
+}
+
+
+void UpgradeThread::prepare_writeback()
+{
+	col_index.clear();
+	vector<string> vnames = pe_upgrade.get_var_names();
+	col_index.reserve(vnames.size());
+	for (int i = 0; i < (int)vnames.size(); i++)
+		col_index[vnames[i]] = i;
+	//the lock-free write is only safe if no parameter is in two cases: check, once
+	vector<char> seen(vnames.size(), 0);
+	for (auto& c : cases)
+	{
+		for (auto& p : c.second.second)
+		{
+			auto it = col_index.find(p);
+			if (it == col_index.end())
+				throw runtime_error("UpgradeThread::prepare_writeback(): parameter '" + p + "' in local case '" + c.first +
+					"' is not in the upgrade ensemble");
+			if (seen[it->second])
+				throw runtime_error("UpgradeThread::prepare_writeback(): parameter '" + p +
+					"' is in more than one local case, the threaded write-back needs them disjoint");
+			seen[it->second] = 1;
+		}
+	}
+}
+
+
+int UpgradeThread::write_local_upgrade(Eigen::MatrixXd& target, const unordered_map<string, int>& col_index,
+	const vector<string>& names, const Eigen::MatrixXd& upd)
+{
+	if (upd.rows() != target.rows())
+		throw runtime_error("UpgradeThread::write_local_upgrade(): local upgrade has " + to_string(upd.rows()) +
+			" rows, the ensemble has " + to_string(target.rows()));
+	if (upd.cols() != (Eigen::Index)names.size())
+		throw runtime_error("UpgradeThread::write_local_upgrade(): local upgrade columns do not match its names");
+	for (int i = 0; i < (int)names.size(); i++)
+	{
+		//find(), never operator[]: the map is shared read-only across threads
+		auto it = col_index.find(names[i]);
+		if (it == col_index.end())
+			throw runtime_error("UpgradeThread::write_local_upgrade(): '" + names[i] + "' is not in the upgrade ensemble");
+		target.col(it->second) += upd.col(i);
+	}
+	return (int)names.size();
 }
 
 
@@ -2528,13 +2575,6 @@ void MmUpgradeThread::work(int thread_id, int iter, double cur_lam, bool use_glm
 
     //these locks are used to control (thread-safe) access to the fast look up containers
     unique_lock<mutex> next_guard(next_lock, defer_lock);
-    unique_lock<mutex> obs_diff_guard(obs_diff_lock, defer_lock);
-    unique_lock<mutex> obs_resid_guard(obs_resid_lock, defer_lock);
-    unique_lock<mutex> obs_err_guard(obs_err_lock, defer_lock);
-    unique_lock<mutex> par_diff_guard(par_diff_lock, defer_lock);
-    unique_lock<mutex> par_resid_guard(par_resid_lock, defer_lock);
-    unique_lock<mutex> weight_guard(weight_lock, defer_lock);
-    unique_lock<mutex> parcov_guard(parcov_lock, defer_lock);
     unique_lock<mutex> put_guard(put_lock, defer_lock);
 
     vector<string> pe_real_names,oe_real_names;
@@ -2832,18 +2872,7 @@ void LocalAnalysisUpgradeThread::work(int thread_id, int iter, double cur_lam, b
 	string key;
 
 
-	//these locks are used to control (thread-safe) access to the fast look up containers
-	unique_lock<mutex> next_guard(next_lock, defer_lock);
-	unique_lock<mutex> obs_diff_guard(obs_diff_lock, defer_lock);
-	unique_lock<mutex> obs_resid_guard(obs_resid_lock, defer_lock);
-	unique_lock<mutex> obs_err_guard(obs_err_lock, defer_lock);
-	unique_lock<mutex> par_diff_guard(par_diff_lock, defer_lock);
-	unique_lock<mutex> par_resid_guard(par_resid_lock, defer_lock);
-	unique_lock<mutex> loc_guard(loc_lock, defer_lock);
-	unique_lock<mutex> weight_guard(weight_lock, defer_lock);
-	unique_lock<mutex> parcov_guard(parcov_lock, defer_lock);
-	unique_lock<mutex> am_guard(am_lock, defer_lock);
-	unique_lock<mutex> put_guard(put_lock, defer_lock);
+	//the lookup maps are only read during the solve, so their reads take no lock; next_lock hands out the cases
 
 	set<string> sorg_par_names(par_names.begin(),par_names.end());
 	set<string> sorg_obs_names(obs_names.begin(),obs_names.end());
@@ -2856,42 +2885,36 @@ void LocalAnalysisUpgradeThread::work(int thread_id, int iter, double cur_lam, b
 		par_names.clear();
 		obs_names.clear();
 
-		while (true)
+		//take the next case: one atomic increment, no lock.  the case map and the key list are
+		//only read during the solve, so the copies below need no lock either
+		int idx = next_case.fetch_add(1);
+		if (idx >= (int)keys.size())
 		{
-			if (next_guard.try_lock())
+			if (verbose_level > 3)
 			{
-				//if all the pieces have been completed, return
-				if (count == keys.size())
-				{
-					if (verbose_level > 3)
-					{
-						cout << "upgrade thread: " << thread_id << " processed " << pcount << " upgrade parts" << endl;
-					}
-					if (f_thread.good())
-						f_thread.close();
-					return;
-				}
-				key = keys[count];
-				pair<vector<string>, vector<string>> p = cases.at(key);
-				par_names = p.second;
-				obs_names = p.first;
-				// the `if (localizer.get_use()) use_localizer = true;` that was here went with
-				// the variable - nothing read it. get_use() is a plain getter, so dropping the
-				// test changes nothing.
-				if ((count % 1000 == 0) && (count > 0))
-				{
-					ss.str("");
-					ss << "upgrade thread progress: " << count << " of " << total << " parts done";
-					if (verbose_level > 3)
-						cout << ss.str() << endl;
-					performance_log->log_event(ss.str());
-				}
-				count++;
-				t_count = count;
-				pcount++;
-				next_guard.unlock();
-				break;
+				cout << "upgrade thread: " << thread_id << " processed " << pcount << " upgrade parts" << endl;
 			}
+			if (f_thread.good())
+				f_thread.close();
+			return;
+		}
+		key = keys[idx];
+		{
+			const pair<vector<string>, vector<string>>& p = cases.at(key);
+			par_names = p.second;
+			obs_names = p.first;
+		}
+		t_count = idx + 1;
+		pcount++;
+		if ((idx % 1000 == 0) && (idx > 0))
+		{
+			//the performance log is not thread safe, and this is rare: keep a lock just for it
+			lock_guard<mutex> log_guard(next_lock);
+			ss.str("");
+			ss << "upgrade thread progress: " << idx << " of " << total << " parts done";
+			if (verbose_level > 3)
+				cout << ss.str() << endl;
+			performance_log->log_event(ss.str());
 		}
 
 
@@ -2945,13 +2968,13 @@ void LocalAnalysisUpgradeThread::work(int thread_id, int iter, double cur_lam, b
         if ((!use_approx) && (Am.rows() == 0))
         {
             //Am = local_utils::get_matrix_from_map(num_reals, par_names, Am_map).transpose();
-            int am_cols = Am_map[par_names[0]].size();
+            int am_cols = Am_map.at(par_names[0]).size();
             Am.resize(par_names.size(), am_cols);
             Am.setZero();
 
             for (int j = 0; j < par_names.size(); j++)
             {
-                Am.row(j) = Am_map[par_names[j]];
+                Am.row(j) = Am_map.at(par_names[j]);
             }
         }
 
@@ -2986,15 +3009,8 @@ void LocalAnalysisUpgradeThread::work(int thread_id, int iter, double cur_lam, b
                                       pe_upgrade.get_pest_scenario_ptr()->get_pestpp_options().get_svd_pack());
 
 		
-		while (true)
-		{
-			if (put_guard.try_lock())
-			{
-				pe_upgrade.add_2_cols_ip(par_names, upgrade_1);				
-				put_guard.unlock();
-				break;
-			}
-		}
+		//no lock: this thread's case owns these columns (see prepare_writeback)
+		write_local_upgrade(*pe_upgrade.get_eigen_ptr_4_mod(), col_index, par_names, upgrade_1);
 	}
 
 }

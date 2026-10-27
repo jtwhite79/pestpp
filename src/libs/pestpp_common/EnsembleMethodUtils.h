@@ -5,6 +5,7 @@
 #include <random>
 #include <mutex>
 #include <thread>
+#include <atomic>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include "FileManager.h"
@@ -527,9 +528,9 @@ protected:
     unordered_map<string, Eigen::VectorXd>& par_resid_map, & par_diff_map;
     unordered_map<string, Eigen::VectorXd>& obs_resid_map, & obs_diff_map, & obs_err_map;
 
-    mutex ctrl_lock, weight_lock, loc_lock, parcov_lock;
-    mutex obs_resid_lock, obs_diff_lock, par_resid_lock;
-    mutex par_diff_lock, am_lock, put_lock, obs_err_lock;
+    //ctrl_lock: settings read at thread start; next_lock: hands out the realizations;
+    //put_lock: the write-back into the upgrade ensemble
+    mutex ctrl_lock, put_lock;
     mutex next_lock;
 
 };
@@ -558,6 +559,16 @@ public:
 	//optional per-realization weights (aligned to the realization columns) for the localized
 	//multimodal solve; empty means no realization weighting
 	void set_real_weights(const Eigen::VectorXd& w) { real_weights = w; }
+	/* the local solves write their results straight into the upgrade ensemble: each
+	parameter is one column, the localizer guarantees no parameter is in two cases, so the
+	threads write disjoint columns and need no lock.  prepare_writeback() runs on the calling
+	thread before any worker starts: it builds the read-only name -> column index and checks
+	the cases really are disjoint.  write_local_upgrade() is the per-case write, static so the
+	selftest can drive it.  it used to be Ensemble::add_2_cols_ip under a global lock, which
+	rebuilt a map and a set of every parameter name on every call */
+	void prepare_writeback();
+	static int write_local_upgrade(Eigen::MatrixXd& target, const unordered_map<string, int>& col_index,
+		const vector<string>& names, const Eigen::MatrixXd& upd);
 
 
     static void ensemble_solution(const int iter, const int verbose_level,const int maxsing,  const int thread_id,
@@ -595,10 +606,14 @@ protected:
 	unordered_map<string, Eigen::VectorXd>& par_resid_map, & par_diff_map, & Am_map;
 	unordered_map<string, Eigen::VectorXd>& obs_resid_map, & obs_diff_map, &obs_err_map;
 
-	mutex ctrl_lock, weight_lock, loc_lock, parcov_lock;
-	mutex obs_resid_lock, obs_diff_lock, par_resid_lock;
-	mutex par_diff_lock, am_lock, put_lock, obs_err_lock;
+	//ctrl_lock: settings read at thread start; next_lock: hands out the cases; put_lock: the
+	//multimodal thread's write-back (the localized one writes disjoint columns without one)
+	mutex ctrl_lock, put_lock;
 	mutex next_lock;
+	//read-only once prepare_writeback() has built it
+	unordered_map<string, int> col_index;
+	//the localized solve's case hand-out: each thread takes the next index with fetch_add
+	std::atomic<int> next_case{0};
 
 
 

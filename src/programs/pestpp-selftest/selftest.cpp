@@ -17,6 +17,8 @@
 #include <iostream>
 #include <csignal>
 #include <random>
+#include <atomic>
+#include <thread>
 #include <sstream>
 #include <fstream>
 #include <limits>
@@ -2855,6 +2857,74 @@ static void test_ies_prior_prec_reduces_to_am()
     }
 }
 
+static void test_local_writeback()
+{
+    cout << "[localized solve: lock-free write-back into disjoint columns matches add_2_cols_ip]" << endl;
+    // 40 reals x 3000 vars, 300 cases of 10 vars each, written by 8 threads at once
+    int nr = 40, nv = 3000, nc = 300;
+    std::mt19937 gen(17);
+    std::normal_distribution<double> nd(0.0, 1.0);
+    vector<string> vnames;
+    for (int j = 0; j < nv; j++) vnames.push_back("p" + to_string(j));
+    unordered_map<string, int> idx;
+    for (int j = 0; j < nv; j++) idx[vnames[j]] = j;
+    // cases take a shuffled permutation of the columns, so writes interleave across the matrix
+    vector<int> perm(nv);
+    for (int j = 0; j < nv; j++) perm[j] = j;
+    for (int j = nv - 1; j > 0; j--) { int k = (int)(gen() % (j + 1)); std::swap(perm[j], perm[k]); }
+    vector<vector<string>> case_names(nc);
+    vector<Eigen::MatrixXd> case_upd(nc);
+    for (int c = 0; c < nc; c++)
+    {
+        for (int k = 0; k < nv / nc; k++) case_names[c].push_back(vnames[perm[c * (nv / nc) + k]]);
+        case_upd[c].resize(nr, nv / nc);
+        for (int i = 0; i < nr; i++) for (int k = 0; k < nv / nc; k++) case_upd[c](i, k) = nd(gen);
+    }
+    Eigen::MatrixXd base(nr, nv);
+    for (int i = 0; i < nr; i++) for (int j = 0; j < nv; j++) base(i, j) = nd(gen);
+    // reference: the old serial path
+    vector<string> rnames;
+    for (int i = 0; i < nr; i++) rnames.push_back("r" + to_string(i));
+    Pest pest_scenario;
+    ParameterEnsemble ref(&pest_scenario);
+    ref.reserve(rnames, vnames);
+    ref.set_eigen(base);
+    for (int c = 0; c < nc; c++) ref.add_2_cols_ip(case_names[c], case_upd[c]);
+    // threaded, no lock
+    Eigen::MatrixXd tgt = base;
+    std::atomic<int> next(0), written(0);
+    vector<thread> ths;
+    for (int t = 0; t < 8; t++)
+        ths.push_back(thread([&]() {
+            while (true)
+            {
+                int c = next.fetch_add(1);
+                if (c >= nc) break;
+                written += UpgradeThread::write_local_upgrade(tgt, idx, case_names[c], case_upd[c]);
+            }
+        }));
+    for (auto& th : ths) th.join();
+    CHK(written == nv, "every column written once (" + to_string(written.load()) + ")");
+    double d = (tgt - *ref.get_eigen_ptr()).cwiseAbs().maxCoeff();
+    CHK(d == 0.0, "threaded write-back is bit-identical to add_2_cols_ip (max diff " + to_string(d) + ")");
+    // it adds, it does not assign
+    Eigen::MatrixXd t2 = Eigen::MatrixXd::Ones(nr, nv);
+    UpgradeThread::write_local_upgrade(t2, idx, case_names[0], case_upd[0]);
+    int j0 = idx.at(case_names[0][0]);
+    CHK(std::abs(t2(0, j0) - (1.0 + case_upd[0](0, 0))) < 1e-15, "adds into the column rather than overwriting");
+    // bad input is refused, not written
+    bool threw = false;
+    vector<string> bad = {"nope"};
+    try { UpgradeThread::write_local_upgrade(t2, idx, bad, Eigen::MatrixXd::Zero(nr, 1)); } catch (...) { threw = true; }
+    CHK(threw, "an unknown name throws");
+    threw = false;
+    try { UpgradeThread::write_local_upgrade(t2, idx, case_names[0], Eigen::MatrixXd::Zero(nr + 1, nv / nc)); } catch (...) { threw = true; }
+    CHK(threw, "a row count mismatch throws");
+    threw = false;
+    try { UpgradeThread::write_local_upgrade(t2, idx, case_names[0], Eigen::MatrixXd::Zero(nr, 3)); } catch (...) { threw = true; }
+    CHK(threw, "a column count mismatch throws");
+}
+
 static void test_svd_pack_bdcsvd()
 {
     cout << "[svd_pack(bdcsvd): Eigen BDCSVD matches JacobiSVD through both SVD_EIGEN paths]" << endl;
@@ -3775,6 +3845,7 @@ int main()
     run_test(test_irls_reweight, "test_irls_reweight");
     run_test(test_irls_max_dev, "test_irls_max_dev");
     run_test(test_enif_inflation_report, "test_enif_inflation_report");
+    run_test(test_local_writeback, "test_local_writeback");
     run_test(test_svd_pack_bdcsvd, "test_svd_pack_bdcsvd");
     run_test(test_localizer_combine_common, "test_localizer_combine_common");
     run_test(test_overdue_decision, "test_overdue_decision");
