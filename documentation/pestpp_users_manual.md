@@ -5731,7 +5731,7 @@ Variables discussed in section 5.3.5 that control parallel run management are no
 | *sqp_solve_method(NULL)*              | text     | KKT subproblem solver: NULL (null-space method, default) or DIRECT (direct KKT solve). |
 | *sqp_rescale_search_dir(true)*        | boolean  | Rescale the KKT search direction by parameter ranges prior to the line search. |
 | *sqp_subset_size(-10)*                | integer  | Number of ensemble members used in the line search. Negative values are interpreted as a percentage of the current ensemble size. |
-| *sqp_enforce_bounds(false)*           | boolean  | Enforce parameter bounds on ensemble members during initialization. |
+| *sqp_enforce_bounds(true)*            | boolean  | Clamp line search candidate decision variables to their bounds before they are run. |
 | *opt_use_robust(false)*               | boolean  | Robust optimization: each decision-variable realization is paired with its own uncertain-parameter realization and the ensemble is optimized as it stands. **No risk shifting is done**, so this cannot be combined with a non-neutral *opt_risk*. Supported by PESTPP-SQP and PESTPP-MOU; PESTPP-OPT rejects it. For PESTPP-SQP, a supplied *sqp_dv_en* must contain the uncertain parameters. For PESTPP-MOU, see section 13.2.2. |
 | ~~*sqp_risk*~~                        | —        | **Retired.** It was both a risk value and a switch selecting ensemble-based shifting, and it silently overrode *opt_risk*. Use *opt_risk* for chance constraints, or *opt_use_robust* for robust optimization. |
 | *sqp_max_consec_infeas_ies(3)*        | integer  | Number of consecutive infeasible iterations before switching to IES-based feasibility recovery. |

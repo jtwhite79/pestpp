@@ -2541,7 +2541,7 @@ void PestppOptions::set_defaults_legacy()
 	set_sqp_scale_down_factor(1.0);
 	set_sqp_hess_max_cond_num(1E+8);
 	set_sqp_save_cov_every(-1);
-	set_sqp_enforce_bounds(false);
+	set_sqp_enforce_bounds(true);
 	set_sqp_viol_pad(1E-4);
 	set_sqp_reset_hessian_every(-1);
 	set_sqp_use_ensemble_approx_hessian(true);

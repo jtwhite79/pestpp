@@ -1082,7 +1082,7 @@ const std::vector<OptionSpec>& PestppOptions::get_option_registry()
         [](const PestppOptions& o)->string{ return std::to_string(o.get_sqp_save_cov_every()); } },
     OptionSpec{ "SQP_ENFORCE_BOUNDS", {}, OptType::BOOL, "sqp", false,
         [](PestppOptions& o,const string& value,const string&)->PestppOptions::ARG_STATUS{ o.set_sqp_enforce_bounds(pest_utils::parse_string_arg_to_bool(value)); return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },
-        [](PestppOptions& o){ o.set_sqp_enforce_bounds(false); },
+        [](PestppOptions& o){ o.set_sqp_enforce_bounds(true); },
         [](const PestppOptions& o)->string{ return std::to_string(o.get_sqp_enforce_bounds()?1:0); } },
     OptionSpec{ "SQP_VIOL_PAD", {}, OptType::DOUBLE, "sqp", false,
         [](PestppOptions& o,const string& value,const string&)->PestppOptions::ARG_STATUS{ double x; convert_ip(value,x); o.set_sqp_viol_pad(x); return PestppOptions::ARG_STATUS::ARG_ACCEPTED; },

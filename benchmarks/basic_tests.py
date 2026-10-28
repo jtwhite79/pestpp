@@ -3533,8 +3533,12 @@ def _overdue_free_agents_case(overdue_utils, model_d, tool, variant, port, hang_
         pe.iloc[3, 0] = hang_below / 2.0
     pe.to_csv(os.path.join(template_d, "prior.csv"))
     pst.pestpp_options.update(opts)
+    #turn off rescheduling so only the giveup bound can clear the hang - with a slow python
+    #startup the avg run time clears the reschedule floor, a copy of the hung run finishes on
+    #a free agent and the original is killed as "completed on alternative node", not overdue
     pst.pestpp_options.update({"ies_par_en": "prior.csv", "max_run_fail": max_run_fail,
-                               "panther_agent_freeze_on_fail": "false", "panther_ping_interval_secs": 1})
+                               "panther_agent_freeze_on_fail": "false", "panther_ping_interval_secs": 1,
+                               "overdue_resched_fac": 1.0e10})
     pst.write(os.path.join(template_d, case + ".pst"), version=2)
     m_d = os.path.join(model_d, "master_{0}_{1}".format(tool, variant))
     w_root = os.path.join(model_d, "workers_{0}_{1}".format(tool, variant))

@@ -4460,11 +4460,10 @@ FilterRec SeqQuadProgram::line_search(map<string, Eigen::VectorXd>& search_d_map
 
 	}
 
-	//always clamp candidates to bounds.  a near-singular ensemble hessian gives line search
-	//steps far outside the bounds (k at 1000x its upper bound in the 10par_xsec case), and
-	//the other candidate paths already clamp unconditionally.  sqp_enforce_bounds is for the
-	//initial ensemble
-	dv_candidates.enforce_bounds(performance_log, false);
+	//sqp_enforce_bounds defaults to true: a near-singular ensemble hessian gives line search
+	//steps far outside the bounds (k at 1000x its upper bound in the 10par_xsec case)
+	if (pest_scenario.get_pestpp_options().get_sqp_enforce_bounds())
+		dv_candidates.enforce_bounds(performance_log, false);
 
 	ss.str("");
 	ss << file_manager.get_base_filename() << "." << iter << ".dv_candidates.csv";
@@ -4633,8 +4632,8 @@ FilterRec SeqQuadProgram::line_search(map<string, Eigen::VectorXd>& search_d_map
 			ss << "evaluating " << intermediate_cand_names.size() << " intermediate candidates";
 			message(1, ss.str());
 
-			//same as the line search candidates - always clamp
-			dv_intermediate.enforce_bounds(performance_log, false);
+			if (pest_scenario.get_pestpp_options().get_sqp_enforce_bounds())
+				dv_intermediate.enforce_bounds(performance_log, false);
 
 			ObservationEnsemble oe_intermediate = run_candidate_ensemble(dv_intermediate);
 
