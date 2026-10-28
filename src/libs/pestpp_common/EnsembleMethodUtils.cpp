@@ -2109,6 +2109,32 @@ UpgradeThread::UpgradeThread(PerformanceLog* _performance_log, unordered_map<str
 	
 }
 
+//a local (or global) solve whose obs_diff is all zeros has no information: none of its
+//observations vary across the ensemble.  the svd of a zero matrix keeps no components,
+//and the next step then hands an empty matrix to eigen, which reads a null pointer.
+//this happens for real - an obs at a fixed-head cell paired alone with a parameter.
+//trap it here: zero upgrade (realizations x parameters, what the solve returns) and a
+//warning.  returns true when trapped
+static bool trap_zero_obs_diff(const Eigen::MatrixXd& obs_diff, const Eigen::MatrixXd& par_diff,
+	Eigen::MatrixXd& upgrade_1, const vector<string>& obs_names, const vector<string>& par_names)
+{
+	if ((obs_diff.size() > 0) && (obs_diff.cwiseAbs().maxCoeff() > 0.0))
+		return false;
+	upgrade_1 = Eigen::MatrixXd::Zero(par_diff.cols(), par_diff.rows());
+	stringstream ss;
+	ss << "warning: observation differences are all zero for " << par_diff.rows()
+		<< " parameter(s)";
+	if (par_names.size() > 0)
+		ss << " (first: " << par_names[0] << ")";
+	ss << " and " << obs_diff.rows() << " observation(s)";
+	if (obs_names.size() > 0)
+		ss << " (first: " << obs_names[0] << ")";
+	ss << " - no observation in this solve varies across the ensemble, skipping the upgrade" << endl;
+	cout << ss.str();
+	return true;
+}
+
+
 void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,const int maxsing,  const int thread_id,
                               const int t_count, const bool use_prior_scaling,const bool use_approx, const bool use_glm,
                               const double cur_lam,const double eigthresh, Eigen::MatrixXd& par_resid, Eigen::MatrixXd& par_diff,
@@ -2179,6 +2205,8 @@ void UpgradeThread::ensemble_solution(const int iter, const int verbose_level,co
 
     local_utils::save_names(verbose_level,thread_id, iter, t_count,"act_obs_names", act_obs_names);
     local_utils::save_names(verbose_level,thread_id, iter, t_count,"act_par_names", act_par_names);
+    if (trap_zero_obs_diff(obs_diff, par_diff, upgrade_1, act_obs_names, act_par_names))
+        return;
 
     stringstream ss;
     if (!use_glm)
@@ -2422,6 +2450,8 @@ void UpgradeThread::ensemble_solution_prec(const int iter, const int verbose_lev
     //anything.  raw anomalies in, raw upgrade out.
     if ((Q.rows() != par_diff.rows()) || (Q.cols() != par_diff.rows()))
         throw runtime_error("ensemble_solution_prec(): prior precision not aligned with par_diff");
+    if (trap_zero_obs_diff(obs_diff, par_diff, upgrade_1, vector<string>(), vector<string>()))
+        return;
     int num_reals = par_resid.cols();
     double scale = (1.0 / (sqrt(double(num_reals - 1))));
     obs_resid = weights * obs_resid;

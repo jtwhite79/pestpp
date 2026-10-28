@@ -2925,6 +2925,85 @@ static void test_local_writeback()
     CHK(threw, "a column count mismatch throws");
 }
 
+static void test_zero_obs_diff_trap()
+{
+    cout << "[ensemble solve: all-zero obs differences give a zero upgrade, not a crash]" << endl;
+    //the da 10par_xsec case that crashed: an obs at a fixed-head cell has the same value in
+    //every realization, so a local solve pairing it alone with a parameter gets an all-zero
+    //obs_diff.  the svd keeps nothing and eigen then reads a null pointer
+    const int npar = 3, nreal = 10;
+    std::mt19937 gen(4321);
+    std::normal_distribution<double> nd(0.0, 1.0);
+    Eigen::MatrixXd par_diff0(npar, nreal), par_resid0(npar, nreal);
+    for (int i = 0; i < npar; i++)
+        for (int j = 0; j < nreal; j++)
+        {
+            par_diff0(i, j) = nd(gen);
+            par_resid0(i, j) = nd(gen);
+        }
+    Eigen::MatrixXd Am = par_diff0;
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> parcov_inv(Eigen::VectorXd::Ones(npar));
+    vector<string> pnames{"p1", "p2", "p3"};
+
+    auto solve = [&](int nobs, bool zero, bool use_glm, bool use_approx, PestppOptions::SVD_PACK pack)
+    {
+        Eigen::MatrixXd par_resid = par_resid0, par_diff = par_diff0;
+        Eigen::MatrixXd obs_diff = Eigen::MatrixXd::Zero(nobs, nreal);
+        Eigen::MatrixXd obs_resid = Eigen::MatrixXd::Ones(nobs, nreal);
+        Eigen::MatrixXd obs_err(nobs, nreal);
+        for (int i = 0; i < nobs; i++)
+            for (int j = 0; j < nreal; j++)
+            {
+                obs_err(i, j) = nd(gen);
+                if (!zero)
+                    obs_diff(i, j) = nd(gen);
+            }
+        Eigen::DiagonalMatrix<double, Eigen::Dynamic> weights(Eigen::VectorXd::Ones(nobs));
+        vector<string> onames;
+        for (int i = 0; i < nobs; i++)
+            onames.push_back("o" + to_string(i));
+        Eigen::MatrixXd upgrade;
+        UpgradeThread::ensemble_solution(2, 0, 1000, 0, 0, false, use_approx, use_glm,
+                                         0.1, 1.0e-7, par_resid, par_diff, Am, obs_resid,
+                                         obs_diff, upgrade, obs_err, weights, parcov_inv,
+                                         onames, pnames, 0.0, -1.0, pack);
+        return upgrade;
+    };
+
+    vector<pair<PestppOptions::SVD_PACK, string>> packs{
+        {PestppOptions::EIGEN, "eigen"}, {PestppOptions::BDCSVD, "bdcsvd"}, {PestppOptions::REDSVD, "redsvd"}};
+    for (auto& pk : packs)
+    {
+        for (int form = 0; form < 3; form++)
+        {
+            //mda, glm approx, glm full (iter 2, so the prior term would run)
+            bool use_glm = form > 0, use_approx = form < 2;
+            string tag = pk.second + (form == 0 ? " mda" : (form == 1 ? " glm approx" : " glm full"));
+            Eigen::MatrixXd u = solve(1, true, use_glm, use_approx, pk.first);
+            CHK((u.rows() == nreal) && (u.cols() == npar) && (u.cwiseAbs().maxCoeff() == 0.0),
+                tag + ": one all-zero obs gives a zero realizations x parameters upgrade");
+        }
+        Eigen::MatrixXd u = solve(0, true, true, true, pk.first);
+        CHK((u.rows() == nreal) && (u.cols() == npar) && (u.cwiseAbs().maxCoeff() == 0.0),
+            pk.second + ": no obs at all is trapped the same way");
+        u = solve(2, false, true, true, pk.first);
+        CHK((u.rows() == nreal) && (u.cols() == npar) && (u.cwiseAbs().maxCoeff() > 0.0) && u.allFinite(),
+            pk.second + ": varying obs are not trapped and give a finite nonzero upgrade");
+    }
+
+    //the precision form goes through the same trap
+    Eigen::MatrixXd par_resid = par_resid0, par_diff = par_diff0;
+    Eigen::MatrixXd obs_diff = Eigen::MatrixXd::Zero(1, nreal), obs_resid = Eigen::MatrixXd::Ones(1, nreal);
+    Eigen::SparseMatrix<double> Q(npar, npar);
+    Q.setIdentity();
+    Eigen::DiagonalMatrix<double, Eigen::Dynamic> w1(Eigen::VectorXd::Ones(1));
+    Eigen::MatrixXd up;
+    UpgradeThread::ensemble_solution_prec(2, 0, 1000, false, 0.1, 1.0e-7, par_resid, par_diff, Q,
+                                          obs_resid, obs_diff, up, w1, 0.0, PestppOptions::BDCSVD);
+    CHK((up.rows() == nreal) && (up.cols() == npar) && (up.cwiseAbs().maxCoeff() == 0.0),
+        "prec form: all-zero obs gives a zero upgrade");
+}
+
 static void test_svd_pack_bdcsvd()
 {
     cout << "[svd_pack(bdcsvd): Eigen BDCSVD matches JacobiSVD through both SVD_EIGEN paths]" << endl;
@@ -3847,6 +3926,7 @@ int main()
     run_test(test_enif_inflation_report, "test_enif_inflation_report");
     run_test(test_local_writeback, "test_local_writeback");
     run_test(test_svd_pack_bdcsvd, "test_svd_pack_bdcsvd");
+    run_test(test_zero_obs_diff_trap, "test_zero_obs_diff_trap");
     run_test(test_localizer_combine_common, "test_localizer_combine_common");
     run_test(test_overdue_decision, "test_overdue_decision");
     run_test(test_enif_woodbury_step, "test_enif_woodbury_step");

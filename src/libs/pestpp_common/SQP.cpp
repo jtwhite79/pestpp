@@ -599,8 +599,9 @@ bool SeqQuadProgram::initialize_dv(Covariance &cov)
  *
  * @param _dv Description.
  * @param _oe Description.
+ * @param cur_tstat the space current_ctl_dv_values is in
  */
-void SeqQuadProgram::add_current_as_bases(ParameterEnsemble& _dv, ObservationEnsemble& _oe)
+void SeqQuadProgram::add_current_as_bases(ParameterEnsemble& _dv, ObservationEnsemble& _oe, ParameterEnsemble::transStatus cur_tstat)
 {
 	//check that 'base' isn't already in ensemble
 	vector<string> rnames = _dv.get_real_names();
@@ -614,9 +615,18 @@ void SeqQuadProgram::add_current_as_bases(ParameterEnsemble& _dv, ObservationEns
 	else
 	{
 		message(1, "adding 'base' parameter values to ensemble");
+		//current_ctl_dv_values is ctl at the first call but numeric once the dv ensemble is
+		//initialized.  transforming it unconditionally logged numeric values a second time, so
+		//a value below one went negative and the next pass made it nan.  the non-dv columns
+		//come from the control file and always need the transform; the dv values only when ctl
 		Parameters pars = pest_scenario.get_ctl_parameters();
-		pars.update_without_clear(dv_names,current_ctl_dv_values.get_data_vec(dv_names));
+		if (cur_tstat == ParameterEnsemble::transStatus::CTL)
+			pars.update_without_clear(dv_names, current_ctl_dv_values.get_data_vec(dv_names));
 		_dv.get_par_transform().active_ctl2numeric_ip(pars);
+		if (cur_tstat == ParameterEnsemble::transStatus::NUM)
+			pars.update_without_clear(dv_names, current_ctl_dv_values.get_data_vec(dv_names));
+		//pars is numeric now - make sure the ensemble is too (no-op when it already is)
+		_dv.transform_ip(ParameterEnsemble::transStatus::NUM);
 		//BASE simply added, no dropping/replacement of last row -- BASE not counted in num_reals for StoSAG
 		//vector<int> drop{ _dv.shape().first - 1 };
 		//_dv.drop_rows(drop);
@@ -1776,7 +1786,7 @@ void SeqQuadProgram::make_gradient_runs(Parameters& _current_dv_vals, Observatio
 		
 		ObservationEnsemble _oe(&pest_scenario, &rand_gen);
 		_oe.reserve(_dv.get_real_names(), constraints.get_obs_constraint_names());
-		add_current_as_bases(_dv, _oe);
+		add_current_as_bases(_dv, _oe, ParameterEnsemble::transStatus::NUM);
 
 		Eigen::VectorXd base_dv_vec;
 		Eigen::VectorXd base_obs_vec;
@@ -1914,7 +1924,7 @@ int SeqQuadProgram::prep_4_ensemble_grad_prepare()
         message(1, "Warning: even though `sqp_include_base` is true, you passed a restart obs en, not adding 'base' realization...");
     }
     else
-        add_current_as_bases(dv, oe);
+        add_current_as_bases(dv, oe, ParameterEnsemble::transStatus::CTL);
 
 	if (!dv_drawn || !oe_drawn)
 	{
@@ -4450,8 +4460,11 @@ FilterRec SeqQuadProgram::line_search(map<string, Eigen::VectorXd>& search_d_map
 
 	}
 
-	if (pest_scenario.get_pestpp_options().get_sqp_enforce_bounds())
-		dv_candidates.enforce_bounds(performance_log, false);
+	//always clamp candidates to bounds.  a near-singular ensemble hessian gives line search
+	//steps far outside the bounds (k at 1000x its upper bound in the 10par_xsec case), and
+	//the other candidate paths already clamp unconditionally.  sqp_enforce_bounds is for the
+	//initial ensemble
+	dv_candidates.enforce_bounds(performance_log, false);
 
 	ss.str("");
 	ss << file_manager.get_base_filename() << "." << iter << ".dv_candidates.csv";
@@ -4620,8 +4633,8 @@ FilterRec SeqQuadProgram::line_search(map<string, Eigen::VectorXd>& search_d_map
 			ss << "evaluating " << intermediate_cand_names.size() << " intermediate candidates";
 			message(1, ss.str());
 
-			if (pest_scenario.get_pestpp_options().get_sqp_enforce_bounds())
-				dv_intermediate.enforce_bounds(performance_log, false);
+			//same as the line search candidates - always clamp
+			dv_intermediate.enforce_bounds(performance_log, false);
 
 			ObservationEnsemble oe_intermediate = run_candidate_ensemble(dv_intermediate);
 
