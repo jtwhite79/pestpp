@@ -163,11 +163,26 @@ which is what the mean-centred fit wants.  the realization-centred fit passes
 the number of columns that actually carry a deviation (its centre column is
 identically zero), or the weight sum when the columns are weighted.
 
+by_col runs the same lassos in column order: the outer loop is over parameters and
+the inner loop over the observation rows still iterating, with each parameter's
+anomalies contiguous and H kept by parameter.  every row sees the parameters in the
+same order and stops on the same rule, so H matches the row-order fit to roundoff
+(only the dot products sum in a different order).  threads own blocks of rows, and
+the result does not depend on how many there are.  with cv_folds > 0 every row in a
+block goes down its own penalty path in step, through the same folds and refit.
+
+loc, when given, is an observations x parameters pattern: a stored entry says that
+observation may use that parameter, anything else is held at zero in H.  each row is
+then the lasso over just its listed parameters, penalty scaled by the row-zeroing
+value over those parameters too, and a row with none listed stays empty.  only the
+pattern is used, not the values.  loc runs in column order whatever by_col says.
+
 frec is any ostream, so threads can each write to their own stringstream. */
 Eigen::SparseMatrix<double> estimate_sparse_H(const Eigen::MatrixXd& A,
 	const Eigen::MatrixXd& B, double lasso_frac, int num_threads,
 	Eigen::VectorXd& unexplained, ostream& frec, int cv_folds = 0,
-	double unexp_divisor = -1.0);
+	double unexp_divisor = -1.0, bool by_col = false,
+	const Eigen::SparseMatrix<double>* loc = nullptr);
 
 /* the enif update with an explicit sparse H and the supplied prior covariance C,
 by woodbury, so no p x p inverse is formed:

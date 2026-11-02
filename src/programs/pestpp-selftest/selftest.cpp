@@ -3404,6 +3404,233 @@ static void test_estimate_sparse_h_divisor()
     CHK((u4 - full).cwiseAbs().maxCoeff() < 1e-12, "empty rows report the full output variance as unexplained");
 }
 
+static void test_sparse_h_by_col()
+{
+    cout << "[enif: sparse H in column order matches the row-order fit]" << endl;
+    // p > N, as on the real problems, with a sparse truth and some noise
+    int p = 300, n = 40, N = 50;
+    std::mt19937 gen(7);
+    std::normal_distribution<double> nd(0.0, 1.0);
+    std::uniform_int_distribution<int> pick(0, p - 1);
+    Eigen::MatrixXd A(p, N), B(n, N);
+    for (int i = 0; i < p; i++) for (int j = 0; j < N; j++) A(i, j) = nd(gen) / sqrt(double(N - 1));
+    Eigen::MatrixXd Htrue = Eigen::MatrixXd::Zero(n, p);
+    for (int i = 0; i < n; i++) for (int k = 0; k < 5; k++) Htrue(i, pick(gen)) = nd(gen);
+    B = Htrue * A;
+    for (int i = 0; i < n; i++) for (int j = 0; j < N; j++) B(i, j) += 0.05 * nd(gen) / sqrt(double(N - 1));
+    // a parameter with no spread and an observation with no spread
+    A.row(11).setZero();
+    B.row(3).setZero();
+
+    auto compare = [&](double frac) {
+        stringstream sr, sc;
+        Eigen::VectorXd ur, uc;
+        Eigen::MatrixXd Hr = Eigen::MatrixXd(estimate_sparse_H(A, B, frac, 1, ur, sr));
+        Eigen::MatrixXd Hc = Eigen::MatrixXd(estimate_sparse_H(A, B, frac, 1, uc, sc, 0, -1.0, true));
+        int mismatch = 0;
+        for (int i = 0; i < n; i++) for (int j = 0; j < p; j++)
+            if ((Hr(i, j) != 0.0) != (Hc(i, j) != 0.0)) mismatch++;
+        double hdiff = (Hr - Hc).cwiseAbs().maxCoeff() / max(1.0e-300, Hr.cwiseAbs().maxCoeff());
+        double udiff = (ur - uc).cwiseAbs().maxCoeff() / max(1.0e-300, ur.cwiseAbs().maxCoeff());
+        cout << "  lasso fraction " << frac << ": nnz " << (Hr.array() != 0.0).count()
+             << ", pattern mismatches " << mismatch << ", max rel H diff " << hdiff
+             << ", max rel unexplained diff " << udiff << endl;
+        string tag = " (lasso fraction " + to_string(frac) + ")";
+        CHK(mismatch == 0, "same sparsity pattern" + tag);
+        CHK(hdiff < 1.0e-9, "same coefficients to roundoff" + tag);
+        CHK(udiff < 1.0e-9, "same unexplained variance to roundoff" + tag);
+        CHK(Hc.col(11).cwiseAbs().maxCoeff() == 0.0, "a parameter with no spread stays out" + tag);
+        CHK(Hc.row(3).cwiseAbs().maxCoeff() == 0.0 && uc[3] == 0.0, "an observation with no spread gives an empty row" + tag);
+        CHK(sc.str().find("column order") != string::npos, "the summary says column order" + tag);
+    };
+    compare(0.3);
+    compare(0.05);
+    compare(0.005);
+
+    // threads own blocks of rows; the answer cannot depend on how many
+    Eigen::VectorXd u1, u4, u7;
+    stringstream s1, s4, s7;
+    Eigen::MatrixXd H1 = Eigen::MatrixXd(estimate_sparse_H(A, B, 0.05, 1, u1, s1, 0, -1.0, true));
+    Eigen::MatrixXd H4 = Eigen::MatrixXd(estimate_sparse_H(A, B, 0.05, 4, u4, s4, 0, -1.0, true));
+    Eigen::MatrixXd H7 = Eigen::MatrixXd(estimate_sparse_H(A, B, 0.05, 7, u7, s7, 0, -1.0, true));
+    CHK((H1 - H4).cwiseAbs().maxCoeff() == 0.0 && (H1 - H7).cwiseAbs().maxCoeff() == 0.0, "1, 4 and 7 threads give bit-identical H");
+    CHK((u1 - u4).cwiseAbs().maxCoeff() == 0.0 && (u1 - u7).cwiseAbs().maxCoeff() == 0.0, "and bit-identical unexplained variance");
+
+    // lasso fraction 1 empties every row and leaves the full variance unexplained
+    Eigen::VectorXd ue; stringstream se;
+    Eigen::SparseMatrix<double> He = estimate_sparse_H(A, B, 1.0, 3, ue, se, 0, -1.0, true);
+    Eigen::VectorXd full = B.array().square().rowwise().sum() * double(N - 1) / double(N);
+    CHK(He.nonZeros() == 0, "lasso fraction 1 zeroes every row");
+    CHK((ue - full).cwiseAbs().maxCoeff() < 1e-12, "and reports the full output variance as unexplained");
+
+    // the divisor scales the unexplained variance and nothing else
+    Eigen::VectorXd ud; stringstream sd;
+    Eigen::MatrixXd Hd = Eigen::MatrixXd(estimate_sparse_H(A, B, 0.05, 2, ud, sd, 0, 2.0 * double(N), true));
+    CHK((Hd - H1).cwiseAbs().maxCoeff() == 0.0 && (ud * 2.0 - u1).cwiseAbs().maxCoeff() < 1e-12, "the divisor halves the unexplained variance and leaves H alone");
+
+    // one observation, and one parameter
+    {
+        Eigen::MatrixXd B1 = B.topRows(1);
+        Eigen::VectorXd ur, uc; stringstream sr, sc;
+        Eigen::MatrixXd Hr = Eigen::MatrixXd(estimate_sparse_H(A, B1, 0.05, 1, ur, sr));
+        Eigen::MatrixXd Hc = Eigen::MatrixXd(estimate_sparse_H(A, B1, 0.05, 4, uc, sc, 0, -1.0, true));
+        CHK((Hr - Hc).cwiseAbs().maxCoeff() <= 1e-9 * max(1.0e-300, Hr.cwiseAbs().maxCoeff()), "a single observation row matches");
+        Eigen::MatrixXd A1 = A.topRows(1);
+        Eigen::MatrixXd B2 = 2.0 * A1;
+        B2.conservativeResize(3, N);
+        B2.row(1) = -A1.row(0); B2.row(2) = 0.5 * A1.row(0);
+        Hr = Eigen::MatrixXd(estimate_sparse_H(A1, B2, 0.0, 1, ur, sr));
+        Hc = Eigen::MatrixXd(estimate_sparse_H(A1, B2, 0.0, 2, uc, sc, 0, -1.0, true));
+        CHK((Hr - Hc).cwiseAbs().maxCoeff() < 1e-12, "a single parameter matches");
+        CHK(abs(Hc(0, 0) - 2.0) < 1e-12 && abs(Hc(1, 0) + 1.0) < 1e-12 && abs(Hc(2, 0) - 0.5) < 1e-12, "and with no penalty recovers the exact slopes");
+    }
+
+    // the cross-validated fit: same folds, penalty path and refit, rows in step
+    {
+        Eigen::MatrixXd Acv = A.topRows(120), Bcv = B.topRows(12);
+        Eigen::VectorXd ur, uc, uc4; stringstream sr, sc, sc4;
+        Eigen::MatrixXd Hr = Eigen::MatrixXd(estimate_sparse_H(Acv, Bcv, 0.0, 1, ur, sr, 5));
+        Eigen::MatrixXd Hc = Eigen::MatrixXd(estimate_sparse_H(Acv, Bcv, 0.0, 1, uc, sc, 5, -1.0, true));
+        Eigen::MatrixXd Hc4 = Eigen::MatrixXd(estimate_sparse_H(Acv, Bcv, 0.0, 4, uc4, sc4, 5, -1.0, true));
+        // a coefficient sitting on the soft threshold can land at exactly zero in one fit and at
+        // roundoff in the other; any other pattern difference is a real one
+        double hmax = max(1.0e-300, Hr.cwiseAbs().maxCoeff());
+        int mismatch = 0, real_mismatch = 0;
+        double worst = 0.0;
+        for (int i = 0; i < Hr.rows(); i++) for (int j = 0; j < Hr.cols(); j++)
+            if ((Hr(i, j) != 0.0) != (Hc(i, j) != 0.0))
+            {
+                mismatch++;
+                double v = max(abs(Hr(i, j)), abs(Hc(i, j))) / hmax;
+                worst = max(worst, v);
+                if (v > 1.0e-12) real_mismatch++;
+            }
+        double hdiff = (Hr - Hc).cwiseAbs().maxCoeff() / hmax;
+        double udiff = (ur - uc).cwiseAbs().maxCoeff() / max(1.0e-300, ur.cwiseAbs().maxCoeff());
+        cout << "  cross-validated: nnz " << (Hr.array() != 0.0).count() << ", pattern mismatches " << mismatch
+             << " (largest " << worst << " of max |h|), max rel H diff " << hdiff << ", max rel unexplained diff " << udiff << endl;
+        CHK(real_mismatch == 0, "cross-validated: same sparsity pattern apart from entries at roundoff");
+        CHK(hdiff < 1.0e-6, "cross-validated: same coefficients to the solver tolerance");
+        CHK(udiff < 1.0e-6, "cross-validated: same unexplained variance to the solver tolerance");
+        CHK(Hc.row(3).cwiseAbs().maxCoeff() == 0.0 && uc[3] == 0.0, "cross-validated: an observation with no spread gives an empty row");
+        CHK(Hc.col(11).cwiseAbs().maxCoeff() == 0.0, "cross-validated: a parameter with no spread stays out");
+        CHK((Hc - Hc4).cwiseAbs().maxCoeff() == 0.0 && (uc - uc4).cwiseAbs().maxCoeff() == 0.0, "cross-validated: 1 and 4 threads bit-identical");
+        CHK(sc.str().find("column order") != string::npos && sr.str().find("chosen penalty") != string::npos
+            && sc.str().find("chosen penalty") != string::npos, "cross-validated: both summaries report, the column one says so");
+    }
+}
+
+static void test_sparse_h_localized()
+{
+    cout << "[enif: a localizer limits each lasso H row to its listed parameters]" << endl;
+    int p = 300, n = 40, N = 50;
+    std::mt19937 gen(11);
+    std::normal_distribution<double> nd(0.0, 1.0);
+    std::uniform_int_distribution<int> pick(0, p - 1);
+    Eigen::MatrixXd A(p, N), B(n, N);
+    for (int i = 0; i < p; i++) for (int j = 0; j < N; j++) A(i, j) = nd(gen) / sqrt(double(N - 1));
+    Eigen::MatrixXd Htrue = Eigen::MatrixXd::Zero(n, p);
+    for (int i = 0; i < n; i++) for (int k = 0; k < 5; k++) Htrue(i, pick(gen)) = nd(gen);
+    B = Htrue * A;
+    for (int i = 0; i < n; i++) for (int j = 0; j < N; j++) B(i, j) += 0.05 * nd(gen) / sqrt(double(N - 1));
+    A.row(11).setZero();
+    B.row(3).setZero();
+
+    // each observation gets a random 60 parameters; observation 5 gets none
+    vector<vector<int>> allowed(n);
+    vector<Eigen::Triplet<double>> trips;
+    for (int i = 0; i < n; i++)
+    {
+        if (i == 5) continue;
+        set<int> s;
+        while ((int)s.size() < 60) s.insert(pick(gen));
+        allowed[i].assign(s.begin(), s.end());
+        for (int j : allowed[i]) trips.push_back(Eigen::Triplet<double>(i, j, 1.0));
+    }
+    Eigen::SparseMatrix<double> loc(n, p);
+    loc.setFromTriplets(trips.begin(), trips.end());
+    Eigen::MatrixXd locd = Eigen::MatrixXd(loc);
+    Eigen::SparseMatrix<double> loc_all = Eigen::MatrixXd::Ones(n, p).sparseView();
+
+    for (double frac : {0.05, 0.005})
+    {
+        string tag = " (lasso fraction " + to_string(frac) + ")";
+        Eigen::VectorXd u; stringstream s;
+        Eigen::MatrixXd H = Eigen::MatrixXd(estimate_sparse_H(A, B, frac, 3, u, s, 0, -1.0, true, &loc));
+        int outside = 0;
+        for (int i = 0; i < n; i++) for (int j = 0; j < p; j++)
+            if ((H(i, j) != 0.0) && (locd(i, j) == 0.0)) outside++;
+        CHK(outside == 0, "no coefficient outside the localizer" + tag);
+        // each row is the plain lasso on just its listed parameters
+        double worst = 0.0;
+        int mismatch = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (allowed[i].empty()) continue;
+            Eigen::MatrixXd Ai(allowed[i].size(), N);
+            for (size_t k = 0; k < allowed[i].size(); k++) Ai.row(k) = A.row(allowed[i][k]);
+            Eigen::VectorXd ui; stringstream si;
+            Eigen::MatrixXd Hi = Eigen::MatrixXd(estimate_sparse_H(Ai, B.row(i), frac, 1, ui, si));
+            for (size_t k = 0; k < allowed[i].size(); k++)
+            {
+                double a = Hi(0, k), b = H(i, allowed[i][k]);
+                if ((a != 0.0) != (b != 0.0)) mismatch++;
+                worst = max(worst, abs(a - b) / max(1.0e-300, Hi.cwiseAbs().maxCoeff()));
+            }
+            worst = max(worst, abs(ui[0] - u[i]) / max(1.0e-300, abs(ui[0])));
+        }
+        cout << "  lasso fraction " << frac << ": nnz " << (H.array() != 0.0).count()
+             << ", pattern mismatches vs per-row subset fits " << mismatch << ", max rel diff " << worst << endl;
+        CHK(mismatch == 0 && worst < 1.0e-9, "each row matches the lasso on its own listed parameters" + tag);
+        Eigen::VectorXd full5 = B.row(5).array().square().matrix().rowwise().sum() * double(N - 1) / double(N);
+        CHK(H.row(5).cwiseAbs().maxCoeff() == 0.0 && abs(u[5] - full5[0]) < 1e-12,
+            "a row with nothing listed is empty and leaves its full variance unexplained" + tag);
+        CHK(s.str().find("localized") != string::npos, "the summary says localized" + tag);
+    }
+
+    // a localizer listing everything is no localizer; row order is overridden; threads do not matter
+    {
+        Eigen::VectorXd u0, ua, ur, u4; stringstream s0, sa, sr, s4;
+        Eigen::MatrixXd H0 = Eigen::MatrixXd(estimate_sparse_H(A, B, 0.05, 1, u0, s0, 0, -1.0, true));
+        Eigen::MatrixXd Ha = Eigen::MatrixXd(estimate_sparse_H(A, B, 0.05, 1, ua, sa, 0, -1.0, true, &loc_all));
+        CHK((H0 - Ha).cwiseAbs().maxCoeff() == 0.0 && (u0 - ua).cwiseAbs().maxCoeff() == 0.0, "a full localizer is bit-identical to none");
+        Eigen::MatrixXd Hr = Eigen::MatrixXd(estimate_sparse_H(A, B, 0.05, 1, ur, sr, 0, -1.0, false, &loc));
+        Eigen::MatrixXd H4 = Eigen::MatrixXd(estimate_sparse_H(A, B, 0.05, 4, u4, s4, 0, -1.0, true, &loc));
+        CHK((Hr - H4).cwiseAbs().maxCoeff() == 0.0 && (ur - u4).cwiseAbs().maxCoeff() == 0.0,
+            "row order asked for runs in column order, and 1 vs 4 threads are bit-identical");
+    }
+
+    // the cross-validated fit takes the same localizer
+    {
+        Eigen::MatrixXd Acv = A.topRows(120), Bcv = B.topRows(12);
+        Eigen::SparseMatrix<double> lcv = loc.topLeftCorner(12, 120);
+        Eigen::SparseMatrix<double> lcv_all = loc_all.topLeftCorner(12, 120);
+        Eigen::MatrixXd lcvd = Eigen::MatrixXd(lcv);
+        Eigen::VectorXd u, u4, u0, ua; stringstream s, s4, s0, sa;
+        Eigen::MatrixXd H = Eigen::MatrixXd(estimate_sparse_H(Acv, Bcv, 0.0, 1, u, s, 5, -1.0, true, &lcv));
+        Eigen::MatrixXd H4 = Eigen::MatrixXd(estimate_sparse_H(Acv, Bcv, 0.0, 4, u4, s4, 5, -1.0, true, &lcv));
+        int outside = 0;
+        for (int i = 0; i < H.rows(); i++) for (int j = 0; j < H.cols(); j++)
+            if ((H(i, j) != 0.0) && (lcvd(i, j) == 0.0)) outside++;
+        CHK(outside == 0 && H.row(5).cwiseAbs().maxCoeff() == 0.0, "cross-validated: nothing outside the localizer, unlisted row empty");
+        CHK((H - H4).cwiseAbs().maxCoeff() == 0.0 && (u - u4).cwiseAbs().maxCoeff() == 0.0, "cross-validated: 1 and 4 threads bit-identical");
+        Eigen::MatrixXd H0 = Eigen::MatrixXd(estimate_sparse_H(Acv, Bcv, 0.0, 1, u0, s0, 5, -1.0, true));
+        Eigen::MatrixXd Ha = Eigen::MatrixXd(estimate_sparse_H(Acv, Bcv, 0.0, 1, ua, sa, 5, -1.0, true, &lcv_all));
+        CHK((H0 - Ha).cwiseAbs().maxCoeff() == 0.0 && (u0 - ua).cwiseAbs().maxCoeff() == 0.0, "cross-validated: a full localizer is bit-identical to none");
+        cout << "  cross-validated: nnz " << (H.array() != 0.0).count() << endl;
+    }
+
+    // a localizer of the wrong shape is an error
+    {
+        Eigen::SparseMatrix<double> bad(n, p + 1);
+        Eigen::VectorXd u; stringstream s;
+        bool threw = false;
+        try { estimate_sparse_H(A, B, 0.05, 1, u, s, 0, -1.0, true, &bad); }
+        catch (const exception&) { threw = true; }
+        CHK(threw, "a localizer of the wrong shape throws");
+    }
+}
+
 static void test_enif_mm_inflation_csv()
 {
     cout << "[enif-mm: per-realization inflation csv]" << endl;
@@ -3933,6 +4160,8 @@ int main()
     run_test(test_enif_lowrank_step, "test_enif_lowrank_step");
     run_test(test_enif_supplied_prec_hybrid, "test_enif_supplied_prec_hybrid");
     run_test(test_estimate_sparse_h_divisor, "test_estimate_sparse_h_divisor");
+    run_test(test_sparse_h_by_col, "test_sparse_h_by_col");
+    run_test(test_sparse_h_localized, "test_sparse_h_localized");
     run_test(test_enif_mm_inflation_csv, "test_enif_mm_inflation_csv");
     run_test(test_enif_current_prec, "test_enif_current_prec");
     run_test(test_generic_access, "test_generic_access");

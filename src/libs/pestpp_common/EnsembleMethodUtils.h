@@ -373,7 +373,8 @@ public:
     //ensemble information filter upgrade: builds the gain from the supplied prior
     //covariance and an ensemble-regressed observation operator, instead of from
     //sample cross-covariances.  cur_lam damps the PRIOR precision.
-    void solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade);
+    //with a localizer, loc_map limits which parameters each observation's lasso H row may use
+    void solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade, unordered_map<string, pair<vector<string>, vector<string>>>& loc_map);
     //enif one realization at a time: H regressed on deviations centred on that realization
     //over its multimodal neighbourhood, then the enif step for that realization alone.
     //needs update_multimodal_components() to have run.  threaded over realizations
@@ -466,7 +467,7 @@ public:
         unordered_map<string, Eigen::SparseMatrix<double>>& _H_map,
         unordered_map<string, Eigen::VectorXd>& _unexp_map, bool _h_ready,
         const EnifGraph* _graph, const Eigen::SparseMatrix<double>* _C, const Eigen::MatrixXd* _Afac,
-        double _lasso, int _cv_folds, bool _inflate, double _cur_lam, Eigen::MatrixXd& _upgrade);
+        double _lasso, int _cv_folds, bool _by_col, bool _inflate, double _cur_lam, Eigen::MatrixXd& _upgrade);
     void work(int thread_id);
     //noise variance each realization ended up with, aligned with real_names, for the report
     vector<Eigen::VectorXd> noise_var;
@@ -491,6 +492,7 @@ protected:
     const Eigen::MatrixXd* Afac;
     double lasso;
     int cv_folds;
+    bool by_col;
     bool inflate;
     double cur_lam;
     Eigen::MatrixXd& upgrade;

@@ -2,6 +2,7 @@
  * @file EnsembleMethodUtils.cpp
  * @brief Implementation of EnsembleMethodUtils.
  */
+#include <chrono>
 #include <random>
 #include <map>
 #include <iomanip>
@@ -1258,7 +1259,7 @@ void EnsembleSolver::init_enif_graph(const vector<string>& pe_real_names, const 
 }
 
 
-void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
+void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade, unordered_map<string, pair<vector<string>, vector<string>>>& loc_map)
 {
     //ensemble information filter.  the standard ies upgrade builds the kalman gain from
     //sample cross-covariances; enif instead builds it from the prior covariance the user
@@ -1339,6 +1340,38 @@ void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
     //H = B M A^T is never formed, not even as a p x n product: every path below
     //applies it through A, B and the N x N factor
 
+    //a localizer limits which parameters each observation's lasso H row may use: an
+    //obs-par pair that shares a local solve is in, anything zero or not listed stays
+    //zero in H.  only the lasso H fits below use it, and only once per iteration
+    Eigen::SparseMatrix<double> h_loc;
+    const Eigen::SparseMatrix<double>* h_loc_ptr = nullptr;
+    if ((use_localizer) && (!enif_h_ready))
+    {
+        unordered_map<string, int> oidx, pidx;
+        for (int i = 0; i < n_obs; i++)
+            oidx[act_obs_names[i]] = i;
+        for (int j = 0; j < (int)act_par_names.size(); j++)
+            pidx[act_par_names[j]] = j;
+        vector<Eigen::Triplet<double>> loc_trips;
+        for (auto& lm : loc_map)
+            for (auto& pname : lm.second.second)
+            {
+                auto pit = pidx.find(pname);
+                if (pit == pidx.end())
+                    continue;
+                for (auto& oname : lm.second.first)
+                {
+                    auto oit = oidx.find(oname);
+                    if (oit != oidx.end())
+                        loc_trips.push_back(Eigen::Triplet<double>(oit->second, pit->second, 1.0));
+                }
+            }
+        h_loc.resize(n_obs, (int)act_par_names.size());
+        h_loc.setFromTriplets(loc_trips.begin(), loc_trips.end());
+        h_loc.makeCompressed();
+        h_loc_ptr = &h_loc;
+    }
+
     //--- graph path: sparse H and the information form -----------------------
     //when a conditional-independence graph is supplied, estimate a SPARSE H by
     //lasso and solve in the information form.  H^T Rinv H then stays sparse, so
@@ -1354,9 +1387,13 @@ void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
         if (!enif_h_ready)
         {
             performance_log->log_event("enif: estimating sparse H");
+            auto h_t0 = chrono::steady_clock::now();
             enif_H = estimate_sparse_H(
                 A, B, lasso, pest_scenario.get_pestpp_options().get_ies_num_threads(),
-                enif_unexp, frec, pest_scenario.get_pestpp_options().get_ies_enif_h_cv_folds());
+                enif_unexp, frec, pest_scenario.get_pestpp_options().get_ies_enif_h_cv_folds(),
+                -1.0, pest_scenario.get_pestpp_options().get_ies_enif_h_by_col(), h_loc_ptr);
+            frec << "...sparse H took " << setprecision(4) << chrono::duration<double>(
+                chrono::steady_clock::now() - h_t0).count() << " s" << endl;
             enif_h_ready = true;
         }
         const Eigen::SparseMatrix<double>& Hs = enif_H;
@@ -1417,10 +1454,14 @@ void EnsembleSolver::solve_enif(double cur_lam, ParameterEnsemble& pe_upgrade)
         if (!enif_h_ready)
         {
             performance_log->log_event("enif: estimating sparse H for the covariance path");
+            auto h_t0 = chrono::steady_clock::now();
             frec << "...enif: lasso H on the covariance path (ies_enif_h_lasso given, no graph)" << endl;
             enif_H = estimate_sparse_H(
                 A, B, lasso_opt, pest_scenario.get_pestpp_options().get_ies_num_threads(),
-                enif_unexp, frec, pest_scenario.get_pestpp_options().get_ies_enif_h_cv_folds());
+                enif_unexp, frec, pest_scenario.get_pestpp_options().get_ies_enif_h_cv_folds(),
+                -1.0, pest_scenario.get_pestpp_options().get_ies_enif_h_by_col(), h_loc_ptr);
+            frec << "...sparse H took " << setprecision(4) << chrono::duration<double>(
+                chrono::steady_clock::now() - h_t0).count() << " s" << endl;
             enif_h_ready = true;
         }
         if (pest_scenario.get_pestpp_options().get_ies_enif_save_h())
@@ -1565,11 +1606,11 @@ EnifMmThread::EnifMmThread(PerformanceLog* _performance_log, const vector<string
     unordered_map<string, Eigen::SparseMatrix<double>>& _H_map,
     unordered_map<string, Eigen::VectorXd>& _unexp_map, bool _h_ready,
     const EnifGraph* _graph, const Eigen::SparseMatrix<double>* _C, const Eigen::MatrixXd* _Afac,
-    double _lasso, int _cv_folds, bool _inflate, double _cur_lam, Eigen::MatrixXd& _upgrade) :
+    double _lasso, int _cv_folds, bool _by_col, bool _inflate, double _cur_lam, Eigen::MatrixXd& _upgrade) :
     performance_log(_performance_log), real_names(_real_names), X(_X), Y(_Y), e(_e), r(_r),
     real_idx_map(_real_idx_map), real_name_map(_real_name_map), q_vec_map(_q_vec_map),
     real_weight_map(_real_weight_map), H_map(_H_map), unexp_map(_unexp_map), h_ready(_h_ready),
-    graph(_graph), C(_C), Afac(_Afac), lasso(_lasso), cv_folds(_cv_folds), inflate(_inflate), cur_lam(_cur_lam),
+    graph(_graph), C(_C), Afac(_Afac), lasso(_lasso), cv_folds(_cv_folds), by_col(_by_col), inflate(_inflate), cur_lam(_cur_lam),
     upgrade(_upgrade)
 {
     noise_var.resize(real_names.size());
@@ -1644,7 +1685,7 @@ void EnifMmThread::work(int thread_id)
                     divisor = wsum;
             }
             stringstream tss;
-            Hk = estimate_sparse_H(Ak, Bk, lasso, 1, uk, tss, cv_folds, divisor);
+            Hk = estimate_sparse_H(Ak, Bk, lasso, 1, uk, tss, cv_folds, divisor, by_col);
             lock_guard<mutex> guard(results_lock);
             H_map[rname] = Hk;
             unexp_map[rname] = uk;
@@ -1768,13 +1809,14 @@ void EnsembleSolver::solve_enif_multimodal(int num_threads, double cur_lam, Para
     if (lasso <= 0.0)
         lasso = 1.0e-2;
     int cv_folds = pest_scenario.get_pestpp_options().get_ies_enif_h_cv_folds();
+    bool by_col = pest_scenario.get_pestpp_options().get_ies_enif_h_by_col();
     bool apply_inflate = pest_scenario.get_pestpp_options().get_ies_enif_resid_inflate();
     bool h_was_ready = enif_mm_h_ready;
 
     Eigen::MatrixXd upgrade = Eigen::MatrixXd::Zero(n_par, num_reals);
     EnifMmThread worker(performance_log, pe_real_names, X, Y, e, r, mm_real_idx_map, mm_real_name_map,
         mm_q_vec_map, mm_real_weight_map, enif_mm_H, enif_mm_unexp, h_was_ready, graph, C, Afac_ptr,
-        lasso, cv_folds, apply_inflate, cur_lam, upgrade);
+        lasso, cv_folds, by_col, apply_inflate, cur_lam, upgrade);
     ss.str("");
     ss << "enif-mm: " << (h_was_ready ? "reusing" : "estimating") << " per-realization H and taking the "
        << (graph != nullptr ? "information" : "woodbury") << " step for " << num_reals << " realizations";
@@ -8860,7 +8902,7 @@ void EnsembleMethod::generate_upgrades(UpgradeContext& ctx, bool use_mda,
 		else if (use_enif_solve())
         {
             message(1,"ensemble information filter solve for inflation factor ",cur_lam);
-            es.solve_enif(cur_lam, pe_upgrade);
+            es.solve_enif(cur_lam, pe_upgrade, ctx.loc_map);
         }
 		else{
             es.solve(get_num_threads(), cur_lam, !use_mda, pe_upgrade, ctx.loc_map);
