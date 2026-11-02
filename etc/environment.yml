@@ -4,7 +4,7 @@ channels:
   - nodefaults
 dependencies:
   # required
-  - python<=3.11
+  - python<=3.12
   - numpy>=1.15.0
   # pinned below 3. pandas 3.0 removed and changed things the benchmark harness relies on, and
   # it arrived unannounced through this unpinned entry - 48 tests across every module went red
@@ -38,5 +38,4 @@ dependencies:
   - scikit-learn
   - pip:
     - git+https://github.com/pypest/pyemu.git@develop
-    - git+https://github.com/modflowpy/flopy.git
     - laGpy
