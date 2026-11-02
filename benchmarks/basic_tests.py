@@ -7,6 +7,7 @@ import subprocess
 import numpy as np
 import pandas as pd
 import platform
+import pytest
 import pyemu
 
 from fixture_utils import scratch_template
@@ -2880,6 +2881,12 @@ def _g07_sqp_sanity(m_d, base_d):
           "finite, obj {0:.6g}->{1:.6g} viol {2:.6g}->{3:.6g}".format(o0, o1, v0, v1))
 
 
+#: run as its OWN ci job rather than inside the bulk basic_tests collection: it drives five
+#: tools and takes about as long as everything else in this file put together, so a failure
+#: should name itself rather than showing up as "basic_tests.py failed".  own_job leaves it out
+#: when the whole file is run but still runs it when named, which is what the ci entry does
+#: (basic_tests.py::basic_xplat_g07_test) - see conftest.py
+@pytest.mark.own_job
 def basic_xplat_g07_test(base_d=XPLAT_G07_BASE, rtol=1.0e-6, atol=1.0e-8):
     """re-run all five tools from the frozen template and compare against the committed base.
 
@@ -3003,14 +3010,6 @@ def basic_xplat_g07_test(base_d=XPLAT_G07_BASE, rtol=1.0e-6, atol=1.0e-8):
         "{0} element(s) exceeded tolerance across the five tools - see the divergence summary above".format(
             n_fail_total)
     print("PASS: all five tools match the g07 base case within tolerance")
-
-
-#: run as its OWN ci job rather than inside the bulk basic_tests collection: it drives five
-#: tools and takes about as long as everything else in this file put together, so a failure
-#: should name itself rather than showing up as "basic_tests.py failed".  nose skips a function
-#: marked this way during bulk collection but still runs it when named explicitly, which is what
-#: the ci entry does (basic_tests.py:basic_xplat_g07_test).
-basic_xplat_g07_test.__test__ = False
 
 
 def _load_par_file(path):
