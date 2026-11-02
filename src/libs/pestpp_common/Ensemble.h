@@ -292,6 +292,10 @@ private:
 	void fill_fixed(const map<string, int> &header_info, vector<string>& fixed_names);
 	void fill_missing_from_ctl(const map<string, int> &header_info, vector<string>& fixed_names);
 	void replace_fixed(string real_name,Parameters &pars,bool to_model=false);
+	//true when every transformation acts on one parameter at a time (log, scale, offset, fixed,
+	//no tied pars), so a row can be moved between spaces column by column instead of through
+	//a name-keyed map of every parameter
+	bool per_par_transforms();
 	void prep_par_ensemble_after_read(map<string,int>& header_info);
 	FixedParInfo pfinfo;
 };

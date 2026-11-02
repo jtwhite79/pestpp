@@ -2579,6 +2579,33 @@ ParameterEnsemble ParameterEnsemble::zeros_like(int nrows)
 
 }
 
+bool ParameterEnsemble::per_par_transforms()
+{
+	TranTied* tied_ptr = par_transform.get_tied_ptr();
+	if ((tied_ptr != nullptr) && (tied_ptr->get_items().size() > 0))
+		return false;
+	const TranLog10* log_ptr = par_transform.get_log10_ptr();
+	const TranScale* scale_ptr = par_transform.get_scale_ptr();
+	const TranOffset* offset_ptr = par_transform.get_offset_ptr();
+	const TranFixed* fixed_ptr = par_transform.get_fixed_ptr();
+	//anything in the sequences beyond these five and the shortcut doesnt hold
+	size_t n_known = (log_ptr ? 1 : 0) + (scale_ptr ? 1 : 0) + (offset_ptr ? 1 : 0) + (fixed_ptr ? 1 : 0) + (tied_ptr ? 1 : 0);
+	vector<Transformation*> c2m = par_transform.get_ctl2model_tranformations();
+	size_t n_tran = c2m.size() + par_transform.get_ctl2active_ctl_tranformations().size() +
+		par_transform.get_active_ctl2numeric_tranformations().size();
+	if (n_tran != n_known)
+		return false;
+	//the shortcut applies scale then offset going to model space
+	if ((scale_ptr != nullptr) && (offset_ptr != nullptr))
+	{
+		auto is = find(c2m.begin(), c2m.end(), (Transformation*)scale_ptr);
+		auto io = find(c2m.begin(), c2m.end(), (Transformation*)offset_ptr);
+		if (is > io)
+			return false;
+	}
+	return true;
+}
+
 map<string,int> ParameterEnsemble::add_runs(RunManagerAbstract *run_mgr_ptr,const vector<int> &real_idxs,
                                          int da_cycle, string additional_tag)
 {
@@ -2627,7 +2654,118 @@ map<string,int> ParameterEnsemble::add_runs(RunManagerAbstract *run_mgr_ptr,cons
 	    info_txt = info_txt + " " + additional_tag;
     }
 	string rname,rinfo_txt;
-	//for (auto &rname : run_real_names)
+
+	//fast path: with only per-parameter transformations, each run's model-space vector is a
+	//base vector (every par not in the ensemble, already in model space) with the ensemble
+	//columns dropped in after their own log/scale/offset. this skips copying and transforming
+	//a name-keyed map of every parameter for every run, which is most of the queueing cost
+	//when there are lots of pars. the ops and their order match the map path exactly.
+	const TranFixed* fixed_ptr = par_transform.get_fixed_ptr();
+	bool fast = per_par_transforms();
+	if (fast && (fixed_ptr != nullptr))
+	{
+		//an ensemble column that is also a fixed par gets overwritten by the fixed value in
+		//the map path - rare enough to just use that path
+		for (auto& vname : var_names)
+			if (fixed_ptr->get_value(vname).first)
+			{
+				fast = false;
+				break;
+			}
+	}
+	if (fast)
+	{
+		const vector<string>& run_par_names = run_mgr_ptr->get_par_name_vec();
+		unordered_map<string, int> run_par_idx;
+		run_par_idx.reserve(run_par_names.size());
+		for (int k = 0; k < run_par_names.size(); k++)
+			run_par_idx[run_par_names[k]] = k;
+		Parameters base_pars = pars;
+		if (tstat == ParameterEnsemble::transStatus::CTL)
+			par_transform.active_ctl2model_ip(base_pars);
+		else if (tstat == ParameterEnsemble::transStatus::NUM)
+			par_transform.numeric2model_ip(base_pars);
+		vector<double> base_vec = base_pars.get_data_vec(run_par_names);
+
+		const TranLog10* log_ptr = par_transform.get_log10_ptr();
+		const TranScale* scale_ptr = par_transform.get_scale_ptr();
+		const TranOffset* offset_ptr = par_transform.get_offset_ptr();
+		int nvar = var_names.size();
+		vector<int> var_run_idx(nvar, -1);
+		vector<char> var_log(nvar, 0), var_has_scale(nvar, 0), var_has_offset(nvar, 0);
+		vector<double> var_scale(nvar, 1.0), var_offset(nvar, 0.0);
+		pair<bool, double> tv;
+		for (int j = 0; j < nvar; j++)
+		{
+			auto it = run_par_idx.find(var_names[j]);
+			if (it != run_par_idx.end())
+				var_run_idx[j] = it->second;
+			if (tstat == ParameterEnsemble::transStatus::MODEL)
+				continue;
+			if ((tstat == ParameterEnsemble::transStatus::NUM) && (log_ptr != nullptr) &&
+				(log_ptr->get_items().find(var_names[j]) != log_ptr->get_items().end()))
+				var_log[j] = 1;
+			if (scale_ptr != nullptr)
+			{
+				tv = scale_ptr->get_value(var_names[j]);
+				var_has_scale[j] = tv.first;
+				var_scale[j] = tv.second;
+			}
+			if (offset_ptr != nullptr)
+			{
+				tv = offset_ptr->get_value(var_names[j]);
+				var_has_offset[j] = tv.first;
+				var_offset[j] = tv.second;
+			}
+		}
+
+		vector<double> run_vec;
+		double v;
+		int k;
+		for (int i = 0; i < run_real_names.size(); i++)
+		{
+			rname = run_real_names[i];
+			idx = rmap[rname];
+			run_vec = base_vec;
+			for (int j = 0; j < nvar; j++)
+			{
+				k = var_run_idx[j];
+				if (k < 0)
+					continue;
+				v = reals(idx, j);
+				if (var_log[j])
+					v = pow(10.0, v);
+				if (var_has_scale[j])
+					v *= var_scale[j];
+				if (var_has_offset[j])
+					v += var_offset[j];
+				run_vec[k] = v;
+			}
+			//per-realization fixed values are already in model space, same as replace_fixed(...,true)
+			for (auto& r : pfinfo.get_real_fixed_values(rname))
+			{
+				auto it = run_par_idx.find(r.first);
+				if (it != run_par_idx.end())
+					run_vec[it->second] = r.second;
+			}
+			nn.clear();
+			for (k = 0; k < run_vec.size(); k++)
+				if ((!isnormal(run_vec[k])) && (run_vec[k] != 0.0))
+					nn.push_back(run_par_names[k]);
+			if (nn.size() > 0)
+			{
+				stringstream ss;
+				ss << "ParameterEnsemble:: add_runs() error: denormal values for realization " << rname << " : ";
+				for (auto n : nn)
+					ss << n << ",";
+				throw_ensemble_error(ss.str());
+			}
+			run_id = run_mgr_ptr->add_run(run_vec, info_txt + "  realization:" + rname);
+			real_run_ids[rname] = run_id;
+		}
+	}
+	//the general path, through a map of every parameter
+	else
 	for (int i=0;i<run_real_names.size();i++)
 	{
 	    rname = run_real_names[i];
@@ -3681,7 +3819,87 @@ void ParameterEnsemble::to_dense_ordered(string file_name)
 		par_transform.ctl2model_ip(org_pars);
 	else if (tstat == transStatus::NUM)
 		par_transform.ctl2numeric_ip(org_pars);
-	
+
+	//fast path: with only per-parameter transformations, each row is a base vector (every par
+	//not in the ensemble, in ctl space) with the ensemble columns dropped in after undoing their
+	//own log. same ops and order as the map path below, without copying and transforming a
+	//name-keyed map of every parameter for every row.
+	bool fast = (tstat != transStatus::MODEL) && per_par_transforms();
+	const TranFixed* fixed_ptr = par_transform.get_fixed_ptr();
+	if (fast && (fixed_ptr != nullptr))
+	{
+		for (auto& vname : var_names)
+			if (fixed_ptr->get_value(vname).first)
+			{
+				fast = false;
+				break;
+			}
+	}
+	if (fast)
+	{
+		Parameters base_pars = org_pars;
+		if (tstat == transStatus::NUM)
+			par_transform.numeric2ctl_ip(base_pars);
+		vector<double> base_vec(n_var);
+		unordered_map<string, int> vidx;
+		vidx.reserve(n_var);
+		for (int jcol = 0; jcol < n_var; ++jcol)
+		{
+			base_vec[jcol] = base_pars[vnames[jcol]];
+			vidx[vnames[jcol]] = jcol;
+		}
+		const TranLog10* log_ptr = par_transform.get_log10_ptr();
+		int nvar = var_names.size();
+		vector<int> var_col(nvar, -1);
+		vector<char> var_log(nvar, 0);
+		for (int j = 0; j < nvar; j++)
+		{
+			auto it = vidx.find(var_names[j]);
+			if (it != vidx.end())
+				var_col[j] = it->second;
+			if ((tstat == transStatus::NUM) && (log_ptr != nullptr) &&
+				(log_ptr->get_items().find(var_names[j]) != log_ptr->get_items().end()))
+				var_log[j] = 1;
+		}
+		ParameterInfo* pinfo = pest_scenario_ptr->get_ctl_parameter_info_ptr_4_mod();
+		vector<double> row;
+		double v;
+		for (int irow = 0; irow < n_real; ++irow)
+		{
+			row = base_vec;
+			for (int j = 0; j < nvar; j++)
+			{
+				if (var_col[j] < 0)
+					continue;
+				v = reals(irow, j);
+				if (var_log[j])
+					v = pow(10.0, v);
+				row[var_col[j]] = v;
+			}
+			//same as replace_fixed(): per-realization fixed values back to ctl space
+			for (auto& r : pfinfo.get_real_fixed_values(real_names[irow]))
+			{
+				auto it = vidx.find(r.first);
+				if (it == vidx.end())
+					continue;
+				v = r.second;
+				v -= pinfo->get_parameter_rec_ptr(r.first)->offset;
+				v /= pinfo->get_parameter_rec_ptr(r.first)->scale;
+				row[it->second] = v;
+			}
+			string name = real_names[irow];
+			tmp = name.size();
+			char* real_name = new char[tmp];
+			fout.write((char*)&tmp, sizeof(tmp));
+			pest_utils::string_to_fortran_char(name, real_name, tmp);
+			fout.write(real_name, tmp);
+			delete[] real_name;
+			fout.write((char*)row.data(), sizeof(double) * n_var);
+		}
+		fout.close();
+		return;
+	}
+
 	for (int irow = 0; irow < n_real; ++irow)
 	{
 		Parameters pars = org_pars;
