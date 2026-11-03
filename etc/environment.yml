@@ -26,9 +26,12 @@ dependencies:
   - pytest-xdist
   # no nbmake: nothing used it, and pytest loads every installed plugin at startup - nbmake
   # 1.3.4 imports pkg_resources, which setuptools no longer ships, so it took down every job.
-  # imported directly by benchmarks/pestpp_api_tests.py to execute the example notebook
+  # imported directly by benchmarks/pestpp_api_tests.py to execute the example notebook.
+  # ipykernel is the python3 kernel nbclient runs it in - nbmake used to drag it in, and
+  # without it the notebook tests die with NoSuchKernel
   - nbclient
   - nbformat
+  - ipykernel
   - shapely
   - flopy
   - mfpymake
