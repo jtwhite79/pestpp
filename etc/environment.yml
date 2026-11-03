@@ -24,9 +24,9 @@ dependencies:
   - coveralls
   - pytest
   - pytest-xdist
-  - nbmake
-  # imported directly by benchmarks/pestpp_api_tests.py to execute the example
-  # notebook; nbmake pulls them in too, but depending on that transitively is fragile
+  # no nbmake: nothing used it, and pytest loads every installed plugin at startup - nbmake
+  # 1.3.4 imports pkg_resources, which setuptools no longer ships, so it took down every job.
+  # imported directly by benchmarks/pestpp_api_tests.py to execute the example notebook
   - nbclient
   - nbformat
   - shapely
