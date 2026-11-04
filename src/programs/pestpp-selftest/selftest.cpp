@@ -2377,6 +2377,119 @@ static void test_violation_single_run_matches_ensemble()
     remove("selftest_viol.rec");
 }
 
+static void test_mou_all_infeasible_nondom()
+{
+    cout << "[mou nsga: when every member is infeasible, the least infeasible one is the nondom one]" << endl;
+    // update() puts each infeasible member in its own front, ordered by violation, and
+    // get_nsga2_pareto_dominance() takes front 1 as the nondominated set - the same numbering
+    // the dominance sort uses. the infeasible fronts used to start at 0, so the least
+    // infeasible member landed in the dominated set and the SECOND least infeasible one was
+    // handed to the archive and to pso as the only nondominated member.
+    //
+    // two objectives and one less-than constraint (con1 <= 0) that every member violates by a
+    // different amount. a real control file, because Constraints::initialize() reads the
+    // constraint senses from the observation groups.
+    string pst_name = "selftest_moea.pst";
+    {
+        ofstream f(pst_name);
+        f << "pcf" << endl
+          << "* control data" << endl
+          << "restart estimation" << endl
+          << "2 3 1 0 2" << endl
+          << "1 1 single point 1 0 0" << endl
+          << "5.0 2.0 0.3 0.03 10" << endl
+          << "5.0 5.0 0.001" << endl
+          << "0.1" << endl
+          << "0 0.01 3 3 0.01 3" << endl
+          << "0 0 0" << endl
+          << "* parameter groups" << endl
+          << "dv relative 0.01 0.0 switch 2.0 parabolic" << endl
+          << "* parameter data" << endl
+          << "x1 none relative 0.5 0.0 1.0 dv 1.0 0.0 1" << endl
+          << "x2 none relative 0.5 0.0 1.0 dv 1.0 0.0 1" << endl
+          << "* observation groups" << endl
+          << "l_obj" << endl
+          << "l_con" << endl
+          << "* observation data" << endl
+          << "obj1 0.0 1.0 l_obj" << endl
+          << "obj2 0.0 1.0 l_obj" << endl
+          << "con1 0.0 1.0 l_con" << endl
+          << "* model command line" << endl
+          << "echo" << endl
+          << "* model input/output" << endl
+          << "x.tpl x.dat" << endl
+          << "y.ins y.dat" << endl;
+    }
+    ofstream flog("selftest_moea_perf.log");
+    PerformanceLog pfm(flog);
+    FileManager fm("selftest_moea");
+    ofstream& frec = fm.open_ofile_ext("rec");
+    Pest p;
+    {
+        ifstream fin(pst_name);
+        p.process_ctl_file(fin, pst_name, frec);
+    }
+    OutputFileWriter ofw(fm, p);
+    Constraints c(p, &fm, ofw, pfm);
+    vector<string> dv_names{"X1", "X2"};
+    c.initialize(dv_names, numeric_limits<double>::max());
+    CHK(c.get_obs_constraint_names().size() == 3, "both objectives and con1 are read as constraint observations");
+
+    vector<string> obj_names{"OBJ1", "OBJ2"}, obs_obj_names{"OBJ1", "OBJ2"}, empty;
+    map<string, double> obj_dir_mult;
+    map<string, string> ppd_obj_to_sd;
+    ParetoObjectives po(p, fm, &pfm);
+    po.set_prob_pareto(false);
+    po.set_pointers(obj_names, obs_obj_names, empty, empty, empty, obj_dir_mult, ppd_obj_to_sd);
+
+    std::mt19937 rgen(11);
+    vector<string> onames{"OBJ1", "OBJ2", "CON1"};
+    // con1 violations 3, 1, 2, 4: M1 is the least infeasible, M2 is next
+    vector<string> rnames{"M0", "M1", "M2", "M3"};
+    Eigen::MatrixXd om(4, 3);
+    om << 1.0, 4.0, 3.0,
+          2.0, 3.0, 1.0,
+          3.0, 2.0, 2.0,
+          4.0, 1.0, 4.0;
+    ObservationEnsemble op(&p, &rgen, om, rnames, onames);
+    Eigen::MatrixXd dm(4, 2);
+    dm << 0.1, 0.2,
+          0.3, 0.4,
+          0.5, 0.6,
+          0.7, 0.8;
+    ParameterEnsemble dp(&p, &rgen, dm, rnames, dv_names);
+
+    pair<vector<string>, vector<string>> dom = po.get_nsga2_pareto_dominance(0, op, dp, &c, false, false);
+    CHK(po.get_num_feasible() == 0, "every member is infeasible");
+    CHK(dom.first.size() == 1, "one nondominated member when all are infeasible, got " + to_string(dom.first.size()));
+    CHK(dom.first.size() > 0 && dom.first[0] == "M1",
+        "the nondominated member is the least infeasible one (M1), got " +
+        (dom.first.size() > 0 ? dom.first[0] : string("none")));
+    CHK(dom.first.size() + dom.second.size() == 4, "every member is in one set or the other");
+    CHK(find(dom.second.begin(), dom.second.end(), "M1") == dom.second.end(),
+        "the least infeasible member is not in the dominated set");
+
+    // a single infeasible member: with fronts starting at 0 it had no front 1 to be in, so the
+    // nondominated set came back empty
+    vector<string> one{"M3"};
+    Eigen::MatrixXd om1 = om.row(3);
+    Eigen::MatrixXd dm1 = dm.row(3);
+    ObservationEnsemble op1(&p, &rgen, om1, one, onames);
+    ParameterEnsemble dp1(&p, &rgen, dm1, one, dv_names);
+    dom = po.get_nsga2_pareto_dominance(0, op1, dp1, &c, false, false);
+    CHK(dom.first.size() == 1 && dom.first[0] == "M3", "a lone infeasible member is nondominated");
+    CHK(dom.second.empty(), "and nothing is dominated");
+
+    for (const string& tag : {string("rec"), POP_SUM_TAG, ARC_SUM_TAG, ARC_TRIM_SUM_TAG})
+    {
+        fm.close_file(tag);
+        remove(fm.build_filename(tag).c_str());
+    }
+    flog.close();
+    remove("selftest_moea_perf.log");
+    remove(pst_name.c_str());
+}
+
 
 // ---------------------------------------------------------------------------------------
 // The regularization weight search, isolated.
@@ -4195,6 +4308,7 @@ int main()
     run_test(test_external_values_are_results, "test_external_values_are_results");
     run_test(test_partial_read_refuses_stale_outputs, "test_partial_read_refuses_stale_outputs");
     run_test(test_violation_single_run_matches_ensemble, "test_violation_single_run_matches_ensemble");
+    run_test(test_mou_all_infeasible_nondom, "test_mou_all_infeasible_nondom");
     run_test(test_regul_weight_search_edges, "test_regul_weight_search_edges");
     run_test(test_ies_prior_scaling_is_neutral, "test_ies_prior_scaling_is_neutral");
     run_test(test_prior_anomaly_scaling, "test_prior_anomaly_scaling");

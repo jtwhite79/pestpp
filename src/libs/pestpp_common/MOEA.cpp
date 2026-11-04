@@ -662,9 +662,13 @@ void ParetoObjectives::update(ObservationEnsemble& op, ParameterEnsemble& dp, Co
 	
 	if (all_infeas)
 	{
+		//one front per member, least infeasible first. fronts are numbered from 1, the same as
+		//sort_members_by_dominance_into_fronts(), because get_nsga2_pareto_dominance() takes
+		//front 1 as the nondominated set - starting at 0 handed the archive and pso the second
+		//least infeasible member instead of the least
 		front_map.clear();
 		for (int i = 0; i < infeas_ordered.size(); i++)
-			front_map[i].push_back(infeas_ordered[i]);	
+			front_map[i + 1].push_back(infeas_ordered[i]);
 	}
 		
 	else
