@@ -5653,6 +5653,24 @@ void EnsembleMethod::sanity_checks()
     {
         errors.push_back("multimodal alpha > 1.0");
     }
+    if (!ppo->get_ies_reinflate_multimodal_alpha().empty())
+    {
+        for (auto a : ppo->get_ies_reinflate_multimodal_alpha())
+        {
+            if ((a < 0.0) || (a > 1.0))
+                errors.push_back("ies_reinflate_multimodal_alpha entry " + to_string(a) + " must be in [0,1]");
+        }
+        if (ppo->get_ies_multimodal_alpha() > 0.0)
+            warnings.push_back("ies_reinflate_multimodal_alpha is set, so ies_multimodal_alpha is ignored");
+        if (ppo->get_ies_reinflate_multimodal_alpha().size() > 1)
+        {
+            bool reinflating = false;
+            for (auto n : ppo->get_ies_n_iter_reinflate())
+                if (n != 0) reinflating = true;
+            if (!reinflating)
+                warnings.push_back("ies_reinflate_multimodal_alpha has more than one entry but reinflation is off (ies_n_iter_reinflate = 0), only the first entry will be used");
+        }
+    }
     // if (ppo->get_ies_multimodal_alpha() < 0.001)
     // {
     //     errors.push_back("multimodal alpha < 0.001");
@@ -6395,8 +6413,8 @@ int EnsembleMethod::initialize_prepare(int cycle, bool run, bool use_existing)
 		//the precision form only exists for the plain, global glm solve so far
 		if (use_localizer)
 			throw_em_error("ies_use_prior_prec is not supported with localization");
-		if (ppo->get_ies_multimodal_alpha() > 0.0)
-			throw_em_error("ies_use_prior_prec is not supported with the multimodal solve (ies_multimodal_alpha)");
+		if (any_multimodal_solve())
+			throw_em_error("ies_use_prior_prec is not supported with the multimodal solve (ies_multimodal_alpha / ies_reinflate_multimodal_alpha)");
 		if (any_mda_solve())
 			throw_em_error("ies_use_prior_prec needs the glm form, not esmda (ies_use_mda / ies_reinflate_solver)");
 		bool enif = ppo->get_ies_use_enif();
@@ -8868,7 +8886,7 @@ void EnsembleMethod::generate_upgrades(UpgradeContext& ctx, bool use_mda,
 		use_localizer, iter, act_par_names, act_obs_names, get_reg_factor());
     if (pest_scenario.get_pestpp_options().get_ies_use_prior_prec())
         es.set_prior_prec(&prior_prec);
-    double mm_alpha = pest_scenario.get_pestpp_options().get_ies_multimodal_alpha();
+    double mm_alpha = get_multimodal_alpha();
     if (mm_alpha > 0.0)
     {
         es.update_multimodal_components(mm_alpha);
@@ -9701,6 +9719,10 @@ ReinflationSchedule::ReinflationSchedule(Pest& pest_scenario)
 	reinflate_solver = pest_scenario.get_pestpp_options().get_ies_reinflate_solver();
 	if (reinflate_solver.size() > 0)
 		current_solver = reinflate_solver[0];
+	// multimodal alpha is walked the same way
+	reinflate_mm_alpha = pest_scenario.get_pestpp_options().get_ies_reinflate_multimodal_alpha();
+	if (reinflate_mm_alpha.size() > 0)
+		current_mm_alpha = reinflate_mm_alpha[0];
 }
 
 /**
@@ -9721,6 +9743,8 @@ void ReinflationSchedule::advance()
 		current_num_reals = reinflate_num_reals[idx + 1];
 	if ((int)reinflate_solver.size() > idx)
 		current_solver = reinflate_solver[idx];
+	if ((int)reinflate_mm_alpha.size() > idx)
+		current_mm_alpha = reinflate_mm_alpha[idx];
 }
 
 /**

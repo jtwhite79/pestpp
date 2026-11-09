@@ -5291,6 +5291,74 @@ def tenpar_reinflate_solver_test():
     assert "not recognized" in rec, "bad entry: no clear error"
 
 
+def tenpar_reinflate_multimodal_alpha_test():
+    """ies_reinflate_multimodal_alpha: a single entry matches ies_multimodal_alpha exactly, a
+    list changes alpha at each reinflation with the last entry held (0 turns the multimodal
+    solve off for that cycle), and an entry outside [0,1] stops the run.  serial runs on the
+    10 par xsec, so it is quick"""
+    model_d = "ies_10par_xsec"
+    template_d = scratch_template(os.path.join(model_d, "test_template"), suffix="_reinflate_mm_alpha")
+
+    def run_case(name, options, noptmax=6):
+        test_d = os.path.join(model_d, "master_reinflate_mm_alpha_" + name)
+        if os.path.exists(test_d):
+            shutil.rmtree(test_d)
+        shutil.copytree(template_d, test_d)
+        pst = pyemu.Pst(os.path.join(test_d, "pest.pst"))
+        # see the note in tenpar_enif_approx_test: dont inherit whatever model command
+        # the shared template was left with
+        pst.model_command = ["mfnwt 10par_xsec.nam"]
+        # 20 reals so alpha 0.5 gives each realization a neighbourhood of 10
+        pst.pestpp_options = {"ies_num_reals": 20, "ies_lambda_mults": 1.0,
+                              "lambda_scale_fac": 1.0, "ies_accept_phi_fac": 1000.0}
+        pst.pestpp_options.update(options)
+        pst.control_data.noptmax = noptmax
+        pst.write(os.path.join(test_d, "pest.pst"))
+        try:
+            pyemu.os_utils.run("{0} pest.pst".format(exe_path), cwd=test_d)
+        except Exception:
+            pass
+        rec_f = os.path.join(test_d, "pest.rec")
+        rec = open(rec_f).read() if os.path.exists(rec_f) else ""
+        phi_f = os.path.join(test_d, "pest.phi.actual.csv")
+        phi = pd.read_csv(phi_f, index_col=0) if os.path.exists(phi_f) else None
+        return rec, phi
+
+    tag = "multimodal alpha for this reinflation cycle:"
+    solve_tag = "multimodal solve for inflation factor"
+
+    def cycle_alphas(rec):
+        return [float(ln.split(tag)[1].strip()) for ln in rec.splitlines() if tag in ln]
+
+    # a single entry gives exactly what ies_multimodal_alpha gave; dropped realizations are
+    # nan in the phi file, so nan in the same place counts as equal
+    _, phi_a = run_case("legacy", {"ies_multimodal_alpha": 0.5})
+    rec_b, phi_b = run_case("option", {"ies_reinflate_multimodal_alpha": 0.5})
+    assert phi_a is not None and phi_b is not None, "single entry: a run did not finish"
+    assert phi_a.shape == phi_b.shape, "single entry: phi files differ in shape"
+    assert np.allclose(phi_a.values, phi_b.values, rtol=0.0, atol=0.0, equal_nan=True), \
+        "single entry: ies_reinflate_multimodal_alpha does not match ies_multimodal_alpha"
+    assert cycle_alphas(rec_b)[:1] == [0.5], "single entry: alpha not reported in the rec"
+    assert solve_tag in rec_b, "single entry: the multimodal solve did not run"
+
+    # off for the first cycle, on after the first reinflation, every 2 iterations
+    reinf = {"ies_n_iter_reinflate": 2, "ies_reinflate_factor": 1.0}
+    rec, phi = run_case("switch", dict(reinf, ies_reinflate_multimodal_alpha="0.0,0.5"))
+    got = cycle_alphas(rec)
+    assert len(got) >= 3 and got[0] == 0.0 and all(a == 0.5 for a in got[1:]), \
+        "switch: wrong alpha sequence (or last entry not held) {0}".format(got)
+    lines = rec.splitlines()
+    second_cycle = [i for i, ln in enumerate(lines) if tag in ln][1]
+    mm_solves = [i for i, ln in enumerate(lines) if solve_tag in ln]
+    assert len(mm_solves) > 0, "switch: the multimodal solve never ran"
+    assert min(mm_solves) > second_cycle, "switch: the multimodal solve ran in the alpha 0 cycle"
+    assert phi is not None and np.isfinite(phi["mean"].values).all(), "switch: phi not finite"
+
+    # an entry outside [0,1] stops the run with a clear message
+    rec, _ = run_case("bad", {"ies_reinflate_multimodal_alpha": "0.5,1.5"}, noptmax=1)
+    assert "must be in [0,1]" in rec, "bad entry: no clear error"
+
+
 def tenpar_ext_run_mgr_test():
     import inspect
 

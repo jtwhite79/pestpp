@@ -663,13 +663,18 @@ public:
 	/// solver for the current reinflation cycle: "ies", "esmda" or "enif", or empty when
 	/// ies_reinflate_solver was not given and ies_use_mda / ies_use_enif decide as before
 	string get_solver() const { return current_solver; }
+	/// multimodal alpha for the current reinflation cycle, or negative when
+	/// ies_reinflate_multimodal_alpha was not given and ies_multimodal_alpha decides as before
+	double get_multimodal_alpha() const { return current_mm_alpha; }
 
 private:
 	vector<int> n_iter_reinflate;
 	vector<double> reinflate_factor;
 	vector<int> reinflate_num_reals;
 	vector<string> reinflate_solver;
+	vector<double> reinflate_mm_alpha;
 	string current_solver;
+	double current_mm_alpha = -1.0;
 	int iters_since = 0;
 	int idx = 0;
 	int current_n_iter = 0;
@@ -964,6 +969,9 @@ public:
 	/// to what ies_use_mda / ies_use_enif say.  set by the ies loop from ies_reinflate_solver
 	void set_active_solver(const string& solver) { active_solver = solver; }
 	string get_active_solver() const { return active_solver; }
+	/// multimodal alpha for the solves that follow, or negative to go back to what
+	/// ies_multimodal_alpha says.  set by the ies loop from ies_reinflate_multimodal_alpha
+	void set_active_multimodal_alpha(double alpha) { active_mm_alpha = alpha; }
 	/// start a fresh esmda inflation schedule at the next esmda solve, spread over seg_len
 	/// iterations.  used when the loop switches into esmda from another solver or after a
 	/// reinflation, so the schedule is not indexed from iteration 1 of the whole run
@@ -1014,6 +1022,23 @@ protected:
 	bool mda_restart = false;
 	// empty means the solver comes from ies_use_mda / ies_use_enif
 	string active_solver;
+	// negative means alpha comes from ies_multimodal_alpha
+	double active_mm_alpha = -1.0;
+	// the multimodal alpha for this iteration's solve: the reinflation cycle's entry when
+	// ies_reinflate_multimodal_alpha is in use, otherwise the live ies_multimodal_alpha
+	double get_multimodal_alpha() const {
+		if (active_mm_alpha < 0.0)
+			return pest_scenario.get_pestpp_options().get_ies_multimodal_alpha();
+		return active_mm_alpha;
+	}
+	// true when any stage of the run uses the multimodal solve
+	bool any_multimodal_solve() const {
+		if (pest_scenario.get_pestpp_options().get_ies_reinflate_multimodal_alpha().empty())
+			return pest_scenario.get_pestpp_options().get_ies_multimodal_alpha() > 0.0;
+		for (auto a : pest_scenario.get_pestpp_options().get_ies_reinflate_multimodal_alpha())
+			if (a > 0.0) return true;
+		return false;
+	}
 	// true when the enif solve should be used for this iteration
 	bool use_enif_solve() const {
 		if (active_solver.empty())

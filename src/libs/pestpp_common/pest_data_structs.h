@@ -736,6 +736,8 @@ public:
     vector<double> get_ies_reinflate_factor() const {return ies_reinflate_factor;}
     void set_ies_reinflate_solver(vector<string> solvers)  { ies_reinflate_solver = solvers;}
     vector<string> get_ies_reinflate_solver() const {return ies_reinflate_solver;}
+    void set_ies_reinflate_multimodal_alpha(vector<double> alphas)  { ies_reinflate_multimodal_alpha = alphas;}
+    vector<double> get_ies_reinflate_multimodal_alpha() const {return ies_reinflate_multimodal_alpha;}
     void set_ies_aal_indicator_pars(vector<string> pars)  { ies_aal_indicator_pars = pars;}
     vector<string> get_ies_aal_indicator_pars() const {return ies_aal_indicator_pars;}
     void set_ies_run_realname(string name) {ies_run_realname = name;}
@@ -1150,6 +1152,7 @@ private:
 	vector<int> ies_n_iter_reinflate;
     vector<double> ies_reinflate_factor;
     vector<string> ies_reinflate_solver;
+    vector<double> ies_reinflate_multimodal_alpha;
     bool ies_updatebyreals;
     vector<string> ies_aal_indicator_pars;
     string ies_run_realname;

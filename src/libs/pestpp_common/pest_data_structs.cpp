@@ -1339,6 +1339,18 @@ bool PestppOptions::assign_ies_value_by_key(const string& key, const string& val
         }
         return true;
     }
+    else if (key == "IES_REINFLATE_MULTIMODAL_ALPHA")
+    {
+        //checked against [0,1] at initialize, with the rest of the setup errors
+        vector<string> tok;
+        tokenize(value, tok, ",");
+        ies_reinflate_multimodal_alpha.clear();
+        for (const auto& a : tok)
+        {
+            ies_reinflate_multimodal_alpha.push_back(convert_cp<double>(a));
+        }
+        return true;
+    }
     else if (key == "IES_UPDATE_BY_REALS")
     {
         ies_updatebyreals = pest_utils::parse_string_arg_to_bool(value);
@@ -2421,6 +2433,10 @@ os << endl << "...pestpp-swp options:" << endl;
     for (auto v : ies_reinflate_solver)
         os << v << ",";
     os << endl;
+    os << "ies_reinflate_multimodal_alpha: " << endl;
+    for (auto v : ies_reinflate_multimodal_alpha)
+        os << v << ",";
+    os << endl;
     os << "ies_updatebyreals: " << ies_updatebyreals << endl;
 
     os << "ies_autoadaloc_indicator_pars: " << endl;
@@ -2681,6 +2697,7 @@ void PestppOptions::set_defaults_legacy()
     set_ies_n_iter_reinflate(vector < int > {0});
     set_ies_reinflate_factor(vector < double > {1.0});
     set_ies_reinflate_solver(vector<string>());
+    set_ies_reinflate_multimodal_alpha(vector<double>());
     set_ies_run_realname("");
 	set_ies_reinflate_num_reals(vector<int>{0});
 	set_ies_use_phi_lambda_iters(false);

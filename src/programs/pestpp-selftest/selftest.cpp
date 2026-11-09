@@ -273,6 +273,41 @@ static void test_ies_reinflate_reset()
     CHK(o.get_init_only_change_warnings().empty(), "live reinflation reset post-init: no warning");
 }
 
+static void test_reinflate_multimodal_alpha_schedule()
+{
+    cout << "[ies_reinflate_multimodal_alpha: one alpha per reinflation cycle, last one held]" << endl;
+    Pest p; p.set_defaults();
+    PestppOptions* o = p.get_pestpp_options_ptr();
+    CHK(o->get_ies_reinflate_multimodal_alpha().empty(), "default is empty (ies_multimodal_alpha decides)");
+    CHK(!o->is_init_only("IES_REINFLATE_MULTIMODAL_ALPHA"), "the schedule is live, like the other reinflation lists");
+
+    // not given: the schedule hands back a negative alpha, which the solve reads as "use
+    // ies_multimodal_alpha"
+    {
+        ReinflationSchedule rs(p);
+        CHK(rs.get_multimodal_alpha() < 0.0, "no schedule: alpha is negative before any reinflation");
+        rs.advance();
+        CHK(rs.get_multimodal_alpha() < 0.0, "no schedule: still negative after a reinflation");
+    }
+
+    // walked like ies_reinflate_solver: entry 0 until the first reinflation, then entry 1,
+    // and the last entry held once the list runs out.  0 turns the multimodal solve off
+    o->set_option("IES_N_ITER_REINFLATE", "2");
+    o->set_option("IES_REINFLATE_MULTIMODAL_ALPHA", "0.0,0.25,1.0");
+    CHK((o->get_ies_reinflate_multimodal_alpha() == vector<double>{0.0, 0.25, 1.0}), "list parsed in order");
+    {
+        ReinflationSchedule rs(p);
+        CHK(rs.get_multimodal_alpha() == 0.0, "cycle 0 uses entry 0 (multimodal off)");
+        rs.advance();
+        CHK(rs.get_multimodal_alpha() == 0.25, "cycle 1 uses entry 1");
+        rs.advance();
+        CHK(rs.get_multimodal_alpha() == 1.0, "cycle 2 uses entry 2");
+        rs.advance();
+        CHK(rs.get_multimodal_alpha() == 1.0, "the last entry is held once the list runs out");
+        CHK(rs.get_n_iter() == 2, "the other lists still walk as before");
+    }
+}
+
 static void test_ies_ensemble_reset()
 {
     cout << "[ies ensemble source options: par/obs/noise reset semantics]" << endl;
@@ -4283,6 +4318,7 @@ int main()
     run_test(test_tool_defaults, "test_tool_defaults");
     run_test(test_constraints_live, "test_constraints_live");
     run_test(test_ies_reinflate_reset, "test_ies_reinflate_reset");
+    run_test(test_reinflate_multimodal_alpha_schedule, "test_reinflate_multimodal_alpha_schedule");
     run_test(test_ies_ensemble_reset, "test_ies_ensemble_reset");
     run_test(test_ies_iteration_controls, "test_ies_iteration_controls");
     run_test(test_mou_generation_controls, "test_mou_generation_controls");
