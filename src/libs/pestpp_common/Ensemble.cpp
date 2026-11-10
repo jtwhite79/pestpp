@@ -952,6 +952,14 @@ void Ensemble::keep_rows(const vector<string> &keep_names)
 			missing.push_back(n);
 	if (missing.size() > 0)
 		throw_ensemble_error("Ensemble::keep_rows() error: the following real names not found: ", missing);
+	//get_eigen() takes an empty row list as "all rows", so an empty keep list has to be
+	//handled here or the matrix keeps every row while the names are cleared
+	if (keep_names.size() == 0)
+	{
+		reals.resize(0, reals.cols());
+		real_names.clear();
+		return;
+	}
 	reals = get_eigen(keep_names, vector<string>());
 	real_names = keep_names;
 }

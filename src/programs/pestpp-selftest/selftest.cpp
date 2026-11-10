@@ -532,6 +532,38 @@ static void test_tool_objects_track_live_options()
 }
 
 
+static void test_ensemble_keep_rows_empty()
+{
+    cout << "[ensemble keep_rows with an empty list: rows and names must agree]" << endl;
+    Pest p; p.set_defaults();
+    std::mt19937 rgen(11);
+
+    vector<string> rnames{"R0","R1","R2"};
+    vector<string> vnames{"V0","V1"};
+    Eigen::MatrixXd m(3,2);
+    m << 1.0, 4.0,
+         2.0, 5.0,
+         3.0, 6.0;
+
+    // the mou archive hits this when the nondom list comes back empty: get_eigen() reads
+    // an empty row list as "all rows", so the matrix keeps every row while the names are
+    // cleared, and the next pareto sort sees shape() of 3 but no members
+    {
+        ObservationEnsemble oe(&p, &rgen, m, rnames, vnames);
+        oe.keep_rows(vector<string>());
+        CHK(oe.shape().first == (int)oe.get_real_names().size(), "keep_rows(empty names): row count matches the names");
+        CHK(oe.shape().first == 0, "keep_rows(empty names): no rows left");
+    }
+
+    // same thing through the index overload
+    {
+        ObservationEnsemble oe(&p, &rgen, m, rnames, vnames);
+        oe.keep_rows(vector<int>());
+        CHK(oe.shape().first == (int)oe.get_real_names().size(), "keep_rows(empty idxs): row count matches the names");
+        CHK(oe.shape().first == 0, "keep_rows(empty idxs): no rows left");
+    }
+}
+
 static void test_ensemble_zero_copy_view()
 {
     cout << "[zero-copy ensemble view: borrowed window + invalidation]" << endl;
@@ -4325,6 +4357,7 @@ int main()
     run_test(test_sqp_controls, "test_sqp_controls");
     run_test(test_tool_objects_track_live_options, "test_tool_objects_track_live_options");
     run_test(test_ensemble_zero_copy_view, "test_ensemble_zero_copy_view");
+    run_test(test_ensemble_keep_rows_empty, "test_ensemble_keep_rows_empty");
     run_test(test_run_map_survives_resize, "test_run_map_survives_resize");
     run_test(test_subset_names_survive_membership_change, "test_subset_names_survive_membership_change");
     run_test(test_read_file_tail, "test_read_file_tail");
