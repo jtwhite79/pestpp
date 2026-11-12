@@ -1809,7 +1809,9 @@ static void test_model_interface_obs_mismatch_messages()
     { ofstream f(ins); f << "pif ~" << endl << "l1 !la1! !la2!" << endl; }
     // the run clears the output file first, so the "model" has to put it back
 #ifdef _WIN32
-    const string cmd = "cmd /c copy /y " + src + " " + out;
+    // no slashes: model interface turns every / in a command into \, so "cmd /c copy" became
+    // "cmd \c copy" and cmd just sat at a prompt without copying anything
+    const string cmd = "powershell -NoProfile -Command Copy-Item " + src + " " + out;
 #else
     const string cmd = "cp " + src + " " + out;
 #endif
