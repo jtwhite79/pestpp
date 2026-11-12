@@ -165,7 +165,7 @@ void Pest::check_inputs(ostream &f_rec, bool forgive, bool forgive_parchglim, in
         prec = ctl_parameter_info.get_parameter_rec_ptr(pname);
         tran = prec->tranform_type;
         adj_par = true;
-        if ((tran == tranfixed) || (tran == tranfixed))
+        if ((tran == tranfixed) || (tran == trantied))
             adj_par = false;
         if (tran == trantied) {
             string partied = tied_map.at(pname).first;

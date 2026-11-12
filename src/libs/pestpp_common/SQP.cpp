@@ -2692,6 +2692,8 @@ bool SeqQuadProgram::update_hessian(string how)
 
 void SeqQuadProgram::update_scaling(const Eigen::VectorXd& step, const Eigen::VectorXd& grad) {
 	if (iter % scaling_update_frequency != 0) return;
+	if ((step.size() != (Eigen::Index)dv_names.size()) || (grad.size() != step.size()) ||
+		(diagonal_scaling.size() != step.size())) return;
 	Eigen::VectorXd rel_step = (step.array().abs() / (grad.array().abs() + 1e-10)).matrix();
 
 	double avg_step = rel_step.mean();

@@ -55,7 +55,7 @@ jobs:
           cp "$lib" python/pestpp/_binaries/
           # the command line tools go in too, so `pip install pestpp` puts pestpp-ies and
           # friends on PATH via the console scripts in pyproject.toml
-          for t in glm ies opt sen swp mou sqp da; do
+          for t in glm ies opt sen swp mou sqp da appl; do
             exe=$(find build -type f -name "pestpp-$t" | head -1)
             test -n "$exe" || { echo "::error::pestpp-$t was not built"; exit 1; }
             cp "$exe" python/pestpp/_binaries/
@@ -135,7 +135,7 @@ jobs:
           lib=$(find build -name 'pestpp-api.dylib' -o -name 'pestpp-api.dll' | head -1)
           test -n "$lib" || { echo "::error::the shared library was not built"; exit 1; }
           cp "$lib" python/pestpp/_binaries/
-          for t in glm ies opt sen swp mou sqp da; do
+          for t in glm ies opt sen swp mou sqp da appl; do
             exe=$(find build -type f \( -name "pestpp-$t" -o -name "pestpp-$t.exe" \) | head -1)
             test -n "$exe" || { echo "::error::pestpp-$t was not built"; exit 1; }
             cp "$exe" python/pestpp/_binaries/
