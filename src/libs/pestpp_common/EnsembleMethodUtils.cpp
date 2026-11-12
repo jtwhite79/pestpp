@@ -11044,6 +11044,9 @@ void EnsembleMethod::initialize_obscov()
 		{
 			oi->set_weight(cov_names[i], min(1.0 / sqrt(diag[i]), oi->get_weight(cov_names[i])));
 		}
+		// reinflation puts the control file weights back from org_obs_info, so it has to
+		// see this reset - otherwise the first reinflation undoes it
+		org_obs_info = pest_scenario.get_ctl_observation_info_copy();
 	}
 	else 
 		obscov = obscov.get(act_obs_names);
@@ -11086,6 +11089,21 @@ void EnsembleMethod::zero_weight_obs(vector<string>& obs_to_zero_weight, bool up
 			weights.get_eigen_ptr_4_mod()->col(weight_var_map.at(n)).setZero();
 		}
 	}
+	// reinflation puts the weights back from weights_base and org_obs_info, so zero these
+	// there too - otherwise the first reinflation gives them their weight back
+	if (weights_base.shape().first > 0)
+	{
+		// the var map is a cache and weights_base's is not kept current, so rebuild it first
+		weights_base.update_var_map();
+		map<string, int> base_var_map = weights_base.get_var_map();
+		for (auto n : obs_to_zero_weight)
+		{
+			if (base_var_map.find(n) != base_var_map.end())
+				weights_base.get_eigen_ptr_4_mod()->col(base_var_map.at(n)).setZero();
+		}
+	}
+	for (auto n : obs_to_zero_weight)
+		org_obs_info.set_weight(n, 0.0);
     act_obs_names = pest_scenario.get_ctl_ordered_nz_obs_names();
 	stringstream ss;
 	ss << "number of non-zero weighted observations reduced from " << org_nnz_obs;

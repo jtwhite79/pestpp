@@ -23,6 +23,7 @@
 #include <fstream>
 #include <limits>
 #include <filesystem>
+#include <functional>
 #include "../../libs/pestpp_common/Localizer.h"
 #include "../../libs/pestpp_common/SVDPackage.h"
 #include "../../libs/run_managers/yamr/RunManagerPanther.h"
@@ -35,6 +36,7 @@
 #include "constraints.h"
 #include "EnsembleView.h"
 #include "EnsembleMethodUtils.h"
+#include "EnsembleSmoother.h"
 #include "MOEA.h"
 #include "SQP.h"
 #include "model_interface.h"
@@ -63,6 +65,53 @@ struct IesProbe : public EnsembleMethod
     bool p_reinflate_minphi() const { return get_reinflate_to_minphi_real(); }
     vector<int> p_resolve(const vector<string>& n, const vector<string>& cur) const
     { return resolve_subset_idxs(n, cur); }
+};
+
+// the weight ensemble an ies run is actually using, read straight out of the object
+struct IesWeightProbe : public IterEnsembleSmoother
+{
+    using IterEnsembleSmoother::IterEnsembleSmoother;
+    // smallest and largest value in one observation's column of the weight ensemble
+    pair<double, double> ens_weight(const string& oname)
+    {
+        map<string, int> vmap = weights.get_var_map();
+        auto col = weights.get_eigen_ptr()->col(vmap.at(oname));
+        return make_pair(col.minCoeff(), col.maxCoeff());
+    }
+    // the same for the copy reinflation restores the weight ensemble from
+    pair<double, double> base_weight(const string& oname)
+    {
+        weights_base.update_var_map();
+        map<string, int> vmap = weights_base.get_var_map();
+        auto col = weights_base.get_eigen_ptr()->col(vmap.at(oname));
+        return make_pair(col.minCoeff(), col.maxCoeff());
+    }
+};
+
+// a run manager that runs the "model" in the test itself, so a whole ies startup can be
+// driven without an executable, template or instruction file
+struct InProcessRunManager : public RunManagerAbstract
+{
+    std::function<void(Parameters&, Observations&)> model;
+    InProcessRunManager(const string& rns_name, std::function<void(Parameters&, Observations&)> _model)
+        : RunManagerAbstract(vector<string>(), vector<string>(), vector<string>(), vector<string>(),
+                             vector<string>(), rns_name, 1), model(_model) {}
+    void run() override
+    {
+        const vector<string>& obs_names = file_stor.get_obs_name_vec();
+        int n = 0;
+        for (int id : get_outstanding_run_ids())
+        {
+            Parameters pars;
+            file_stor.get_parameters(id, pars);
+            Observations obs;
+            obs.insert(obs_names, vector<double>(obs_names.size(), 0.0));
+            model(pars, obs);
+            file_stor.update_run(id, pars, obs);
+            n++;
+        }
+        total_runs += n;
+    }
 };
 
 struct MouProbe : public MOEA
@@ -4451,6 +4500,151 @@ static void test_cmdline_version_only()
     }
 }
 
+static void test_reinflate_restores_startup_weights()
+{
+    cout << "[ies reinflation: the weights it restores are the ones startup ended with]" << endl;
+    // reinflation puts the weights back from two copies - weights_base for the weight
+    // ensemble and org_obs_info for the control file weights. those copies are taken early
+    // in initialize() and only taken again after startup if a phi factors file is used, so
+    // weights changed in between - conflicts dropped, obscov caps - came back undone at the
+    // first reinflation.
+    //
+    // two pars in [0,1], o1 = p1, o2 = p2, o3 = p1 + p2, o4 = p1, all weight 1
+    auto model = [](Parameters& pars, Observations& obs)
+    {
+        double p1 = pars.get_rec("P1"), p2 = pars.get_rec("P2");
+        obs.update_rec("O1", p1);
+        obs.update_rec("O2", p2);
+        obs.update_rec("O3", p1 + p2);
+        obs.update_rec("O4", p1);
+    };
+    struct Case
+    {
+        string name;
+        double o4_val;
+        vector<string> extra;
+    };
+    // drop_conflicts: o4 is observed at 100 and the model can only make 0 to 1, so it is in
+    // conflict and gets zero weight at startup.
+    // obscov: an sd of 2 on o1 caps its weight at 1/2. the others get an sd of 0.5, which
+    // leaves their weight of 1 alone (the cap is min(1/sd, weight))
+    {
+        ofstream f("selftest_reinfl_obscov.unc");
+        f << "START STANDARD_DEVIATION" << endl
+          << "o1 2.0" << endl << "o2 0.5" << endl << "o3 0.5" << endl << "o4 0.5" << endl
+          << "END STANDARD_DEVIATION" << endl;
+    }
+    vector<Case> cases = {
+        {"selftest_reinfl_conflict", 100.0, {"++ies_drop_conflicts(true)"}},
+        {"selftest_reinfl_obscov", 0.5, {"++obscov(selftest_reinfl_obscov.unc)"}},
+    };
+    for (auto& c : cases)
+    {
+        {
+            ofstream f(c.name + ".pst");
+            f << "pcf" << endl
+              << "* control data" << endl
+              << "restart estimation" << endl
+              << "2 4 1 0 2" << endl
+              << "1 1 single point 1 0 0" << endl
+              << "5.0 2.0 0.3 0.03 10" << endl
+              << "5.0 5.0 0.001" << endl
+              << "0.1" << endl
+              << "1 0.01 3 3 0.01 3" << endl
+              << "0 0 0" << endl
+              << "* parameter groups" << endl
+              << "pg relative 0.01 0.0 switch 2.0 parabolic" << endl
+              << "* parameter data" << endl
+              << "p1 none relative 0.5 0.0 1.0 pg 1.0 0.0 1" << endl
+              << "p2 none relative 0.5 0.0 1.0 pg 1.0 0.0 1" << endl
+              << "* observation groups" << endl
+              << "g1" << endl
+              << "g2" << endl
+              << "* observation data" << endl
+              << "o1 0.5 1.0 g1" << endl
+              << "o2 0.5 1.0 g1" << endl
+              << "o3 1.0 1.0 g1" << endl
+              << "o4 " << c.o4_val << " 1.0 g2" << endl
+              << "* model command line" << endl
+              << "echo" << endl
+              << "* model input/output" << endl
+              << "x.tpl x.dat" << endl
+              << "y.ins y.dat" << endl
+              << "++ies_num_reals(20)" << endl;
+            for (auto& e : c.extra)
+                f << e << endl;
+        }
+        stringstream cap;
+        streambuf* old = cout.rdbuf(cap.rdbuf());
+        string where = "startup";
+        try
+        {
+            ofstream flog(c.name + "_perf.log");
+            PerformanceLog pfm(flog);
+            FileManager fm(c.name);
+            ofstream& frec = fm.open_ofile_ext("rec");
+            Pest p;
+            {
+                ifstream fin(c.name + ".pst");
+                p.process_ctl_file(fin, c.name + ".pst", frec);
+            }
+            p.check_inputs(frec);
+            OutputFileWriter ofw(fm, p);
+            p.get_pestpp_options_ptr()->apply_tool_defaults(PestppOptions::ToolType::IES, frec);
+            InProcessRunManager rm(c.name + ".rns", model);
+            rm.initialize(p.get_base_par_tran_seq().ctl2model_cp(p.get_ctl_parameters()), p.get_ctl_observations());
+            IesWeightProbe ies(p, fm, ofw, &pfm, &rm);
+            ies.initialize();
+
+            // what startup ended with, for every observation
+            map<string, double> ctl_w0;
+            map<string, pair<double, double>> ens_w0;
+            for (string o : {"O1", "O2", "O3", "O4"})
+            {
+                ctl_w0[o] = p.get_observation_info_ptr()->get_weight(o);
+                ens_w0[o] = ies.ens_weight(o);
+            }
+            where = "reinflation";
+            ies.reinflate_par_ensemble(1.0, 0, 0);
+            cout.rdbuf(old);
+
+            if (c.name == "selftest_reinfl_conflict")
+            {
+                CHK(ctl_w0["O4"] == 0.0 && ens_w0["O4"].second == 0.0,
+                    "drop_conflicts: o4 is in conflict and has zero weight after startup");
+                auto bw = ies.base_weight("O4");
+                CHK(bw.first == 0.0 && bw.second == 0.0,
+                    "drop_conflicts: o4 is zero in weights_base after startup too (" +
+                    to_string(bw.first) + " to " + to_string(bw.second) + ")");
+            }
+            else
+            {
+                CHK(ctl_w0["O1"] == 0.5 && ens_w0["O1"].first == 0.5 && ens_w0["O1"].second == 0.5,
+                    "obscov: o1 is capped at 1/sd = 0.5 after startup, in the control file weights and the weight ensemble");
+            }
+            for (string o : {"O1", "O2", "O3", "O4"})
+            {
+                double w = p.get_observation_info_ptr()->get_weight(o);
+                auto ew = ies.ens_weight(o);
+                stringstream ss;
+                ss << c.name.substr(16) << ": " << o << " control file weight after reinflation is "
+                   << w << ", startup ended with " << ctl_w0[o];
+                CHK(w == ctl_w0[o], ss.str());
+                ss.str("");
+                ss << c.name.substr(16) << ": " << o << " weight ensemble after reinflation is "
+                   << ew.first << " to " << ew.second << ", startup ended with "
+                   << ens_w0[o].first << " to " << ens_w0[o].second;
+                CHK(ew == ens_w0[o], ss.str());
+            }
+        }
+        catch (const exception& e)
+        {
+            cout.rdbuf(old);
+            CHK(false, c.name + ": threw during " + where + ": " + e.what());
+        }
+    }
+}
+
 static void test_startup_report_precision()
 {
     cout << "[command line: the startup report leaves the stream's number format as it found it]" << endl;
@@ -4554,6 +4748,7 @@ int main()
     run_test(test_registry_equivalence, "test_registry_equivalence");
     run_test(test_cmdline_version_only, "test_cmdline_version_only");
     run_test(test_startup_report_precision, "test_startup_report_precision");
+    run_test(test_reinflate_restores_startup_weights, "test_reinflate_restores_startup_weights");
     run_test(test_irls_reweight, "test_irls_reweight");
     run_test(test_irls_max_dev, "test_irls_max_dev");
     run_test(test_enif_inflation_report, "test_enif_inflation_report");
