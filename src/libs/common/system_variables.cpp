@@ -316,20 +316,17 @@ string OperSys::getcwd()
 	// guard in CmdLine (utilities.cpp) compares narrow bytes, so switching encodings changes
 	// when it fires - it made the panther agent abort at startup in a non-ascii directory
 	// instead of connecting to the master. Keep the platform-native narrow calls.
-    #ifdef OS_WIN
 	char *buffer;
+    #ifdef OS_WIN
 	buffer = _getcwd( NULL, 0 );
-	string cwd(buffer);
-    free(buffer);
-	return cwd;
-    #endif
-    #ifdef OS_LINUX
-        char *buffer;
+    #else
 	buffer = ::getcwd( NULL, 0 );
-	string cwd(buffer);
-        free(buffer);
-	return cwd;
     #endif
+	if (buffer == nullptr)
+		throw runtime_error("OperSys::getcwd() error: could not get the current working directory");
+	string cwd(buffer);
+	free(buffer);
+	return cwd;
 }
 
 /**

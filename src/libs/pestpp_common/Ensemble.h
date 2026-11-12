@@ -41,7 +41,7 @@ struct EnsembleViewGuard
 	// a copy is a different ensemble with different storage, so it starts with a fresh token
 	// rather than sharing one - a view must never silently follow a copy
 	EnsembleViewGuard(const EnsembleViewGuard&) : token(std::make_shared<int>(0)) {}
-	EnsembleViewGuard& operator=(const EnsembleViewGuard&) { token = std::make_shared<int>(0); return *this; }
+	EnsembleViewGuard& operator=(const EnsembleViewGuard& o) { if (this != &o) token = std::make_shared<int>(0); return *this; }
 	EnsembleViewGuard(EnsembleViewGuard&& o) noexcept : token(std::make_shared<int>(0)) { o.token.reset(); }
 
 	/// Expire every outstanding view. Needed only where the whole matrix is swapped for a

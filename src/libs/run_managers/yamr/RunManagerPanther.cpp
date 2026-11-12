@@ -3465,11 +3465,13 @@ void RunManagerYAMRCondor::parse_submit_file()
 	{
 		try
 		{
+			if (tokens.size() < 2)
+				throw runtime_error("no count found on line '" + q_line + "'");
 			pest_utils::convert_ip(tokens[1], max_condor_queue);
 		}
 		catch (exception &e)
 		{
-			runtime_error("error converting '" + tokens[2] + "' from line '" + q_line + "' to int");
+			throw runtime_error("error converting 'queue' count from line '" + q_line + "' in submit file " + submit_file + " to int: " + e.what());
 		}
 	}
 }

@@ -5405,7 +5405,7 @@ pair<ParameterEnsemble, ParameterEnsemble> MOEA::get_updated_pso_velocity(Parame
 		cog_const = cog_const_range[0];
 	else if (cog_const_range.size() == 2)
 	{
-		cog_const = cog_const_range[0] + (cog_const_range[1] - cog_const_range[0]) * (iter / pest_scenario.get_control_info().noptmax);
+		cog_const = cog_const_range[0] + (cog_const_range[1] - cog_const_range[0]) * ((double)iter / (double)pest_scenario.get_control_info().noptmax);
 		message(1, "computing pso velocity using cognitive const: ", cog_const);
 	}
 	else
@@ -5416,7 +5416,7 @@ pair<ParameterEnsemble, ParameterEnsemble> MOEA::get_updated_pso_velocity(Parame
 		social_const = social_const_range[0];
 	else if (social_const_range.size() == 2)
 	{
-		social_const = social_const_range[0] + (social_const_range[1] - social_const_range[0]) * (iter / pest_scenario.get_control_info().noptmax);
+		social_const = social_const_range[0] + (social_const_range[1] - social_const_range[0]) * ((double)iter / (double)pest_scenario.get_control_info().noptmax);
 		message(1, "computing pso velocity using social const: ", social_const);
 	}
 	else

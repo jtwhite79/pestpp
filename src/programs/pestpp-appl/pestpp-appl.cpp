@@ -79,7 +79,12 @@ string read_file(const string& path)
 	{
 		long n = ftell(f);
 		if (n > 0) buf.reserve((size_t)n);
-		fseek(f, 0, SEEK_SET);
+	}
+	clearerr(f);
+	if (fseek(f, 0, SEEK_SET) != 0)
+	{
+		fclose(f);
+		fail("error reading file '" + path + "'");
 	}
 	size_t got;
 	while ((got = fread(chunk, 1, sizeof(chunk), f)) > 0) buf.append(chunk, got);
@@ -580,8 +585,10 @@ void parse_npy(const string& buf, const string& path, Array& a)
 		size_t k = hdr.find(key);
 		if (k == string::npos) fail("cannot read the header of '" + path + "'");
 		k = hdr.find(':', k);
+		if (k == string::npos) fail("cannot read the header of '" + path + "'");
 		size_t s = k + 1;
 		while (s < hdr.size() && hdr[s] == ' ') ++s;
+		if (s >= hdr.size()) fail("cannot read the header of '" + path + "'");
 		size_t t = s;
 		if (hdr[s] == '(') t = hdr.find(')', s) + 1;
 		else if (hdr[s] == '\'') t = hdr.find('\'', s + 1) + 1;
