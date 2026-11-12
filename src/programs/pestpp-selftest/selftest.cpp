@@ -4451,6 +4451,36 @@ static void test_cmdline_version_only()
     }
 }
 
+static void test_startup_report_precision()
+{
+    cout << "[command line: the startup report leaves the stream's number format as it found it]" << endl;
+    // startup_report is handed the rec file and cout, and both are used for the rest of
+    // the run.  it used to leave them at precision 1, so every later number in the rec
+    // came out as one digit - 17244.3 as 2e+04
+    vector<string> args = {"pestpp-ies", "pest.pst"};
+    vector<char*> argv;
+    for (auto& a : args) argv.push_back(&a[0]);
+    stringstream cap;
+    streambuf* old = cout.rdbuf(cap.rdbuf());
+    pest_utils::CmdLine cl((int)argv.size(), argv.data());
+    cout.rdbuf(old);
+
+    for (streamsize prec : {streamsize(6), streamsize(10)})
+    {
+        stringstream s;
+        s.precision(prec);
+        ios_base::fmtflags flags = s.flags();
+        cl.startup_report(s, "now");
+        CHK(s.precision() == prec, "precision " + to_string(prec) + " is the same after the report");
+        CHK(s.flags() == flags, "and so are the format flags");
+    }
+    stringstream s;
+    cl.startup_report(s, "now");
+    s.str("");
+    s << 17244.3 << " " << 0.0546282;
+    CHK(s.str() == "17244.3 0.0546282", "a number written after the report keeps its digits: " + s.str());
+}
+
 // a test that throws should count as a failure that names itself, not take the
 // whole selftest down with it - which is what happened on the windows ci runners,
 // where an uncaught exception is a silent exit 127.  every test goes through here
@@ -4523,6 +4553,7 @@ int main()
     signal(SIGILL, on_signal);
     run_test(test_registry_equivalence, "test_registry_equivalence");
     run_test(test_cmdline_version_only, "test_cmdline_version_only");
+    run_test(test_startup_report_precision, "test_startup_report_precision");
     run_test(test_irls_reweight, "test_irls_reweight");
     run_test(test_irls_max_dev, "test_irls_max_dev");
     run_test(test_enif_inflation_report, "test_enif_inflation_report");

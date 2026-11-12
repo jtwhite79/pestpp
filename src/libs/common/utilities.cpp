@@ -2532,6 +2532,9 @@ void CmdLine::startup_report(std::ostream &s, string start_string) {
 	// disk figure is for the working directory, not the machine, because that is the one that
 	// fills up and it is often not on the same mount as /.
 	const double to_gb = 1073741824.0;
+	// s is the rec file or cout for the rest of the run, so whatever precision these
+	// lines set sticks to every number written after them.  save it and put it back
+	streamsize org_prec = s.precision();
 	SysMemory mem = get_system_memory();
 	if (mem.valid)
 		s << "machine memory: " << fixed << setprecision(1) << (mem.total_bytes / to_gb)
@@ -2547,6 +2550,7 @@ void CmdLine::startup_report(std::ostream &s, string start_string) {
 	else
 		s << "storage in working directory: could not be read" << endl;
 	s.unsetf(ios_base::floatfield);
+	s.precision(org_prec);
 
 	if (start_string.size() > 0)
 		s << "started at " << start_string << endl << endl;
