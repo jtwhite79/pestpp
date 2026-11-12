@@ -42,7 +42,7 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-22.04, container: 'quay.io/pypa/manylinux_2_28_x86_64' }
-          - { os: macos-14,     container: '' }
+          - { os: macos-15,     container: '' }
           - { os: windows-2022, container: '' }
     outputs:
       version: ${{ steps.version.outputs.version }}
