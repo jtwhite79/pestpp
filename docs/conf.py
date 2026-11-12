@@ -16,7 +16,7 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "_doxygen", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "_doxygen", "Thumbs.db", ".DS_Store", "README.md"]
 
 # -- Breathe configuration ---------------------------------------------------
 # Path is relative to conf.py (i.e. docs/_doxygen/xml)
