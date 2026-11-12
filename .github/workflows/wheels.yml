@@ -94,11 +94,16 @@ jobs:
   native:
     name: ${{ matrix.os }} wheel
     runs-on: ${{ matrix.os }}
+    # the mac wheel is tagged macosx_11_0_arm64, so the library has to be built for macos 11.
+    # without this it targets the runner's macos and a user on anything older installs a wheel
+    # whose library will not load. cmake reads it on mac only
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14,     plat: macosx_11_0_arm64 }
+          - { os: macos-15,     plat: macosx_11_0_arm64 }
           - { os: windows-2022, plat: win_amd64 }
     defaults:
       run:
@@ -162,7 +167,7 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-latest, artifact: wheel-linux }
-          - { os: macos-14,      artifact: wheel-macos-14 }
+          - { os: macos-15,      artifact: wheel-macos-15 }
           - { os: windows-2022,  artifact: wheel-windows-2022 }
     steps:
       - uses: actions/setup-python@v6

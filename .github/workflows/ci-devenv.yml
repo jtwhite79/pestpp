@@ -13,12 +13,17 @@ jobs:
   pestpp-devenv:
     name: developer environment
     runs-on: ${{ matrix.os }}
+    # the mac binaries built here ship in the release (the diagnostic set), so they target
+    # the same macos as release.yml - without this they only run on the runner's macos or newer.
+    # cmake reads it on mac only
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     strategy:
       fail-fast: false
       matrix:
         include:
           #- {os: macos-latest, shell: bash}
-          - {os: macos-14, shell: bash}
+          - {os: macos-15, shell: bash}
           - {os: ubuntu-latest, shell: bash}
           - {os: ubuntu-22.04, shell: bash}
           - {os: windows-2022, shell: bash}
