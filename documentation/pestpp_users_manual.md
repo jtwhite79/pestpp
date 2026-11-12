@@ -2651,25 +2651,29 @@ The name of a file in an agent's working directory. The last few characters of t
 
 When several agents run on more than one machine, a single bad host - a failing disk, a missing model executable, a misconfigured environment - can consume a large share of a run batch. Each of its agents accepts work, fails it, and accepts more. Because the failures are spread across several agents, they can look like unrelated one-off problems rather than one machine at fault.
 
-PEST++ keeps a count of failed runs per host, summed across every agent on that host, and compares each host against the share of failures its size would lead you to expect:
+This check is off by default. When it is switched on by giving `panther_agent_max_failed_run_delta` a value above 0, PEST++ keeps, for each host, the number of runs it has finished or failed and the number that failed, summed across every agent on that host, and compares each host's failure rate with the failure rate of the other hosts still in service:
 
-> expected failures = (total failures) &times; (agents on host) &divide; (total agents)
+> expected failures = (runs on host) &times; (failures on other hosts) &divide; (runs on other hosts)
 
-A host is judged an outlier when its failures exceed that expected share by more than `panther_agent_max_failed_run_delta`. Scaling by agent count matters: a machine running eight agents does roughly eight times the work of one running a single agent, and should be expected to produce roughly eight times the failures. Comparing raw counts would penalise the largest machine simply for being the busiest.
+A host is judged an outlier when its failures exceed that expected number by more than `panther_agent_max_failed_run_delta`, *and* the difference between its failure rate and that of the other hosts is statistically significant (a two-proportion z score above 3.5). The comparison is made on runs rather than on agents because agents are not equal: a machine with faster processors completes more runs per agent, so it also meets more of the model's own failures. The significance test is there because the check is made continually as runs come back; a margin of a few failures on its own is crossed by chance once failures number in the tens.
 
-The comparison also means that a problem affecting all hosts equally - a model that fails for everyone, or badly chosen parameter bounds - does not trigger it. Every host then sits at its expected share and none is an outlier. Only a *concentration* of failures on one machine is flagged.
+Only failures that can be pinned on one host are counted. A run that has failed on two different hosts is taken to be a failure of the model at those parameter values, not of either host.
+
+The comparison also means that a problem affecting all hosts equally - a model that fails for some parameter values, or badly chosen parameter bounds - does not trigger it, however unevenly the runs are spread across hosts. Every host then fails at about the same rate and none is an outlier. Only a *concentration* of failures on one machine is flagged.
 
 When a host is judged an outlier, PEST++ does the following, and reports each step to the run management record file:
 
-- every agent on that host is moved to the QUARANTINED state. The agents remain connected and continue to respond, but are given no further runs. They are not disconnected: an agent that is disconnected simply reconnects and takes more work, and a closed connection reads like a network fault rather than a decision PEST++ made.
+- every agent on that host is moved to the QUARANTINED state. The agents remain connected and continue to respond to pings, but are given no further runs in the current batch. They are not disconnected: an agent that is disconnected simply reconnects and takes more work, and a closed connection reads like a network fault rather than a decision PEST++ made.
 - runs that failed on that host, together with any run active on it at the time, are returned to the waiting queue.
-- the failures recorded against those runs are forgiven, so that they are not counted towards `max_run_fail`. The runs failed because of where they were sent, not because of anything about the runs themselves.
+- the failures recorded against those runs on that host are forgiven, so that they are not counted towards `max_run_fail`. The runs failed because of where they were sent, not because of anything about the runs themselves. A run that has also failed on another host keeps its failures.
 
-A summary of quarantined hosts is written to the run management record file at the end of each set of runs, listing each host with its failure count, the expected share it exceeded, the number of agents removed, and the number of runs returned to the queue. A line is written when no host has been quarantined, so that its absence is not mistaken for the check not having run.
+At most one host is quarantined at a time, so each comparison is made without the hosts already removed. Quarantine lasts for the current batch of runs only: at the start of the next batch, the counts are reset and the agents on quarantined hosts are returned to service. A host that is genuinely at fault is quarantined again after a few failures, and those failures are forgiven when it is.
+
+A summary of quarantined hosts is written to the run management record file at the end of each batch, listing each host with its failure count, the expected number it exceeded, the number of agents removed, and the number of runs returned to the queue. A line is written when no host has been quarantined, so that its absence is not mistaken for the check not having run.
 
 The check applies only when agents are connected from more than one host, since a single host has nothing to be compared against. This is re-evaluated continually, so the check begins to apply as soon as a second host connects. PEST++ will not quarantine the last host still in service, as this would leave no agents to complete the batch.
 
-The default value is 3. A value of 0 disables the check entirely.
+The default value is 0, which disables the check. A value of 3 is a reasonable starting point when it is wanted.
 
 ## <a id='s9-4' />5.4 Run Book-Keeping Files
 

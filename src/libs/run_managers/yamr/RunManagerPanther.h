@@ -198,6 +198,31 @@ public:
 		bool agent_free, double giveup_minutes, double giveup_fac, double resched_fac, int max_n_failure,
 		int max_concurrent, double min_avg_for_fac, bool quit_requested);
 
+	/** the host screen, pulled out of quarantine_offending_hosts() so it can be tested without
+	sockets.  agents is every connected agent's host and state, host_attempts is the runs each
+	host has finished or failed, run_fail_hosts is, for each failed run, the hosts it failed on
+	and how often, and quarantined is the hosts already out of service.  returns the hosts to
+	quarantine now; empty when none. */
+	struct QuarantineAgentView
+	{
+		std::string host;
+		AgentInfoRec::State state;
+	};
+	struct QuarantineVerdict
+	{
+		std::string host;
+		int fails = 0;
+		int attempts = 0;
+		double expected = 0.0;
+		double z = 0.0;
+	};
+	static std::vector<QuarantineVerdict> decide_quarantine(const std::vector<QuarantineAgentView>& agents,
+		const std::map<std::string, int>& host_attempts,
+		const std::map<int, std::map<std::string, int>>& run_fail_hosts,
+		const std::set<std::string>& quarantined, int max_failed_run_delta);
+	/// whether an agent in this state gets pinged
+	static bool pingable_state(AgentInfoRec::State state);
+
 	RunManagerPanther(const std::string &stor_filename, const std::string &port, std::ofstream &_f_rmr, int _max_n_failure,
 		double overdue_reched_fac, double overdue_giveup_fac, double overdue_giveup_minutes, bool _should_echo = true, const vector<string>& par_names=vector<string>(),
 		const vector<string>& obs_names=vector<string>(),int _timeout_milliseconds=10,int _echo_interval_milliseconds=10,
@@ -326,10 +351,15 @@ private:
 	/// failures until they are added up - which is the point of counting by hostname rather
 	/// than by agent or socket. Keyed by AgentInfoRec::get_hostname().
 	std::unordered_map<std::string, int> host_failure_count;
-	/// Hosts taken out of service, and why - kept for the end-of-batch summary.
+	/// for each failed run, the hosts it failed on and how many times - what the host screen
+	/// judges from
+	std::map<int, std::map<std::string, int>> run_fail_hosts;
+	/// runs finished or failed per host - the screen's denominator
+	std::map<std::string, int> host_attempt_count;
+	/// Hosts taken out of service this batch, and why - kept for the end-of-batch summary.
 	std::map<std::string, std::string> quarantined_hosts;
 	/// Failure delta before a host is judged an outlier; 0 disables the check entirely.
-	int max_failed_run_delta = 3;
+	int max_failed_run_delta = 0;
 	std::set<int> user_cancelled_runs;   ///< runs a caller gave up on; never rescheduled
 	std::set<int> timed_out_runs;        ///< runs killed for running past the overdue threshold
 	std::chrono::system_clock::time_point batch_start_time;
@@ -448,6 +478,8 @@ private:
 	void quarantine_offending_hosts();
 	/// The end-of-batch summary of what was quarantined, or a line saying nothing was.
 	void report_quarantine_summary();
+	/// clear the host screen's tallies and quarantines at the start of a batch
+	void reset_host_screen();
 	void report(std::string message,bool to_cout);
 
 public:

@@ -149,6 +149,24 @@ the pattern behind it:
 
 this table came from actually calling everything on every tool, not from reading the source.
 
+## just running the model
+
+if you already have the parameter values and only want pest++ to do the plumbing - write the
+input files from the templates, run the command line(s), read the outputs through the
+instruction files - use `Model`. there is no tool behind it, so nothing to initialize or iterate:
+
+```python
+with pestpp.Model.from_pst("pest.pst", workdir="model_dir") as m:
+    sim = m.run({"hk1": 2.5})      # pd.Series of simulated values, control-file order
+    base = m.run()                 # the control file's own values
+```
+
+values are control-file values matched by name, and anything you dont name keeps its
+control-file value. tied parameters follow their parents and fixed ones keep their control-file
+value - passing a different value for either is an error, not something quietly ignored. it is
+one serial run, blocking, in `workdir`, and each run overwrites the last one's files. the c call
+underneath is `pestpp_run_model()` on a `PESTPP_MODEL` handle.
+
 ## stability
 
 **version 0.x. expect breaking changes. pin to a commit.**

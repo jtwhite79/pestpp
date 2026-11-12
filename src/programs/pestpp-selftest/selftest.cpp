@@ -44,6 +44,9 @@
 #include "SVDSolver.h"
 #include "SVDPackage.h"
 #include "Regularization.h"
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 using namespace std;
 using PO = PestppOptions;
@@ -1722,6 +1725,82 @@ static void test_model_interface_partial_across_files()
         remove(f.c_str());
 }
 
+#ifndef _WIN32
+static void test_failed_exec_does_not_clone()
+{
+    cout << "[a command that cannot be started is an error - it does not clone this process]" << endl;
+    // the forked child used to throw when execvp() failed, and that exception unwound up a
+    // COPY of the caller's stack - so the child carried on running whatever called it. here
+    // that would be a second copy of this selftest, which leaves a marker and leaves
+    const string marker = "selftest_exec_clone.marker";
+    remove(marker.c_str());
+    pid_t me = getpid();
+    bool threw = false;
+    try
+    {
+        pest_utils::run_commands(vector<string>{"selftest_no_such_command_xyz"}, nullptr, false, 5);
+    }
+    catch (const std::exception&) { threw = true; }
+    if (getpid() != me)
+    {
+        { ofstream f(marker); f << "clone" << endl; }
+        _exit(0);
+    }
+    CHK(!filesystem::exists(marker), "the child of a failed exec carried on as a copy of the caller");
+    CHK(threw, "a command that cannot be started should be an error");
+    remove(marker.c_str());
+}
+#endif
+
+static void test_model_interface_obs_mismatch_messages()
+{
+    cout << "[ins/control file observation mismatches name the right side]" << endl;
+    const string src = "selftest_lbl.src", out = "selftest_lbl.out", ins = "selftest_lbl.ins";
+    { ofstream f(src); f << " 1.5 2.5" << endl; }
+    { ofstream f(ins); f << "pif ~" << endl << "l1 !la1! !la2!" << endl; }
+    // the run clears the output file first, so the "model" has to put it back
+#ifdef _WIN32
+    const string cmd = "cmd /c copy /y " + src + " " + out;
+#else
+    const string cmd = "cp " + src + " " + out;
+#endif
+    vector<string> none;
+    vector<string> insv{ins}, outv{out}, cmdv{cmd};
+
+    auto run_with = [&](const vector<string>& pst_obs) -> string
+    {
+        ModelInterface mi(none, none, insv, outv, cmdv);
+        mi.set_num_threads(1);
+        mi.set_sleep_ms(5);
+        mi.set_should_echo(false);
+        Parameters pars;
+        Observations obs;
+        for (auto& o : pst_obs)
+            obs.insert(o, 0.0);
+        try { mi.run(&pars, &obs); }
+        catch (const std::exception& e) { return e.what(); }
+        return "";
+    };
+
+    // LX is in the control file but no instruction reads it
+    string msg = run_with(vector<string>{"LA1", "LA2", "LX"});
+    CHK(msg.find("control file observations are not in the instruction files") != string::npos,
+        "a control file observation the ins files do not read is reported as such");
+    CHK(msg.find("LX") != string::npos, "and it is named");
+
+    // LA2 is read by the instructions but the control file does not have it
+    msg = run_with(vector<string>{"LA1"});
+    CHK(msg.find("instruction observations are not in the control file") != string::npos,
+        "an ins observation the control file does not have is reported as such");
+    CHK(msg.find("LA2") != string::npos, "and it is named");
+
+    // and when they agree, the values come through
+    CHK(run_with(vector<string>{"LA1", "LA2"}).empty(), "matching sets run cleanly");
+
+    for (auto& f : {src, out, ins})
+        remove(f.c_str());
+}
+
 /**
  * @brief Byte-by-byte truncation of a REAL instruction set, not a synthetic one.
  *
@@ -3339,6 +3418,122 @@ static void test_overdue_decision()
     CHK(dec(0.5, 0.1, 0, 1, true, 0.25, 3.0).why == "giveup_minutes", "both over -> labelled giveup_minutes");
 }
 
+static void test_quarantine_screen()
+{
+    cout << "[panther: the host screen judges failure rates, not agent counts, and leaves the model's failures alone]" << endl;
+    using S = AgentInfoRec::State;
+    using V = RunManagerPanther::QuarantineAgentView;
+    auto add_agents = [](vector<V>& agents, const string& host, int n, S state)
+    {
+        for (int i = 0; i < n; i++)
+            agents.push_back({ host, state });
+    };
+    // n failed runs on one host, run ids from first
+    auto add_fails = [](map<int, map<string, int>>& rf, const string& host, int first, int n)
+    {
+        for (int i = first; i < first + n; i++)
+            rf[i][host]++;
+    };
+    auto quarantined_hosts = [](const vector<RunManagerPanther::QuarantineVerdict>& v)
+    {
+        set<string> s;
+        for (auto& q : v)
+            s.insert(q.host);
+        return s;
+    };
+
+    // the reported run, at the moment the first host went: a model that fails ~13% of its runs
+    // everywhere, a fast host doing 61% of the work with half the agents. its failure RATE is
+    // the lowest of the three (23/183 vs 13/85 and 3/32), so there is nothing to quarantine
+    {
+        vector<V> agents;
+        add_agents(agents, "numerix", 60, S::ACTIVE);
+        add_agents(agents, "obelix", 40, S::ACTIVE);
+        add_agents(agents, "localhost", 20, S::ACTIVE);
+        map<string, int> attempts{ {"numerix", 183}, {"obelix", 85}, {"localhost", 32} };
+        map<int, map<string, int>> rf;
+        add_fails(rf, "numerix", 0, 23);
+        add_fails(rf, "obelix", 100, 13);
+        add_fails(rf, "localhost", 200, 3);
+        auto v = RunManagerPanther::decide_quarantine(agents, attempts, rf, {}, 3);
+        CHK(v.empty(), "a fast host with the lowest failure rate is not quarantined for doing more of the work");
+    }
+
+    // the cascade: the first host's failed runs were forgiven and requeued, and they failed
+    // again on the next host. a run that fails on two hosts is the model's failure, not either
+    // host's - counted against obelix it took obelix out too (100 against an expected 96.7)
+    {
+        vector<V> agents;
+        add_agents(agents, "numerix", 60, S::QUARANTINED);
+        add_agents(agents, "obelix", 40, S::ACTIVE);
+        add_agents(agents, "localhost", 20, S::ACTIVE);
+        map<string, int> attempts{ {"numerix", 242}, {"obelix", 330}, {"localhost", 105} };
+        map<int, map<string, int>> rf;
+        add_fails(rf, "numerix", 0, 29);
+        add_fails(rf, "obelix", 0, 25);     // the forgiven runs, failing again
+        add_fails(rf, "obelix", 300, 75);
+        add_fails(rf, "localhost", 500, 16);
+        auto v = RunManagerPanther::decide_quarantine(agents, attempts, rf, { "numerix" }, 3);
+        CHK(v.empty(), "runs that also failed on another host are not held against the host they failed on next");
+    }
+
+    // an agent on a quarantined host finishes the run it was on: its state moves to COMPLETE
+    // for a moment. that is not the host coming back into service - it was being judged again
+    // as a one-agent host, quarantined again and its failed runs forgiven again (90 times)
+    {
+        vector<V> agents;
+        add_agents(agents, "numerix", 59, S::QUARANTINED);
+        add_agents(agents, "numerix", 1, S::COMPLETE);
+        add_agents(agents, "obelix", 40, S::ACTIVE);
+        add_agents(agents, "localhost", 20, S::ACTIVE);
+        map<string, int> attempts{ {"numerix", 183}, {"obelix", 85}, {"localhost", 32} };
+        map<int, map<string, int>> rf;
+        add_fails(rf, "numerix", 0, 23);
+        add_fails(rf, "obelix", 100, 13);
+        add_fails(rf, "localhost", 200, 3);
+        auto v = RunManagerPanther::decide_quarantine(agents, attempts, rf, { "numerix" }, 3);
+        CHK(quarantined_hosts(v).count("numerix") == 0, "a host already quarantined is not judged again when one of its agents finishes a run");
+    }
+
+    // what the screen is for: one host fails everything, the other nothing
+    {
+        vector<V> agents;
+        add_agents(agents, "bad", 2, S::ACTIVE);
+        add_agents(agents, "good", 2, S::ACTIVE);
+        map<string, int> attempts{ {"bad", 12}, {"good", 12} };
+        map<int, map<string, int>> rf;
+        add_fails(rf, "bad", 0, 12);
+        auto v = RunManagerPanther::decide_quarantine(agents, attempts, rf, {}, 3);
+        CHK(quarantined_hosts(v) == set<string>{ "bad" }, "a host failing everything while another fails nothing is quarantined");
+        // and the same with the bad host doing most of the work - it fails FASTER, so it gets more
+        attempts = { {"bad", 40}, {"good", 6} };
+        rf.clear();
+        add_fails(rf, "bad", 0, 40);
+        v = RunManagerPanther::decide_quarantine(agents, attempts, rf, {}, 3);
+        CHK(quarantined_hosts(v) == set<string>{ "bad" }, "still caught when it did most of the runs");
+        CHK(RunManagerPanther::decide_quarantine(agents, attempts, rf, {}, 0).empty(), "delta 0 turns the screen off");
+    }
+
+    // the same failure rate everywhere is the model, however unevenly the work is spread
+    {
+        vector<V> agents;
+        add_agents(agents, "fast", 10, S::ACTIVE);
+        add_agents(agents, "slow", 10, S::ACTIVE);
+        map<string, int> attempts{ {"fast", 800}, {"slow", 200} };
+        map<int, map<string, int>> rf;
+        add_fails(rf, "fast", 0, 160);
+        add_fails(rf, "slow", 1000, 40);
+        CHK(RunManagerPanther::decide_quarantine(agents, attempts, rf, {}, 3).empty(),
+            "20% failures on both hosts quarantines neither, whatever the share of the work");
+    }
+
+    // quarantined agents are kept connected so they can be put back to work - which needs them
+    // to be pinged. unpinged, every one of them exited on its no-ping timeout
+    CHK(RunManagerPanther::pingable_state(S::QUARANTINED), "quarantined agents are still pinged");
+    CHK(RunManagerPanther::pingable_state(S::WAITING) && RunManagerPanther::pingable_state(S::ACTIVE),
+        "waiting and active agents are pinged");
+}
+
 static void test_enif_woodbury_step()
 {
     cout << "[enif: woodbury step with an explicit sparse H matches the dense normal equations]" << endl;
@@ -4336,6 +4531,7 @@ int main()
     run_test(test_zero_obs_diff_trap, "test_zero_obs_diff_trap");
     run_test(test_localizer_combine_common, "test_localizer_combine_common");
     run_test(test_overdue_decision, "test_overdue_decision");
+    run_test(test_quarantine_screen, "test_quarantine_screen");
     run_test(test_enif_woodbury_step, "test_enif_woodbury_step");
     run_test(test_enif_lowrank_step, "test_enif_lowrank_step");
     run_test(test_enif_supplied_prec_hybrid, "test_enif_supplied_prec_hybrid");
@@ -4369,6 +4565,10 @@ int main()
     run_test(test_partial_capability_handshake, "test_partial_capability_handshake");
     run_test(test_instruction_file_partial_reads_are_never_wrong, "test_instruction_file_partial_reads_are_never_wrong");
     run_test(test_model_interface_partial_across_files, "test_model_interface_partial_across_files");
+#ifndef _WIN32
+    run_test(test_failed_exec_does_not_clone, "test_failed_exec_does_not_clone");
+#endif
+    run_test(test_model_interface_obs_mismatch_messages, "test_model_interface_obs_mismatch_messages");
     run_test(test_instruction_file_partial_real_case, "test_instruction_file_partial_real_case");
     run_test(test_instruction_file_partial_remaining_branches, "test_instruction_file_partial_remaining_branches");
     run_test(test_quit_file_tokens, "test_quit_file_tokens");

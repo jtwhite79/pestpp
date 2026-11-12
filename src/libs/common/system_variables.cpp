@@ -427,6 +427,8 @@ int start(string &cmd_string)
 	//argv[cmds.size() + 1] = NULL; //last arg must be NULL
    
 	arg_v.push_back(NULL);
+	// built before the fork: the child of a threaded process should not allocate
+	string exec_fail_msg = "error: could not start command '" + cmd_string + "'\n";
 	pid_t pid = fork();
 	if (pid == 0)
 	{
@@ -434,12 +436,14 @@ int start(string &cmd_string)
 //        int fd = open("stdout.dat", O_CREAT);
 //        dup2(fd, 1);
 //        std::cout << "file descrp " << fd << std::endl;
-		int success = execvp(arg_v[0], const_cast<char* const*>(&(arg_v[0])));
-		if (success == -1)
-		{
-			throw std::runtime_error("execv() failed for command: " + cmd_string);
-		}
-
+		execvp(arg_v[0], const_cast<char* const*>(&(arg_v[0])));
+		// only reached if the exec failed. the child must leave here and now - it used to
+		// throw, and that exception unwound up a copy of the parent's stack, so the child
+		// carried on as a second copy of the caller (a second pest++, or a second copy of
+		// whatever process loaded the api). the parent sees the nonzero exit and reports it
+		ssize_t nw = write(STDERR_FILENO, exec_fail_msg.data(), exec_fail_msg.size());
+		(void)nw;
+		_exit(127);
 	}
 	else
 	{

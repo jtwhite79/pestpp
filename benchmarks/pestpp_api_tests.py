@@ -23,9 +23,9 @@ from fixture_utils import scratch_template
 _BENCH = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.dirname(_BENCH)
 sys.path.insert(0, os.path.join(_REPO, "python"))
-from pestpp.pestpp_lib import NOISE_EN  # noqa: E402
+from pestpp.pestpp_lib import NOISE_EN, PestppLib, TOOL_MODEL, RM_PANTHER  # noqa: E402
 from pestpp import (  # noqa: E402
-    Ies, Da, Mou, Sqp, Glm, Opt, IterationStep, PestppError, ExpiredViewError, find_library,
+    Ies, Da, Mou, Sqp, Glm, Opt, Model, IterationStep, PestppError, ExpiredViewError, find_library,
     run_ies, PHI_ACTUAL,
 )
 
@@ -3074,6 +3074,188 @@ def api_glm_jacobian_stages_test():
     print("api_glm_jacobian_stages_test passed")
 
 
+def _model_by_hand(pst, d):
+    """pyemu doing the model plumbing: write inputs from parval1, run, read through the ins.
+
+    one template at a time with write_to_template() rather than write_input_files(), which
+    spawns a process per chunk - and a spawned child re-imports pytest's main and runs the
+    whole selection again inside itself.
+
+    process_output_files() hands back a one-column frame despite its docstring, so it is
+    flattened here - comparing a (n, 1) against a (n,) broadcasts to (n, n) and fails on
+    values that agree.
+    """
+    par = pst.parameter_data
+    vals = (par.parval1 * par.scale) + par.offset
+    for tpl, inp in zip(pst.template_files, pst.input_files):
+        pyemu.pst_utils.write_to_template(vals, os.path.join(d, tpl), os.path.join(d, inp))
+    pyemu.os_utils.run(pst.model_command[0], cwd=d)
+    out = pst.process_output_files(pst_path=d)
+    if isinstance(out, pd.DataFrame):
+        out = out.iloc[:, 0]
+    out.index = [n.upper() for n in out.index]
+    return out
+
+
+def api_model_run_test():
+    """A tool-free handle runs the model once per call: tpl -> command -> ins, results back.
+
+    Checked against pyemu doing the same plumbing by hand - write the input files, run the
+    model, read the outputs through the instruction files - so this is not pest++ agreeing with
+    itself. Then the edges: partial vectors, fixed/tied/log refusals, a failed model, the
+    sizing call running nothing, and the tool calls refusing.
+    """
+    d = _case("api_model_run", noptmax=1, num_reals=5)
+    pst = pyemu.Pst(os.path.join(d, "pest.pst"))
+    hds = os.path.join(d, "10par_xsec.hds")
+
+    with Model.from_pst("pest.pst", workdir=d) as m:
+        # the sizing call runs nothing
+        if os.path.exists(hds):
+            os.remove(hds)
+        names = m.obs_names
+        assert names == [n.upper() for n in pst.obs_names], names
+        assert not os.path.exists(hds), "asking for the observation names ran the model"
+
+        # control-file values as they are, against pyemu doing it by hand
+        base = m.run()
+        assert list(base.index) == names
+        by_hand = _model_by_hand(pst, d)
+        assert np.allclose(base.values, by_hand.loc[names].values), (base, by_hand)
+
+        # a partial vector changes only what it names, and changes the answer
+        adj = [n for n in pst.adj_par_names if n.startswith("k_")]
+        new = m.run({adj[0]: 7.5})
+        hk = np.loadtxt(os.path.join(d, "hk_Layer_1.ref")).ravel()
+        assert 7.5 in hk and 2.5 in hk, hk
+        assert not np.allclose(new.values, base.values), "changing a parameter changed nothing"
+
+        # same pars again, same answer - nothing carried over from the run in between
+        again = m.run()
+        assert np.allclose(again.values, base.values)
+
+        # same thing by hand: parval1 changed in the pst, pyemu writes, model runs, pyemu reads
+        pst.parameter_data.loc[adj[0], "parval1"] = 7.5
+        by_hand = _model_by_hand(pst, d)
+        assert np.allclose(new.values, by_hand.loc[names].values), (new, by_hand)
+        pst.parameter_data.loc[adj[0], "parval1"] = 2.5
+
+        # lower=True for joining with pyemu
+        assert list(m.run(lower=True).index) == pst.obs_names
+
+        # a fixed parameter: its own value back is fine, anything else is refused
+        fixed = pst.parameter_data.loc[pst.parameter_data.partrans == "fixed", "parnme"].tolist()
+        assert fixed, "fixture has no fixed parameter"
+        fval = float(pst.parameter_data.loc[fixed[0], "parval1"])
+        m.run({fixed[0]: fval})
+        try:
+            m.run({fixed[0]: fval * 3.0})
+        except PestppError as e:
+            assert "fixed" in str(e), e
+        else:
+            raise AssertionError("a new value for a fixed parameter was accepted")
+
+        # log parameter at zero would reach the model as nan
+        try:
+            m.run({adj[0]: 0.0})
+        except PestppError as e:
+            assert "above zero" in str(e), e
+        else:
+            raise AssertionError("a log parameter at zero was accepted")
+
+        # a name the control file does not have
+        try:
+            m.run({"not_a_par": 1.0})
+        except PestppError as e:
+            assert "not a parameter" in str(e), e
+        else:
+            raise AssertionError("an unknown parameter name was accepted")
+
+        # no tool: the tool calls refuse rather than crash
+        try:
+            m.lib.initialize()
+        except PestppError as e:
+            assert "model handle" in str(e), e
+        else:
+            raise AssertionError("a model handle accepted initialize()")
+
+    # tied parameters follow their parent; passing a different value is refused
+    d2 = _case("api_model_tied", noptmax=1, num_reals=5)
+    pst2 = pyemu.Pst(os.path.join(d2, "pest.pst"))
+    adj = [n for n in pst2.adj_par_names if n.startswith("k_")]
+    pst2.parameter_data.loc[adj[1], "partrans"] = "tied"
+    pst2.parameter_data.loc[adj[1], "partied"] = adj[2]
+    pst2.write(os.path.join(d2, "pest.pst"), version=2)
+    with Model.from_pst("pest.pst", workdir=d2) as m:
+        m.run({adj[2]: 5.0})
+        hk = np.loadtxt(os.path.join(d2, "hk_Layer_1.ref")).ravel()
+        assert (hk == 5.0).sum() >= 2, ("the tied parameter did not follow its parent", hk)
+        try:
+            m.run({adj[1]: 9.0})
+        except PestppError as e:
+            assert "tied" in str(e), e
+        else:
+            raise AssertionError("a new value for a tied parameter was accepted")
+
+    # a model that fails is an error with a reason, not a row of garbage - both a command that
+    # runs and fails, and one that cannot be started at all. the second used to clone this
+    # process: the forked child threw when exec failed and carried on running the caller
+    for label, cmd in (("fails", "mfnwt not_a_real.nam"),
+                       ("missing", "not_a_real_model_command")):
+        d3 = _case("api_model_fail_" + label, noptmax=1, num_reals=5)
+        pst3 = pyemu.Pst(os.path.join(d3, "pest.pst"))
+        pst3.model_command = [cmd]
+        pst3.write(os.path.join(d3, "pest.pst"), version=2)
+        if os.path.exists(os.path.join(d3, "10par_xsec.hds")):
+            os.remove(os.path.join(d3, "10par_xsec.hds"))
+        me = os.getpid()
+        with Model.from_pst("pest.pst", workdir=d3) as m:
+            try:
+                m.run()
+            except PestppError:
+                pass
+            else:
+                raise AssertionError("a model that never ran returned results ({0})".format(label))
+        if os.getpid() != me:
+            os._exit(1)        # a clone of this process - get out before it runs anything else
+
+    # panther makes no sense for a run in this process
+    try:
+        PestppLib(find_library(), TOOL_MODEL, "pest.pst", d, port="4004",
+                  run_manager=RM_PANTHER)
+    except PestppError as e:
+        assert "serial" in str(e), e
+    else:
+        raise AssertionError("a model handle was created with the panther run manager")
+    print("api_model_run_test passed")
+
+
+def api_glm_noptmax_option_test():
+    """noptmax set as an option, after the handle exists, is what glm actually uses.
+
+    glm used to copy noptmax and the termination criteria in its constructor, which runs at
+    create - before from_pst() sets any option. so the option was accepted, reported back by
+    get_option(), and ignored: the control file's value ran instead.
+    """
+    # control file says 2, option says 0: noptmax=0 is the single forward run that a deferred
+    # initialize hands over, so prepare should report exactly one run waiting
+    d = _case("api_glm_noptmax_zero", noptmax=2, num_reals=5)
+    with Glm.from_pst("pest.pst", workdir=d, noptmax=0) as glm:
+        assert glm.noptmax == 0, glm.noptmax
+        n = glm.initialize(defer_runs=True)
+        assert n == 1, "noptmax=0 set as an option: prepare handed over {0} runs, not 1".format(n)
+
+    # control file says 1, option says 3: after one iteration glm must not think it is done
+    d = _case("api_glm_noptmax_three", noptmax=1, num_reals=5)
+    with Glm.from_pst("pest.pst", workdir=d, noptmax=3) as glm:
+        glm.initialize()
+        glm.solve()
+        assert not glm.should_terminate, (
+            "glm stopped after 1 iteration with noptmax=3 set as an option - it is still "
+            "using the control file's noptmax=1")
+    print("api_glm_noptmax_option_test passed")
+
+
 def api_glm_jco_and_par_vector_test():
     """glm's own surface: the parameter VECTOR and the Jacobian, in the shapes users work in.
 
@@ -3305,6 +3487,8 @@ def api_sqp_needs_an_ensemble_gradient_test():
 
 if __name__ == "__main__":
     api_smoke_test()
+    api_model_run_test()
+    api_glm_noptmax_option_test()
     api_iterations_respect_noptmax_test()
     api_par_df_roundtrip_test()
     api_par_view_is_live_test()
