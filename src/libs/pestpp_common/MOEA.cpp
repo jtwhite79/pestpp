@@ -697,6 +697,10 @@ map<string, double> ParetoObjectives::get_spea2_fitness(int generation, Observat
 	ofstream& frec = file_manager.rec_ofstream();
 	ss << "ParetoObjectives::get_spea2_fitness() for " << op.shape().first << " population members";
 	performance_log->log_event(ss.str());
+	// spea does not use probabilistic dominance. this has to be set before update() sorts, the
+	// same as get_nsga2_pareto_dominance() does - it was left unset, and whatever was in memory
+	// could send the sort down the ppd path and die looking for _sd entries that are not there
+	ppd_sort = false;
 	update(op, dp, constraints_ptr);
 
 	if (member_struct.size() == 0)
@@ -3160,6 +3164,9 @@ int MOEA::initialize_prepare()
 	}
 	else
 	{
+		// objectives has to be told too, the same as for nsga - otherwise its flag is never set
+		prob_pareto = false;
+		objectives.set_prob_pareto(prob_pareto);
 		message(1, "using 'spea2' env selector");
 	}
 
