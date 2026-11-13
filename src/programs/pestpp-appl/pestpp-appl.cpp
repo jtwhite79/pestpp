@@ -53,10 +53,12 @@ namespace
 // std::from_chars for floating point is missing from older standard libraries (libc++ before 20,
 // libstdc++ before 11). strtod is the fallback there: correct, but it takes a process-wide lock on
 // some platforms, so threads then give less speed-up.
+// apple's libc++ also has it but only allows it when targeting macos 26, so with an older
+// deployment target (the release and wheel builds) the availability flag turns it off.
 // (define APPL_NO_FP_FROM_CHARS to force the fallback, for testing)
 #if defined(APPL_NO_FP_FROM_CHARS)
 #elif defined(_LIBCPP_VERSION)
-#if _LIBCPP_VERSION >= 200000
+#if _LIBCPP_VERSION >= 200000 && (!defined(_LIBCPP_AVAILABILITY_HAS_FROM_CHARS_FLOATING_POINT) || _LIBCPP_AVAILABILITY_HAS_FROM_CHARS_FLOATING_POINT)
 #define APPL_HAVE_FP_FROM_CHARS 1
 #endif
 #elif defined(__cpp_lib_to_chars) || defined(_MSC_VER)

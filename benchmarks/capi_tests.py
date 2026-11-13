@@ -2287,7 +2287,10 @@ def capi_host_quarantine_test():
         "no non-loopback address found ({0}) - the two-host arrangement needs one".format(lan_addr)
     print("second host will dial", lan_addr)
 
-    good_wd = _setup("capi_quar", noptmax=1, num_reals=12)
+    # 30, not 12: when one host fails everything and the other nothing, the screen's z comes out
+    # as sqrt(total attempts) however the runs are split, so 12 runs top out at 3.46 - under the
+    # 3.5 it needs. it only passed when a retry happened to add a 13th attempt
+    good_wd = _setup("capi_quar", noptmax=1, num_reals=30)
 
     # the screen is off by default (0), so it has to be switched on. a host is screened out when
     # its failures pass what the other host's failure rate predicts by more than the allowance
